@@ -25,14 +25,30 @@ namespace Menu_view { struct Bar_widget; }
 
 struct Menu_view::Bar_widget : Widget
 {
-	unsigned _length { 0 };
+	unsigned _length     { 0 };
 
-	Color    _color { 0, 0, 0 };
-	Area     _size  { 16, 16 };
+	Color    _color      { 0, 0, 0 };
+	Color    _color_text { 0, 255, 0 };
+	Area     _size       { 16, 16 };
 
-	Color _update_color(Xml_node node)
+	Text_painter::Font const *_font { nullptr };
+
+	typedef String<32> Text;
+	Text _text { };
+
+	Color _update_color_bar(Xml_node node)
 	{
 		return node.attribute_value("color", _color);
+	}
+
+	Color _update_color_text(Xml_node node)
+	{
+		if (!node.has_attribute("textcolor")) {
+			_font = nullptr;
+			return _color_text;
+		}
+
+		return node.attribute_value("textcolor", _color_text);
 	}
 
 	Bar_widget(Widget_factory &factory, Xml_node node, Unique_id unique_id)
@@ -40,13 +56,22 @@ struct Menu_view::Bar_widget : Widget
 
 	void update(Xml_node node) override
 	{
-		_color = _update_color(node);
+		_font       = _factory.styles.font(node);
+
+		_color      = _update_color_bar(node);
+		_color_text = _update_color_text(node);
+
+		_text = node.attribute_value("text", Text(""));
 
 		unsigned int percent = node.attribute_value("percent", 100u);
 		if (percent > 100) { percent = 100; }
 
-		unsigned int const w = node.attribute_value("width", _size.w());
-		unsigned int const h = node.attribute_value("height", _size.h());
+		unsigned int w = node.attribute_value("width", 0U);
+		unsigned int h = node.attribute_value("height", 0U);
+
+		if (_font && !h) h = _font->height();
+		if (!w) w = _size.w();
+		if (!h) h = _size.h();
 
 		_size   = Area(w, h);
 		_length = percent ? _size.w() / (100u / percent) : 0;
@@ -65,6 +90,25 @@ struct Menu_view::Bar_widget : Widget
 
 		Box_painter::paint(pixel_surface, rect, _color);
 		Box_painter::paint(alpha_surface, rect, _color);
+
+		if (!_font)
+			return;
+
+		Area const text_size(_font->string_width(_text.string()).decimal(),
+		                     _font->height());
+
+		int const dx = (int)geometry().w() - text_size.w(),
+		          dy = (int)geometry().h() - text_size.h();
+
+		Point const centered = at + Point(dx/2, dy/2);
+
+		Text_painter::paint(pixel_surface,
+		                    Text_painter::Position(centered.x(), centered.y()),
+		                    *_font, _color_text, _text.string());
+
+		Text_painter::paint(alpha_surface,
+		                    Text_painter::Position(centered.x(), centered.y()),
+		                    *_font, Color(255, 255, 255), _text.string());
 	}
 
 	private:
