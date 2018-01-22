@@ -287,9 +287,11 @@ void winrepaint(pdfapp_t *pdfapp)
 }
 
 
-void winrepaintsearch(pdfapp_t *)
+void winrepaintsearch(pdfapp_t *pdfapp)
 {
-	Genode::warning(__func__, " not implemented");
+	//Genode::warning(__func__, " not implemented");
+	Pdf_view *pdf_view = (Pdf_view *)pdfapp->userdata;
+	pdf_view->show();
 }
 
 
@@ -364,25 +366,62 @@ static int keycode_to_ascii(int code)
 	}
 }
 
+static int utf8_to_ascii(Input::Event::Utf8 const & utf8)
+{
+	if (!utf8.b1 && !utf8.b2 && !utf8.b3 && (utf8.b0 < 128))
+		return utf8.b0;
+	return -1;
+}
 
 struct Main
 {
+	enum State { NAVIGATE, SEARCH };
+
 	Genode::Env       &_env;
 
 	char const        *_file_name { "test.pdf" }; /* XXX read from config */
 
 	Pdf_view           _pdf_view { _env, _file_name };
 	Input::Connection  _input    { _env };
+	State              _state    { NAVIGATE };
+
 
 	void _handle_input()
 	{
 		_input.for_each_event([&] (Input::Event const &ev) {
 
-			if (ev.type() == Input::Event::PRESS) {
+			switch (ev.type()) {
 
-				int const ascii = keycode_to_ascii(ev.code());
-				if (ascii) { _pdf_view.handle_key(ascii); }
-			}
+			case Input::Event::PRESS:
+				{
+					if ((_state == SEARCH) &&
+						(ev.code() == Input::KEY_ENTER)) {
+						_state = NAVIGATE;
+						Genode::log("switch to navigate state");
+						_pdf_view.handle_key(13);
+						return;
+					}
+
+					int const ascii = keycode_to_ascii(ev.code());
+					if (ascii) { _pdf_view.handle_key(ascii); }
+					return;
+				}
+			case Input::Event::CHARACTER:
+				{
+					int const ascii = utf8_to_ascii(ev.utf8());
+					Genode::log("received ascii char ", (char)ascii);
+					if (ascii < 0) return;
+
+					if (_state == NAVIGATE) {
+						if (ascii != '/') return;
+						Genode::log("switch to search state");
+						_state = SEARCH;
+					}
+					Genode::log("handle ascii char ", (char)ascii);
+					_pdf_view.handle_key(ascii);
+				}
+			default: ;
+			};
 		});
 	}
 
