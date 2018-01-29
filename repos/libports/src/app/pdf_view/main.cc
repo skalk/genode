@@ -282,6 +282,7 @@ extern "C" void _sigprocmask()
 
 void winrepaint(pdfapp_t *pdfapp)
 {
+	pdfapp_inverthit(pdfapp);
 	Pdf_view *pdf_view = (Pdf_view *)pdfapp->userdata;
 	pdf_view->show();
 }
@@ -289,9 +290,13 @@ void winrepaint(pdfapp_t *pdfapp)
 
 void winrepaintsearch(pdfapp_t *pdfapp)
 {
-	//Genode::warning(__func__, " not implemented");
+	if (!pdfapp->isediting) return;
+	Genode::log("search for pdfapp : ", (char const *)(pdfapp->search));
 	Pdf_view *pdf_view = (Pdf_view *)pdfapp->userdata;
 	pdf_view->show();
+	//Genode::warning(__func__, " not implemented");
+	//Pdf_view *pdf_view = (Pdf_view *)pdfapp->userdata;
+	//pdf_view->show();
 }
 
 
@@ -342,6 +347,7 @@ void wintitle(pdfapp_t *app, char *s)
 
 void winresize(pdfapp_t *app, int w, int h)
 {
+	Genode::warning(__func__, " not implemented");
 }
 
 
@@ -409,15 +415,16 @@ struct Main
 			case Input::Event::CHARACTER:
 				{
 					int const ascii = utf8_to_ascii(ev.utf8());
-					Genode::log("received ascii char ", (char)ascii);
 					if (ascii < 0) return;
 
 					if (_state == NAVIGATE) {
-						if (ascii != '/') return;
-						Genode::log("switch to search state");
+						if (ascii == '/' ||
+							ascii == 'n' ||
+							ascii == 'p' ||
+						if (ascii == '/')
+							Genode::log("switch to search state");
 						_state = SEARCH;
 					}
-					Genode::log("handle ascii char ", (char)ascii);
 					_pdf_view.handle_key(ascii);
 				}
 			default: ;
