@@ -3,8 +3,8 @@ TARGET    := pdf_view
 SRC_C     := pdfapp.c
 SRC_CC    := main.cc
 LIBS      := base libc mupdf
-INC_DIR   += $(MUPDF_DIR)/apps
+INC_DIR   += $(MUPDF_DIR)/platform/x11
 
-vpath pdfapp.c $(MUPDF_DIR)/apps
+vpath pdfapp.c $(MUPDF_DIR)/platform/x11
 
 CC_CXX_WARN_STRICT =

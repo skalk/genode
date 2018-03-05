@@ -3,6 +3,7 @@ set build_components {
 	drivers/timer
 	app/pdf_view
 	drivers/framebuffer drivers/input
+	server/report_rom server/input_filter
 }
 
 source ${genode_dir}/repos/base/run/platform_drv.inc
@@ -54,6 +55,60 @@ append_if [have_spec ps2] config {
 	</start> }
 
 append config {
+	<start name="report_rom" priority="-1">
+		<resource name="RAM" quantum="2M"/>
+		<provides> <service name="ROM"/> <service name="Report"/> </provides>
+		<config>
+			<policy label_prefix="input_filter -> input_filter.config"
+			        report="test-input_filter -> input_filter.config"/>
+			<policy label_prefix="input_filter -> chargen_include"
+			        report="test-input_filter -> chargen_include"/>
+			<policy label_prefix="input_filter -> remap_include"
+			        report="test-input_filter -> remap_include"/>
+			<policy label_prefix="input_filter -> capslock"
+			        report="test-input_filter -> capslock"/>
+		</config>
+	</start>
+
+	<start name="input_filter" priority="-1">
+		<resource name="RAM" quantum="2M"/>
+		<provides> <service name="Input"/> </provides>
+		<config>
+			<input label="sdl"/>
+			<output>
+				<chargen>
+					<accelerate max="50" sensitivity_percent="1000" curve="127">
+						<button-scroll>
+							<input name="sdl"/>
+							<vertical   button="BTN_MIDDLE" speed_percent="-10"/>
+							<horizontal button="BTN_MIDDLE" speed_percent="-10"/>
+						</button-scroll>
+					</accelerate>
+					<mod1>
+						<key name="KEY_LEFTSHIFT"/> <key name="KEY_RIGHTSHIFT"/>
+					</mod1>
+					<mod2>
+						<key name="KEY_LEFTCTRL"/> <key name="KEY_RIGHTCTRL"/>
+					</mod2>
+					<mod3>
+						<key name="KEY_RIGHTALT"/> <!-- AltGr -->
+					</mod3>
+					<repeat delay_ms="230" rate_ms="90"/>
+					<include rom="en_us.chargen"/>
+				</chargen>
+			</output>
+		</config>
+		<route>
+			<service name="ROM" label="input_filter.config"> <child name="report_rom"/> </service>
+			<service name="ROM" label="chargen_include">     <child name="report_rom"/> </service>
+			<service name="ROM" label="remap_include">       <child name="report_rom"/> </service>
+			<service name="ROM" label="capslock">            <child name="report_rom"/> </service>
+			<service name="Input" label="sdl"> <child name="fb_sdl"/> </service>
+			<service name="Timer"> <child name="timer"/> </service>
+			<any-service> <parent/> </any-service>
+		</route>
+	</start>
+
 	<start name="timer">
 		<resource name="RAM" quantum="1M"/>
 		<provides><service name="Timer"/></provides>
@@ -67,6 +122,10 @@ append config {
 			</vfs>
 			<libc stdout="/dev/log" stderr="/dev/log"/>
 		</config>
+		<route>
+			<service name="Input"> <child name="input_filter"/> </service>
+			<any-service> <parent/><any-child/>  </any-service>
+		</route>
 	</start>
 </config>
 }
@@ -91,8 +150,10 @@ set boot_modules {
 	libc.lib.so libm.lib.so
 	openjpeg.lib.so freetype.lib.so libpng.lib.so zlib.lib.so jbig2dec.lib.so
 	mupdf.lib.so jpeg.lib.so
+	report_rom input_filter
 	pdf_view
 	test.pdf
+	en_us.chargen
 }
 
 lappend_if [have_spec       linux] boot_modules fb_sdl

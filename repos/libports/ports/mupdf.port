@@ -1,19 +1,19 @@
 LICENSE   := GPLv3
-VERSION   := 0.9
+VERSION   := 1.12
 DOWNLOADS := mupdf.archive
 
 URL(mupdf) := http://mupdf.com/downloads/archive/mupdf-$(VERSION)-source.tar.gz
-SHA(mupdf) := 3a3ba42d19e3211199110e7c782263241cdea8a0
+SHA(mupdf) := fe6b4dedc343ee88f881508604c2728c657bdfad
 DIR(mupdf) := src/lib/mupdf
 
-DIRS := include/mupdf
-DIR_CONTENT(include/mupdf) := $(addprefix src/lib/mupdf/,\
-                                          pdf/mupdf.h xps/muxps.h fitz/fitz.h)
+#DIRS := include/mupdf
+#DIR_CONTENT(include/mupdf) := $(addprefix src/lib/mupdf/,\
+#                                          pdf/mupdf.h xps/muxps.h fitz/fitz.h)
 
-PATCHES := $(sort $(wildcard $(REP_DIR)/src/lib/mupdf/*.patch))
-
-default: fix_include
-
-fix_include: $(DOWNLOADS)
-	$(VERBOSE)sed -i "/include/s/\.\.\///" src/lib/mupdf/pdf/pdf_cmap_table.c \
-	                                       src/lib/mupdf/pdf/pdf_fontfile.c
+#PATCHES := $(sort $(wildcard $(REP_DIR)/src/lib/mupdf/*.patch))
+#
+#default: fix_include
+#
+#fix_include: $(DOWNLOADS)
+#	$(VERBOSE)sed -i "/include/s/\.\.\///" src/lib/mupdf/pdf/pdf_cmap_table.c \
+#	                                       src/lib/mupdf/pdf/pdf_fontfile.c

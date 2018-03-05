@@ -420,8 +420,7 @@ struct Main
 					if (_state == NAVIGATE) {
 						if (ascii == '/' ||
 							ascii == 'n' ||
-							ascii == 'p' ||
-						if (ascii == '/')
+							ascii == 'p')
 							Genode::log("switch to search state");
 						_state = SEARCH;
 					}
