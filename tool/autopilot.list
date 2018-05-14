@@ -13,6 +13,7 @@ fetchurl_lxip
 fetchurl_lwip
 fs_query
 gdb_monitor
+ieee754
 init_smp
 input_filter
 ldso
