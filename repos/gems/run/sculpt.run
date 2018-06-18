@@ -10,7 +10,8 @@ if {[have_spec nova]} {
 create_boot_directory
 
 import_from_depot [depot_user]/src/[base_src] \
-                  [depot_user]/pkg/sculpt
+                  [depot_user]/pkg/sculpt \
+                  [depot_user]/pkg/pdf_view
 
 proc config_system_content {} { return {\
 <!-- supported states: "poweroff" or "reset" when acpica started -->
@@ -71,7 +72,7 @@ install_config {
 			<policy label="nit_focus -> slides"
 			        report="global_keys_handler -> slides"/>
 			<policy label="nit_focus -> hover" report="nitpicker -> hover"/>
-			<policy label="slides_nit_fb_config -> slides"
+			<policy label="slides_nit_fader_config -> slides"
 			        report="global_keys_handler -> slides"/>
 			<policy label="leitzentrale -> manager -> displays"
 			        report="nitpicker -> displays"/>
@@ -372,6 +373,59 @@ install_config {
 		</route>
 	</start>
 
+	<start name="slides_nit_fader" priority="-2" caps="100">
+		<resource name="RAM" quantum="22M"/>
+		<binary name="nit_fader"/>
+		<provides><service name="Nitpicker"/></provides>
+		<route>
+			<service name="ROM" label="config"> <child name="slides_nit_fader_config"/> </service>
+			<service name="Nitpicker"> <child name="nitpicker" label="slides"/> </service>
+			<service name="Timer"> <child name="timer"/> </service>
+			<any-service> <parent/> </any-service>
+		</route>
+	</start>
+
+	<start name="pdf_view" priority="-2" caps="256">
+		<resource name="RAM" quantum="64M"/>
+		<config>
+			<vfs>
+				<rom name="slides.pdf" />
+				<dir name="dev"> <log/> </dir>
+			</vfs>
+			<libc stdout="/dev/log" stderr="/dev/log"/>
+		</config>
+		<route>
+			<service name="Nitpicker"> <child name="slides_nit_fader"/> </service>
+			<service name="Timer">     <child name="timer"/>     </service>
+			<any-service> <parent/> </any-service>
+		</route>
+	</start>
+
+	<start name="slides_nit_fader_config" priority="-2">
+		<binary name="rom_filter"/>
+		<resource name="RAM" quantum="1M"/>
+		<provides><service name="ROM"/></provides>
+		<config>
+			<input name="slides_enabled" rom="slides" node="slides">
+				<attribute name="enabled" /> </input>
+			<output node="config">
+				<if>
+					<has_value input="slides_enabled" value="yes" />
+					<then>
+						<attribute name="alpha" value="255"/>
+					</then>
+					<else>
+						<attribute name="alpha" value="0"/>
+					</else>
+				</if>
+			</output>
+		</config>
+		<route>
+			<service name="ROM" label="slides"> <child name="report_rom"/> </service>
+			<any-service> <parent/> </any-service>
+		</route>
+	</start>
+
 	<start name="leitzentrale_config" priority="-2">
 		<binary name="rom_filter"/>
 		<resource name="RAM" quantum="1M"/>
@@ -668,6 +722,6 @@ exec sh -c "tar cf [run_dir]/genode/depot_users.tar -C [genode_dir] \
 # Create boot image
 #
 
-append boot_modules { }
+append boot_modules { slides.pdf }
 
 build_boot_image $boot_modules
