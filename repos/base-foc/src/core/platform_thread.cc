@@ -24,7 +24,7 @@
 
 /* Fiasco includes */
 namespace Fiasco {
-#include <l4/sys/debugger.h>
+//#include <l4/sys/debugger.h>
 #include <l4/sys/factory.h>
 #include <l4/sys/irq.h>
 #include <l4/sys/scheduler.h>
@@ -265,7 +265,7 @@ void Platform_thread::_finalize_construction(const char *name)
 
 	/* set human readable name in kernel debugger */
 	strncpy(_name, name, sizeof(_name));
-	Fiasco::l4_debugger_set_object_name(_thread.local.data()->kcap(), name);
+	//Fiasco::l4_debugger_set_object_name(_thread.local.data()->kcap(), name);
 
 	/* set priority of thread */
 	l4_sched_param_t params = l4_sched_param(_prio);

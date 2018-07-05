@@ -24,7 +24,7 @@
 #include <core_env.h>
 
 namespace Fiasco {
-#include <l4/sys/debugger.h>
+//#include <l4/sys/debugger.h>
 #include <l4/sys/factory.h>
 }
 

@@ -72,7 +72,7 @@ bool Platform_pd::bind_thread(Platform_thread *thread)
 		/* if it's no core-thread we have to map parent and pager gate cap */
 		if (!thread->core_thread()) {
 			_task.map(_task.local.data()->kcap());
-			_debug.map(_task.local.data()->kcap());
+			//_debug.map(_task.local.data()->kcap());
 		}
 
 		/* inform thread about binding */
@@ -114,12 +114,12 @@ void Platform_pd::flush(addr_t, size_t size, Core_local_addr core_local)
 }
 
 
-static Core_cap_index & debug_cap()
-{
-	unsigned long id = platform_specific()->cap_id_alloc()->alloc();
-	static Cap_index * idx = cap_map()->insert(id, DEBUG_CAP);
-	return *reinterpret_cast<Core_cap_index*>(idx);
-}
+//static Core_cap_index & debug_cap()
+//{
+//	unsigned long id = platform_specific()->cap_id_alloc()->alloc();
+//	static Cap_index * idx = cap_map()->insert(id, DEBUG_CAP);
+//	return *reinterpret_cast<Core_cap_index*>(idx);
+//}
 
 Platform_pd::Platform_pd(Core_cap_index* i)
 : _task(Native_capability(*i), TASK_CAP)
@@ -130,7 +130,7 @@ Platform_pd::Platform_pd(Core_cap_index* i)
 
 
 Platform_pd::Platform_pd(Allocator *, char const *)
-: _task(true, TASK_CAP), _debug(debug_cap(), DEBUG_CAP)
+: _task(true, TASK_CAP)//, _debug(debug_cap(), DEBUG_CAP)
 {
 	for (unsigned i = 0; i < THREAD_MAX; i++)
 		_threads[i] = (Platform_thread*) 0;

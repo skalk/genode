@@ -15,7 +15,11 @@
 #define _INCLUDE__BASE__INTERNAL__RAW_WRITE_STRING_H_
 
 #include <util/string.h>
-#include "foc_assert.h"
+
+namespace Fiasco {
+#include <l4/sys/kdebug.h>
+}
+
 
 namespace Genode {
 

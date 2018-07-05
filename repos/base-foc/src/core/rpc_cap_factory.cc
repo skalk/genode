@@ -30,7 +30,7 @@
 /* Fiasco includes */
 namespace Fiasco {
 #include <l4/sys/consts.h>
-#include <l4/sys/debugger.h>
+//#include <l4/sys/debugger.h>
 #include <l4/sys/factory.h>
 #include <l4/sys/task.h>
 #include <l4/sys/types.h>
@@ -124,9 +124,9 @@ Native_capability Rpc_cap_factory::alloc(Native_capability ep)
 			cap_map()->remove(idx);
 			platform_specific()->cap_id_alloc()->free(id);
 			return cap;
-		} else
+		} //else
 			/* set debugger-name of ipc-gate to thread's name */
-			Fiasco::l4_debugger_set_object_name(idx->kcap(), ref->pt()->name());
+			//Fiasco::l4_debugger_set_object_name(idx->kcap(), ref->pt()->name());
 
 		// XXX remove cast
 		idx->session((Pd_session_component *)this);
