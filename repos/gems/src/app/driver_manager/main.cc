@@ -686,10 +686,10 @@ void Driver_manager::Main::_generate_usb_drv_config(Reporter &usb_drv_config,
 				 */
 				unsigned long const class_code = device.attribute_value("class", 0UL);
 
-				enum { USB_CLASS_MASS_STORAGE = 8, USB_CLASS_VENDOR_SPECIFIC = 0xff };
+				enum { USB_CLASS_HID = 3, USB_CLASS_MASS_STORAGE = 8, USB_CLASS_HUB = 9 };
 
-				bool const expose_as_usb_raw = (class_code == USB_CLASS_MASS_STORAGE) ||
-				                               (class_code == USB_CLASS_VENDOR_SPECIFIC);
+				bool const expose_as_usb_raw = (class_code != USB_CLASS_HID) &&
+				                               (class_code != USB_CLASS_HUB);
 				if (!expose_as_usb_raw)
 					return;
 
