@@ -219,6 +219,8 @@ struct Hw::Arm_cpu
 	/* Counter Frequency register */
 	ARM_CP15_REGISTER_32BIT(Cntfrq, c14, c0, 0, 0);
 
+	ARM_CP15_REGISTER_32BIT(Diag, c15, c0, 0, 1);
+
 	/******************************
 	 ** Program status registers **
 	 ******************************/
