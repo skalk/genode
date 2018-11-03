@@ -1,0 +1,9 @@
+This directory contains an Genode Block service that uses a VDI
+file access via the VFS as backing store.
+
+Configuration
+~~~~~~~~~~~~~
+
+! <config vdi_file="/disk.vdi" writeable="yes">
+!   <vfs> <fs/> </vfs>
+! </config>
