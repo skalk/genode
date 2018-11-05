@@ -495,6 +495,7 @@ set run_name         [get_cmd_arg --name       "noname"]
 set genode_dir       [get_cmd_arg --genode-dir       ""]
 set cross_dev_prefix [get_cmd_arg --cross-dev-prefix ""]
 set specs            [get_cmd_arg --specs            ""]
+set cc_args          [get_cmd_arg --cc_args          ""]
 set repositories     [get_cmd_arg --repositories     ""]
 
 
@@ -881,23 +882,19 @@ proc generate_boot_modules_asm {path modules} {
 # Link core image containing given modules
 #
 proc build_core {lib modules target link_address} {
+	global cc_args
 
 	# generate assembly code aggregating the modules data
 	set asm_src [generate_boot_modules_asm [run_dir]/genode $modules]
 
-	# architecture dependent definitions
-	set arch {}
-	if {[have_spec "x86_64"]} { set arch { -m64 -mcmodel=large } }
-	if {[have_spec "x86_32"]} { set arch -m32 }
-
 	# determine the libgcc
-	set libgcc [exec [cross_dev_prefix]gcc -print-libgcc-file-name {*}$arch]
+	set libgcc [exec [cross_dev_prefix]gcc -print-libgcc-file-name {*}$cc_arch]
 
 	# compile the boot modules into one object file
-	exec [cross_dev_prefix]gcc {*}$arch -c -x assembler -o [run_dir].boot_modules.o - << $asm_src
+	exec [cross_dev_prefix]gcc {*}$cc_arch -c -x assembler -o [run_dir].boot_modules.o - << $asm_src
 
 	# link final image
-	exec [cross_dev_prefix]g++ {*}$arch -nostdlib {*}[core_ld_opts] \
+	exec [cross_dev_prefix]g++ {*}$cc_arch -nostdlib {*}[core_ld_opts] \
 	                           -Wl,-z -Wl,max-page-size=0x1000 \
 	                           -Wl,-Ttext=$link_address -Wl,-gc-sections \
 	                           -Wl,-nostdlib -Wl,--whole-archive -Wl,--start-group \

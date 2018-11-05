@@ -313,6 +313,7 @@ run/%: $(call select_from_repositories,run/%.run) $(RUN_ENV)
 	$(VERBOSE)$(GENODE_DIR)/tool/run/run --genode-dir $(GENODE_DIR) \
 	                                     --name $* \
 	                                     --specs "$(SPECS)" \
+	                                     --cc_args "$(CC_MARCH)" \
 	                                     --repositories "$(REPOSITORIES)" \
 	                                     --cross-dev-prefix "$(CROSS_DEV_PREFIX)" \
 	                                     --qemu-args "$(QEMU_OPT)" \
