@@ -1,0 +1,7 @@
+# board to use (e.g., panda or wand_quad)
+# BOARD ?= 
+
+ifdef BOARD
+RUN_OPT += --include board_defs/$(BOARD)
+endif
+

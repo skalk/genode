@@ -1004,6 +1004,14 @@ foreach include_name [get_cmd_arg --include ""] {
 	set dir { etc }
 	lappend dir $run_path
 
+	global repositories;
+	foreach repo $repositories {
+		set repo_run_path $repo/tool/run
+		if {[file exists $repo_run_path] == 1} {
+			lappend dir $repo_run_path
+		}
+	}
+
 	set found 0
 	foreach location $dir {
 		set include_file $location/$include_name
