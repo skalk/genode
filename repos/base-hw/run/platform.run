@@ -1,0 +1,31 @@
+build "core init test/platform"
+
+create_boot_directory
+
+set config {
+	<config>
+		<parent-provides>
+			<service name="ROM"/>
+			<service name="CPU"/>
+			<service name="RM"/>
+			<service name="PD"/>
+			<service name="LOG"/>
+		</parent-provides>
+		<default-route>
+			<any-service> <parent/> </any-service>
+		</default-route>
+		<start name="test-platform" caps="12000" ld="no">
+			<resource name="RAM" quantum="128M"/>
+		</start>
+	</config>
+}
+
+install_config $config
+
+build_boot_image "core ld.lib.so init test-platform"
+
+append qemu_args "-nographic  -smp 2"
+
+run_genode_until {Test finished} 240
+
+puts "\nTest succeeded"
