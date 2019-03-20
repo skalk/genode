@@ -285,7 +285,7 @@ struct Hw::Arm_cpu
 			"cmpeq r7, #0         \n"
 			"bne 1b               \n"
 			"dmb                  \n"
-		:: "r"(addr), "r"(new_value), "I"(expected_value) : "cc", "r7");
+		:: "r"(addr), "r"(new_value), "r"(expected_value) : "cc", "r7");
 	}
 
 	static inline void wakeup_waiting_cpus()
