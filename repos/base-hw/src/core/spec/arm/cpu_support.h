@@ -83,6 +83,24 @@ struct Genode::Arm_cpu : public Hw::Arm_cpu
 		uint8_t id() { return cidr; }
 	};
 
+
+	/**
+	 * This guard saves the current interrupt settings and disables
+	 * all kind of interrupts during lifetime of the guard object
+	 */
+	struct Irq_guard
+	{
+		Psr::access_t cpsr { Cpsr::read() };
+
+		Irq_guard() {
+			asm volatile ("msr cpsr_c, %0"
+			              :: "r" (cpsr | Psr::F::bits(1) | Psr::I::bits(1))); }
+
+		~Irq_guard() {
+			asm volatile ("msr cpsr_c, %0":: "r" (cpsr)); }
+	};
+
+
 	/**
 	 * Invalidate all entries of all instruction caches
 	 */

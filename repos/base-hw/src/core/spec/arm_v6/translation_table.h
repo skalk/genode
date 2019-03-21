@@ -16,8 +16,8 @@
 #define _CORE__SPEC__ARM_V6__TRANSLATION_TABLE_H_
 
 #include <hw/spec/arm/page_table.h>
-#include <spec/arm/cpu_support.h>
 #include <kernel/interface.h>
+#include <cpu.h>
 
 constexpr unsigned Hw::Page_table::Descriptor_base::_device_tex() {
 	return 0; }
@@ -26,7 +26,8 @@ constexpr bool Hw::Page_table::Descriptor_base::_smp() { return false; }
 
 void Hw::Page_table::_translation_added(unsigned long addr, unsigned long size)
 {
-	Genode::Arm_cpu::clean_invalidate_data_cache_by_virt_region(addr, size);
+	Genode::Cpu::Irq_guard irq_guard;
+	Genode::Cpu::clean_invalidate_data_cache_by_virt_region(addr, size);
 }
 
 #endif /* _CORE__SPEC__ARM_V6__TRANSLATION_TABLE_H_ */

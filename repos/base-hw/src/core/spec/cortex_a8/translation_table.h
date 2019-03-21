@@ -34,6 +34,7 @@ void Hw::Page_table::_translation_added(unsigned long addr, unsigned long size)
 	 * page table entry is added. We only do this as core as the kernel
 	 * adds translations solely before MMU and caches are enabled.
 	 */
+	Genode::Cpu::Irq_guard irq_guard;
 	Genode::Cpu::clean_invalidate_data_cache_by_virt_region(addr, size);
 }
 
