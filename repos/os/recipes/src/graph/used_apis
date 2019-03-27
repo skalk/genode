@@ -1,0 +1,9 @@
+base
+os
+gui_session
+nitpicker_gfx
+framebuffer_session
+input_session
+vfs
+gems
+file_system_session
