@@ -1,0 +1,93 @@
+<runtime ram="38M" caps="700" binary="init">
+
+	<requires>
+		<cpu/>
+		<gui/>
+		<trace/>
+		<file_system label="fonts" writeable="no"/>
+	</requires>
+
+	<config>
+
+		<default-route> <any-service> <parent/> </any-service> </default-route>
+
+		<parent-provides>
+			<service name="PD"/>
+			<service name="CPU"/>
+			<service name="LOG"/>
+			<service name="ROM"/>
+			<service name="TRACE"/>
+			<service name="File_system"/>
+			<service name="Gui"/>
+			<service name="Timer"/>
+		</parent-provides>
+
+		<start name="report_rom" caps="100">
+			<resource name="RAM" quantum="1M"/>
+			<provides> <service name="Report"/> <service name="ROM"/> </provides>
+			<config verbose="no">
+				<policy label="menu_view -> dialog" report="top_view -> dialog"/>
+				<policy label="top_view -> hover" report="menu_view -> hover"/>
+				<policy label="graph -> graph" report="top_view -> graph"/>
+			</config>
+		</start>
+
+		<start name="menu_view" caps="200">
+			<binary name="menu_view_ab"/>
+			<resource name="RAM" quantum="24M"/>
+			<config xpos="200" ypos="100">
+				<report hover="yes"/>
+				<libc stderr="/dev/log"/>
+				<vfs>
+					<tar name="menu_view_styles.tar" />
+					<dir name="dev"> <log/> </dir>
+					<dir name="fonts"> <fs label="fonts"/> </dir>
+				</vfs>
+			</config>
+			<route>
+				<service name="ROM" label="dialog"> <child name="report_rom" /> </service>
+				<service name="Report" label="hover"> <child name="report_rom"/> </service>
+				<service name="File_system" label="fonts"> <parent label="fonts"/> </service>
+				<any-service> <parent/> <any-child/> </any-service>
+			</route>
+		</start>
+
+		<start name="graph" caps="100">
+			<resource name="RAM" quantum="8M"/>
+			<config>
+				<vfs> <dir name="fonts"> <fs label="fonts"/> </dir> </vfs>
+			</config>
+			<route>
+				<service name="ROM" label="graph"> <child name="report_rom" /> </service>
+				<service name="File_system" label="fonts"> <parent label="fonts"/> </service>
+				<any-service> <parent/> <any-child/> </any-service>
+			</route>
+		</start>
+
+		<start name="top_view" caps="200">
+			<resource name="RAM" quantum="3400K"/>
+			<config view_ms="2000" report="yes" log="no"/>
+			<route>
+				<service name="ROM" label="hover"> <child name="report_rom" /> </service>
+				<service name="Report"> <child name="report_rom" /> </service>
+				<any-service> <parent/> </any-service>
+			</route>
+		</start>
+	</config>
+
+	<content>
+		<rom label="ld.lib.so"/>
+		<rom label="libc.lib.so"/>
+		<rom label="libm.lib.so"/>
+		<rom label="vfs.lib.so"/>
+		<rom label="libpng.lib.so"/>
+		<rom label="zlib.lib.so"/>
+		<rom label="menu_view_styles.tar"/>
+		<rom label="menu_view_ab"/>
+		<rom label="init"/>
+		<rom label="top_view"/>
+		<rom label="report_rom"/>
+		<rom label="graph"/>
+	</content>
+
+</runtime>
