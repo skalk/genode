@@ -26,7 +26,6 @@
 
 #include <lx_kit/timer.h>
 
-
 namespace Lx_kit { class Timer; }
 
 class Lx_kit::Timer : public Lx::Timer
@@ -85,6 +84,7 @@ class Lx_kit::Timer : public Lx::Timer
 	private:
 
 		unsigned long                               &_jiffies;
+		unsigned long                                _last_programmed = 0;
 		::Timer::Connection                          _timer_conn_modern;
 		Lx_kit::List<Context>                        _list;
 		Lx::Task                                     _timer_task;
@@ -113,9 +113,15 @@ class Lx_kit::Timer : public Lx::Timer
 			if (!ctx)
 				return;
 
+			if (ctx->timeout == _last_programmed) {
+				return;
+			}
+
 			/* calculate relative microseconds for trigger */
 			unsigned long us = ctx->timeout > _jiffies ?
 			                   jiffies_to_msecs(ctx->timeout - _jiffies) * 1000 : 0;
+
+			_last_programmed = ctx->timeout;
 			_timer_conn_modern.trigger_once(us);
 		}
 
@@ -127,6 +133,11 @@ class Lx_kit::Timer : public Lx::Timer
 		 */
 		void _schedule_timer(Context *ctx, unsigned long expires)
 		{
+
+			if (ctx->pending && ctx->timeout == expires) {
+				return;
+			}
+
 			_list.remove(ctx);
 
 			ctx->timeout    = expires;
@@ -181,14 +192,18 @@ class Lx_kit::Timer : public Lx::Timer
 
 		unsigned long jiffies() const { return _jiffies; }
 
+		void reset() { _last_programmed = 0; }
+
 		static void run_timer(void *p)
 		{
 			Timer &t = *reinterpret_cast<Timer*>(p);
 
 			while (1) {
 				Lx::scheduler().current()->block_and_schedule();
+				t.reset();
 
 				while (Lx_kit::Timer::Context *ctx = t.first()) {
+
 					if (ctx->timeout > t.jiffies()) {
 						break;
 					}
@@ -224,7 +239,6 @@ class Lx_kit::Timer : public Lx::Timer
 		int del(void *timer)
 		{
 			Context *ctx = _find_context(timer);
-
 			/**
 			 * If the timer expired it was already cleaned up after its
 			 * execution.
@@ -292,7 +306,7 @@ class Lx_kit::Timer : public Lx::Timer
 			if (_jiffies_func) {
 				_jiffies = _jiffies_func();
 			} else {
-				_jiffies = _timer_conn_modern.curr_time().trunc_to_plain_ms().value / JIFFIES_TICK_MS;
+				_jiffies = _timer_conn_modern.elapsed_ms() / JIFFIES_TICK_MS;
 			}
 		}
 
