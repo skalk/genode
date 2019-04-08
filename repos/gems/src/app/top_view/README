@@ -1,0 +1,14 @@
+This component obtains CPU utilization information about the existing trace
+subjects from core's "TRACE" service and generates output about the highest
+CPU consumer per CPU in percentage. The output may be provided via the LOG
+session or as a Report consumable by the menu_view component.
+
+Configuration
+-------------
+
+The interval of output generation can be defined via the 'period_ms' attribute
+of the '<config>' node.
+
+The following example shows the default values.
+
+! <config period_ms="5000" log="yes" report="no"/>
