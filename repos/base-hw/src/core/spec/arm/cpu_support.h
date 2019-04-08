@@ -147,6 +147,10 @@ struct Genode::Arm_cpu : public Hw::Arm_cpu
 	{
 		if (asid) Tlbiasid::write(asid);
 		else      Tlbiall::write(0);
+
+		invalidate_branch_predictor();
+		data_syncronization_barrier();
+		instruction_syncronization_barrier();
 	}
 
 	void switch_to(Context&, Mmu_context & o)

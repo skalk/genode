@@ -39,6 +39,9 @@ struct Genode::Arm_v7_cpu : Arm_cpu
 		if (multi_processor()) {
 			if (asid) Tlbiasidis::write(asid);
 			else      Tlbiallis::write(0);
+			invalidate_branch_predictor();
+			data_syncronization_barrier();
+			instruction_syncronization_barrier();
 		} else Arm_cpu::invalidate_tlb(asid);
 	}
 };

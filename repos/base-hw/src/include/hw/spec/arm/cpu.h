@@ -260,6 +260,7 @@ struct Hw::Arm_cpu
 	 ** Cache maintainance functions **
 	 **********************************/
 
+<<<<<<< Updated upstream:repos/base-hw/src/include/hw/spec/arm/cpu.h
 	static inline void synchronization_barrier()
 	{
 		asm volatile("dsb\n"
@@ -295,6 +296,19 @@ struct Hw::Arm_cpu
 			"sev \n"
 		);
 	}
+=======
+	static void clean_invalidate_data_cache();
+	static void invalidate_data_cache();
+
+	static inline void instruction_synchronization_barrier() {
+		asm volatile("isb"); }
+
+	static inline void data_synchronization_barrier() {
+		asm volatile("dsb"); }
+
+	static inline void invalidate_branch_predictor() {
+		Bpiall::write(0); }
+>>>>>>> Stashed changes:repos/base-hw/src/lib/hw/spec/arm/cpu.h
 };
 
 #endif /* _SRC__LIB__HW__SPEC__ARM__CPU_H_ */

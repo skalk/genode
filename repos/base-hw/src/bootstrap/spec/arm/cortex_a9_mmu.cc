@@ -170,6 +170,7 @@ unsigned Bootstrap::Platform::enable_mmu()
 	/* wait for other cores' coherency activation */
 	smp_coherency_enabled.wait_for(NR_OF_CPUS);
 
-	Cpu::synchronization_barrier();
+	Cpu::instruction_synchronization_barrier();
+	Cpu::data_synchronization_barrier();
 	return Cpu::Mpidr::Aff_0::get(Cpu::Mpidr::read());
 }
