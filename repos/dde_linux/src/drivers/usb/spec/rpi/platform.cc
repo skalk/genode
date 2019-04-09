@@ -74,7 +74,8 @@ class Genode::Sp804_base : public Mmio
 	 */
 	struct Int_clr : Register<0xc, 1> { };
 
-	unsigned _last_tick = Value::MAX_VALUE;
+	unsigned _last_tick      = Value::MAX_VALUE;
+	unsigned _last_remainder = 0;
 
 	public:
 
@@ -104,14 +105,16 @@ class Genode::Sp804_base : public Mmio
 			unsigned tick = read<Value>();
 
 			/* timer runs backwards */
-			unsigned delta = ticks_to_ms(_last_tick - tick);
+			unsigned delta = ticks_to_ms(_last_tick - tick) + _last_remainder;
 
 			/* delta < 1 jiffie */
 			if (!msecs_to_jiffies(delta))
 				return jiffies;
 
-			jiffies   += msecs_to_jiffies(delta);
-			_last_tick = tick;
+			jiffies        += msecs_to_jiffies(delta);
+			_last_tick      = tick;
+			_last_remainder = delta % JIFFIES_TICK_MS;
+
 			return jiffies;
 		}
 
