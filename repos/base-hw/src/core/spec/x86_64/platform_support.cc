@@ -16,12 +16,9 @@
 #include <kernel/kernel.h>
 #include <map_local.h>
 
-#include <util/xml_generator.h>
-
 using namespace Genode;
 
-
-void Platform::_init_additional_platform_info(Genode::Xml_Generator &xml)
+void Platform::_init_additional_platform_info(Xml_generator &xml)
 {
 	xml.node("acpi", [&] () {
 		uint32_t const revision = _boot_info().acpi_rsdp.revision;
