@@ -16,7 +16,8 @@ import_from_depot [depot_user]/src/[base_src] \
 
 assert_spec x86
 
-set map_small  "no"
+set map_small         "no"
+set vmm_vcpu_same_cpu "no"
 
 if {[have_spec sel4]} {
 	set map_small  "yes"
@@ -29,6 +30,10 @@ if {[have_spec sel4]} {
 }
 
 if {[have_spec foc]} {
+	# The performance is considerable bad when
+	# vmm and vcpu is not on same physical CPU
+	set vmm_vcpu_same_cpu  "yes"
+
 	# Qemu SVM has no EPT support
 	if {[have_include "power_on/qemu"]} {
 		puts "\n Run script is not supported on this platform. \n";
@@ -67,7 +72,7 @@ build $build_components
 
 # write Seoul config file
 set vm_cfg_fd [open "bin/vm_seoul.cfg" w]
-puts $vm_cfg_fd "<config map_small=\"$map_small\">"
+puts $vm_cfg_fd "<config map_small=\"$map_small\" vmm_vcpu_same_cpu=\"$vmm_vcpu_same_cpu\">"
 puts $vm_cfg_fd {	 <machine>
 		<mem start="0x0" end="0x9a000"/>
 		<mem start="0x100000" end="0xfffff000"/>

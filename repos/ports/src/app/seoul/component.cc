@@ -753,6 +753,7 @@ class Machine : public StaticReceiver<Machine>
 
 		bool                   _map_small    { false   };
 		bool                   _rdtsc_exit   { false   };
+		bool                   _same_cpu     { false   };
 		Seoul::Network        *_nic          { nullptr };
 		Rtc::Session          *_rtc          { nullptr };
 
@@ -854,8 +855,6 @@ class Machine : public StaticReceiver<Machine>
 						return false;
 					}
 
-					Logging::printf("create vcpu %u\n", _vcpus_up);
-
 					/* detect virtualization extension */
 					Attached_rom_dataspace const info(_env, "platform_info");
 					Genode::Xml_node const features = info.xml().sub_node("hardware").sub_node("features");
@@ -870,11 +869,15 @@ class Machine : public StaticReceiver<Machine>
 
 					using Genode::Entrypoint;
 					using Genode::String;
+					using Genode::Affinity;
+
+					Affinity::Space space = _env.cpu().affinity_space();
+					Affinity::Location location(space.location_of_index(_vcpus_up + (_same_cpu ? 0 : 1)));
 
 					String<16> * ep_name = new String<16>("vCPU EP ", _vcpus_up);
 					Entrypoint * ep = new Entrypoint(_env, STACK_SIZE,
 					                                 ep_name->string(),
-					                                 _env.cpu().affinity_space().location_of_index(_vcpus_up + 1));
+					                                 location);
 
 					Vcpu * vcpu = new Vcpu(*ep, _vm_con, _heap, _env,
 					                       _motherboard_lock, msg.vcpu,
@@ -884,6 +887,9 @@ class Machine : public StaticReceiver<Machine>
 
 					_vcpus[_vcpus_up] = vcpu;
 					msg.value = _vcpus_up;
+
+					Logging::printf("create vcpu %u affinity %u:%u\n",
+					                _vcpus_up, location.xpos(), location.ypos());
 
 					_vcpus_up ++;
 
@@ -1129,7 +1135,7 @@ class Machine : public StaticReceiver<Machine>
 		        Boot_module_provider &boot_modules,
 		        Seoul::Guest_memory &guest_memory,
 		        size_t const fb_size,
-		        bool map_small, bool rdtsc_exit)
+		        bool map_small, bool rdtsc_exit, bool vmm_vcpu_same_cpu)
 		:
 			_env(env), _heap(heap), _vm_con(vm_con),
 			_clock(Attached_rom_dataspace(env, "platform_info").xml().sub_node("hardware").sub_node("tsc").attribute_value("freq_khz", 0ULL) * 1000ULL),
@@ -1140,7 +1146,8 @@ class Machine : public StaticReceiver<Machine>
 			_guest_memory(guest_memory),
 			_boot_modules(boot_modules),
 			_map_small(map_small),
-			_rdtsc_exit(rdtsc_exit)
+			_rdtsc_exit(rdtsc_exit),
+			_same_cpu(vmm_vcpu_same_cpu)
 		{
 			_timeouts()->init();
 
@@ -1298,9 +1305,10 @@ void Component::construct(Genode::Env &env)
 	static Genode::Heap          heap(env.ram(), env.rm());
 	static Genode::Vm_connection vm_con(env, "Seoul vCPUs", Genode::Cpu_session::PRIORITY_LIMIT / 16);
 
-	Genode::addr_t vm_size    = 0;
-	bool           map_small  = false;
-	bool           rdtsc_exit = false;
+	Genode::addr_t vm_size           = 0;
+	bool           map_small         = false;
+	bool           rdtsc_exit        = false;
+	bool           vmm_vcpu_same_cpu = false;
 
 	static Attached_rom_dataspace config(env, "config");
 
@@ -1318,6 +1326,7 @@ void Component::construct(Genode::Env &env)
 		try {
 			map_small = config.xml().attribute_value("map_small", false);
 			rdtsc_exit  = config.xml().attribute_value("exit_on_rdtsc", false);
+			vmm_vcpu_same_cpu = config.xml().attribute_value("vmm_vcpu_same_cpu", false);
 		} catch (...) { }
 
 		Genode::log(" using ", map_small ? "small": "large",
@@ -1390,7 +1399,7 @@ void Component::construct(Genode::Env &env)
 
 	/* create the PC machine based on the configuration given */
 	static Machine machine(env, heap, vm_con, boot_modules, guest_memory,
-	                       fb_size, map_small, rdtsc_exit);
+	                       fb_size, map_small, rdtsc_exit, vmm_vcpu_same_cpu);
 
 	/* create console thread */
 	static Seoul::Console vcon(env, heap, machine.motherboard(),
