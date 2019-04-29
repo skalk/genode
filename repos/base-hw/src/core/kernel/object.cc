@@ -11,10 +11,83 @@ using namespace Kernel;
  ** Object **
  ************/
 
+Object::Object(Thread &obj)
+:
+	_type { THREAD },
+	_obj  { (void *)&obj }
+{ }
+
+Object::Object(Irq &obj)
+:
+	_type { IRQ },
+	_obj  { (void *)&obj }
+{ }
+
+Object::Object(Signal_receiver &obj)
+:
+	_type { SIGNAL_RECEIVER },
+	_obj  { (void *)&obj }
+{ }
+
+Object::Object(Signal_context &obj)
+:
+	_type { SIGNAL_CONTEXT },
+	_obj  { (void *)&obj }
+{ }
+
+Object::Object(Pd &obj)
+:
+	_type { PD },
+	_obj  { (void *)&obj }
+{ }
+
 Object::~Object()
 {
 	for (Object_identity * oi = first(); oi; oi = first())
 		oi->invalidate();
+}
+
+namespace Kernel {
+
+	template <> Pd &Object::obj<Pd>() const
+	{
+		if (_type != PD) {
+			throw Cannot_cast_to_type(); }
+
+		return *reinterpret_cast<Pd *>(_obj);
+	}
+
+	template <> Irq &Object::obj<Irq>() const
+	{
+		if (_type != IRQ) {
+			throw Cannot_cast_to_type(); }
+
+		return *reinterpret_cast<Irq *>(_obj);
+	}
+
+	template <> Signal_receiver &Object::obj<Signal_receiver>() const
+	{
+		if (_type != SIGNAL_RECEIVER) {
+			throw Cannot_cast_to_type(); }
+
+		return *reinterpret_cast<Signal_receiver *>(_obj);
+	}
+
+	template <> Signal_context &Object::obj<Signal_context>() const
+	{
+		if (_type != SIGNAL_CONTEXT) {
+			throw Cannot_cast_to_type(); }
+
+		return *reinterpret_cast<Signal_context *>(_obj);
+	}
+
+	template <> Thread &Object::obj<Thread>() const
+	{
+		if (_type != THREAD) {
+			throw Cannot_cast_to_type(); }
+
+		return *reinterpret_cast<Thread *>(_obj);
+	}
 }
 
 
