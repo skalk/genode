@@ -92,9 +92,6 @@ void Timer::Connection::_update_real_time()
 	uint64_t  old_factor   = _us_to_ts_factor;
 	Timestamp max_ts_diff  = ~(Timestamp)0ULL >> factor_shift;
 
-	/* too big timestamps could cause a loss at the final cast */
-	enum { ASSERT_TIMESTAMP_RANGE_OK = 1 / (sizeof(Timestamp) <= sizeof(uint64_t)) };
-
 	struct Factor_update_failed : Genode::Exception { };
 	try {
 		/* meet the timestamp-difference limit before applying the shift */
@@ -113,7 +110,7 @@ void Timer::Connection::_update_real_time()
 		 * Apply current shift to timestamp difference and try to even
 		 * raise the shift successively to get as much precision as possible.
 		 */
-		Timestamp ts_diff_shifted = ts_diff << factor_shift;
+		uint64_t ts_diff_shifted = ts_diff << factor_shift;
 		while (ts_diff_shifted < us_diff << MIN_FACTOR_LOG2)
 		{
 			factor_shift++;
@@ -126,7 +123,7 @@ void Timer::Connection::_update_real_time()
 		 * the time difference cannot become null.
 		 */
 		uint64_t const new_factor =
-			(uint64_t)((Timestamp)ts_diff_shifted / us_diff);
+			(uint64_t)ts_diff_shifted / us_diff;
 
 		/* update interpolation-quality value */
 		if (old_factor > new_factor) { _update_interpolation_quality(new_factor, old_factor); }
