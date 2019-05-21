@@ -151,7 +151,11 @@ class Kernel::User_irq : public Kernel::Irq
 		 */
 		void occurred() override
 		{
-			_context.submit(1);
+			if (_context.can_submit(1)) {
+				_context.submit(1);
+			} else {
+				Genode::raw("Warning: failed to submit interrupt signal");
+			}
 			disable();
 		}
 
