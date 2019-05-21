@@ -11,19 +11,19 @@
  * under the terms of the GNU Affero General Public License version 3.
  */
 
-#ifndef _INCLUDE__DRIVERS__UART__MINI_H_
-#define _INCLUDE__DRIVERS__UART__MINI_H_
+#ifndef _INCLUDE__DRIVERS__UART__BCM2835_MINI_H_
+#define _INCLUDE__DRIVERS__UART__BCM2835_MINI_H_
 
 /* Genode includes */
 #include <util/mmio.h>
 
-namespace Genode { class Mini_uart; }
+namespace Genode { class Bcm2835_mini_uart; }
 
 
 /**
  * Driver base for the PrimeCell UART MINI Revision r1p3
  */
-class Genode::Mini_uart : Mmio
+class Genode::Bcm2835_mini_uart : Mmio
 {
 	protected:
 
@@ -199,8 +199,8 @@ class Genode::Mini_uart : Mmio
 		 * \param  clock      device reference clock frequency
 		 * \param  baud_rate  targeted UART baud rate
 		 */
-		inline Mini_uart(addr_t const base, uint32_t const clock,
-		                  uint32_t const baud_rate);
+		inline Bcm2835_mini_uart(addr_t const base, uint32_t const clock,
+		                         uint32_t const baud_rate);
 
 		/**
 		 * Send ASCII char 'c' over the UART interface
@@ -208,8 +208,9 @@ class Genode::Mini_uart : Mmio
 		inline void put_char(char const c);
 };
 
-Genode::Mini_uart::Mini_uart(addr_t const base, uint32_t const clock,
-                             uint32_t const baud_rate) : Mmio(base)
+
+Genode::Bcm2835_mini_uart::Bcm2835_mini_uart(addr_t const base, uint32_t const clock,
+                                             uint32_t const baud_rate) : Mmio(base)
 {
 	/* enable UART1, AUX mini uart */
 	write<AuxEnables>(read<AuxEnables::MiniUartEnable>() |
@@ -233,7 +234,7 @@ Genode::Mini_uart::Mini_uart(addr_t const base, uint32_t const clock,
 }
 
 
-void Genode::Mini_uart::put_char(char const c)
+void Genode::Bcm2835_mini_uart::put_char(char const c)
 {
 	_wait_until_ready();
 
@@ -243,4 +244,4 @@ void Genode::Mini_uart::put_char(char const c)
 }
 
 
-#endif /* _INCLUDE__DRIVERS__UART__MINI_H_ */
+#endif /* _INCLUDE__DRIVERS__UART__BCM2835_MINI_H_ */
