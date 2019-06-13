@@ -184,13 +184,12 @@ void Signal_receiver::_listen()
 
 			Signal_imprint const imprint =
 				reinterpret_cast<Signal_imprint>(context->_imprint);
-			Signal::Data data(imprint, context->_submits);
 
 			/* communicate signal data to handler */
 			_handlers.dequeue([&] (Signal_handler::Fifo_element &elem) {
 				auto const handler = &elem.object();
 				handler->_receiver = nullptr;
-				handler->_thread.signal_receive_signal(&data, sizeof(data));
+				handler->_thread.signal_receive_signal(imprint, context->_submits);
 			});
 			context->_delivered();
 		});

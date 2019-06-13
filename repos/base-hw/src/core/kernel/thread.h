@@ -38,6 +38,7 @@ namespace Kernel
 	struct Thread_fault;
 	class Thread;
 	class Core_thread;
+	typedef Genode::Signal_context * Signal_imprint;
 }
 
 
@@ -378,7 +379,7 @@ class Kernel::Thread : private Kernel::Object, public Cpu_job, private Timeout
 		void signal_context_kill_failed();
 		void signal_context_kill_done();
 		void signal_wait_for_signal();
-		void signal_receive_signal(void * const base, size_t const size);
+		void signal_receive_signal(Signal_imprint impr, unsigned num);
 
 
 		/*************

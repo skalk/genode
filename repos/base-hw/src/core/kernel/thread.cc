@@ -171,10 +171,11 @@ void Thread::signal_wait_for_signal()
 }
 
 
-void Thread::signal_receive_signal(void * const base, size_t const size)
+void Thread::signal_receive_signal(Signal_imprint impr, unsigned num)
 {
 	assert(_state == AWAITS_SIGNAL);
-	Genode::memcpy(utcb()->data(), base, size);
+	Genode::Signal::Data data(impr, num);
+	Genode::memcpy(utcb()->data(), &data, sizeof(Genode::Signal::Data));
 	_become_active();
 }
 
