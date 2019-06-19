@@ -1,0 +1,12 @@
+diff -Naur src/drivers/nic/fec/drivers/net/ethernet/freescale/fec_main.c src/drivers/nic/fec/drivers/net/ethernet/freescale/fec_main.c
+--- src/drivers/nic/fec/drivers/net/ethernet/freescale/fec_main.c
++++ src/drivers/nic/fec/drivers/net/ethernet/freescale/fec_main.c
+@@ -196,7 +196,7 @@
+ #define FEC_ECR_MAGICEN		(1 << 2)
+ #define FEC_ECR_SLEEP		(1 << 3)
+ 
+-#define FEC_MII_TIMEOUT		30000 /* us */
++#define FEC_MII_TIMEOUT		60000 /* us */
+ 
+ /* Transmitter timeout */
+ #define TX_TIMEOUT (2 * HZ)
