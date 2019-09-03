@@ -1,0 +1,115 @@
+#
+# \brief  aarch64 virtual-machine monitor
+# \author Stefan Kalkowski
+# \date   2019-06-17
+#
+
+#
+# To obtain the linux kernel, do the following steps:
+# 
+# wget https://cdn.kernel.org/pub/linux/kernel/v4.x/linux-4.19.53.tar.xz
+# 
+# tar -xJf linux-4.19.53.tar.xz
+# cd linux-4.19.53
+# 
+# make O=../build-linux-aarch64 ARCH=arm64 CROSS_COMPILE=/usr/local/genode/tool/current/bin/genode-aarch64- defconfig
+# make O=../build-linux-aarch64 ARCH=arm64 CROSS_COMPILE=/usr/local/genode/tool/current/bin/genode-aarch64- -j32
+# 
+# copy ../build-linux-aarch64/arch/arm64/boot/Image to your build directory in 'bin/linux'
+#
+#
+# To get the dtb (device-tree-binary), you have to compile the file:
+# repos/os/src/server/vmm/spec/arm_v8/virt.dts with the dtc compiler:
+# dtc repos/os/src/server/vmm/spec/arm_v8/virt.dts > bin/dtb
+#
+#
+# To construct the initrd do the following:
+# * get and install gcc from linaro
+#      (https://releases.linaro.org/components/toolchain/binaries/latest-7/)
+# * build busybox
+#      wget https://busybox.net/downloads/busybox-1.29.3.tar.bz2
+#      tar xjf busybox-1.29.3.tar.bz2
+#      mkdir build-busybox-aarch64
+#      cd busybox-1.29.3
+#      make O=../build-busybox-aarch64 defconfig
+#      make O=../build-busybox-aarch64 menuconfig
+#
+#      [*] Setting ->  Build static binary (no shared libs)
+#
+#      cd ../build-busybox-aarch64
+#      make CROSS_COMPILE=/usr/local/gcc-linaro/bin/aarch64-linux-gnu- install -j6
+# * create ramdisk
+#      cd _install
+#      find . | cpio -H newc -o | gzip > ../initrd
+
+
+assert_spec arm_64
+
+if { [get_cmd_switch --autopilot] } {
+	if {[have_spec hw]} {
+	} else {
+		puts "\n Run script is not supported on this platform. \n";
+		exit 0
+	}
+}
+
+set build_components {
+	core init timer
+	server/terminal_crosslink
+	test/terminal_expect_send
+	server/vmm
+}
+build $build_components
+create_boot_directory
+
+install_config {
+<config verbose="yes" prio_levels="2">
+	<parent-provides>
+		<service name="ROM"/>
+		<service name="IRQ"/>
+		<service name="IO_MEM"/>
+		<service name="IO_PORT"/>
+		<service name="PD"/>
+		<service name="RM"/>
+		<service name="CPU"/>
+		<service name="LOG"/>
+		<service name="VM"/>
+	</parent-provides>
+	<default-route>
+		<any-service><parent/><any-child/></any-service>
+	</default-route>
+	<default caps="100"/>
+	<start name="timer">
+		<resource name="RAM" quantum="1M"/>
+		<provides><service name="Timer"/></provides>
+	</start>
+	<start name="terminal_crosslink">
+		<resource name="RAM" quantum="1M"/>
+		<provides> <service name="Terminal"/> </provides>
+	</start>
+	<start name="vmm" caps="200" priority="-1">
+		<resource name="RAM" quantum="256M"/>
+	</start>
+	<start name="vm">
+		<binary name="test-terminal_expect_send"/>
+		<resource name="RAM" quantum="1M"/>
+		<config expect="/ #" send="ls" verbose="yes"/>
+	</start>
+</config>
+}
+
+set boot_modules {
+	core ld.lib.so init
+	timer
+	terminal_crosslink
+	test-terminal_expect_send
+	vmm
+	linux
+	dtb
+	initrd
+}
+build_boot_image $boot_modules
+
+append qemu_args " -nographic "
+
+run_genode_until forever
