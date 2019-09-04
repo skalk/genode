@@ -21,7 +21,7 @@
 
 namespace Board {
 	using namespace Hw::Imx53_qsb_board;
-	using Hw::Pic;
+	struct Pic : Hw::Pic { struct Virtual_context {}; };
 }
 
 #endif /* _CORE__SPEC__IMX53_QSB__BOARD_H_ */
