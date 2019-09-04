@@ -21,7 +21,7 @@
 
 namespace Board {
 	using namespace Hw::Usb_armory_board;
-	using Hw::Pic;
+	struct Pic : Hw::Pic { struct Virtual_context {}; };
 }
 
 #endif /* _CORE__SPEC__USB_ARMORY__BOARD_H_ */

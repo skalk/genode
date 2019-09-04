@@ -15,14 +15,17 @@
 #define _CORE__SPEC__IMX8Q_EVK__BOARD_H_
 
 #include <hw/spec/arm_64/imx8q_evk_board.h>
-#include <hw/spec/arm/gicv3.h>
 #include <spec/arm/generic_timer.h>
+#include <spec/arm/virtualization/gicv3.h>
 
 namespace Board {
 	using namespace Hw::Imx8q_evk_board;
-	using Hw::Pic;
 
-	enum { TIMER_IRQ = 30 };
+	enum {
+		TIMER_IRQ           = 14 + 16,
+		VT_TIMER_IRQ        = 11 + 16,
+		VT_MAINTAINANCE_IRQ = 9  + 16
+	};
 };
 
 #endif /* _CORE__SPEC__IMX8Q_EVK__BOARD_H_ */

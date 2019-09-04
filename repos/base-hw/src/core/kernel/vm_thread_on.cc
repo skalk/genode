@@ -24,7 +24,7 @@ void Kernel::Thread::_call_new_vm()
 		return;
 	}
 
-	_call_new<Vm>((void*)user_arg_2(), context, (void*)user_arg_3());
+	_call_new<Vm>(*(Genode::Vm_state*)user_arg_2(), *context, (void*)user_arg_3());
 }
 
 

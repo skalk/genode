@@ -5,7 +5,7 @@ SRC_CC += kernel/vm_thread_on.cc
 SRC_CC += spec/arm_v7/trustzone/kernel/vm.cc
 SRC_CC += spec/arm_v7/trustzone/platform_services.cc
 SRC_CC += spec/arm_v7/trustzone/vm_session_component.cc
-SRC_CC += spec/arm_v7/vm_session_component.cc
+SRC_CC += spec/arm/vm_session_component.cc
 
 SRC_S += spec/arm_v7/trustzone/exception_vector.s
 
