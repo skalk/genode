@@ -324,7 +324,7 @@ void Gic::read(Genode::uint32_t * reg, Genode::uint64_t off,
 
 		if (_in_reg_range(off, GICD_ICFGR2, MAX_SPI, 2)) {
 			_for_range_spi(off, GICD_ICFGR2, 16, [reg] (Irq & i) {
-				if (i.level()) *reg |= 0b10 << ((i.number() % 16)*2); });
+				if (!i.level()) *reg |= 0b10 << ((i.number() % 16)*2); });
 			return;
 		}
 

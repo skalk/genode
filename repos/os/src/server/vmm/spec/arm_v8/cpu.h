@@ -108,9 +108,11 @@ class Cpu
 					return r ? r->find_by_encoding(e) : nullptr;
 				}
 
-				void write(Genode::addr_t v) { _value = (Genode::uint32_t)v; }
+				virtual void write(Genode::addr_t v) {
+					_value = (Genode::uint32_t)v; }
 
-				Genode::addr_t read() const { return (Genode::addr_t)(_value); }
+				virtual Genode::addr_t read() const {
+					return (Genode::addr_t)(_value); }
 
 
 				/************************
@@ -119,6 +121,59 @@ class Cpu
 
 				bool higher(System_register *r) {
 					return (r->_encoding > _encoding); }
+		};
+
+		class Id_aa64pfr0 : public System_register,
+		                    public Genode::Register<64>
+		{
+			private:
+
+				struct El0 : Bitfield<0,  4> { enum { AARCH64_ONLY = 1 }; };
+				struct El1 : Bitfield<4,  4> { enum { AARCH64_ONLY = 1 }; };
+				struct El2 : Bitfield<8,  4> { enum { NOT_IMPLEMENTED  }; };
+				struct El3 : Bitfield<12, 4> { enum { NOT_IMPLEMENTED  }; };
+				struct Ras : Bitfield<28, 4> { enum { NOT_IMPLEMENTED  }; };
+				struct Sve : Bitfield<32, 4> { enum { NOT_IMPLEMENTED  }; };
+
+				access_t _reset_value(access_t orig)
+				{
+					El0::set(orig, El0::AARCH64_ONLY);
+					El1::set(orig, El1::AARCH64_ONLY);
+					El2::set(orig, El2::NOT_IMPLEMENTED);
+					El3::set(orig, El3::NOT_IMPLEMENTED);
+					Ras::set(orig, Ras::NOT_IMPLEMENTED);
+					Sve::set(orig, Sve::NOT_IMPLEMENTED);
+					return orig;
+				}
+
+			public:
+
+				Id_aa64pfr0(Genode::uint64_t id_aa64pfr0,
+				            Genode::Avl_tree<System_register> & tree)
+				: System_register(3, 0, 0, 4, 0, "ID_AA64PFR0_EL1", false,
+				                  _reset_value(id_aa64pfr0), tree) {}
+		};
+
+		struct Ccsidr : System_register
+		{
+			System_register & csselr;
+			State           & state;
+
+			Ccsidr(System_register &csselr,
+			       State & state,
+			       Genode::Avl_tree<System_register> & tree)
+			: System_register(3, 0, 1, 0, 0, "CCSIDR_EL1", false, 0x0, tree),
+			  csselr(csselr), state(state) {}
+
+			virtual Genode::addr_t read() const override;
+		};
+
+		struct Ctr_el0 : System_register
+		{
+			Ctr_el0(Genode::Avl_tree<System_register> & tree)
+			: System_register(3, 0, 3, 0, 1, "CTR_EL0", false, 0x0, tree) {}
+
+			virtual Genode::addr_t read() const override;
 		};
 
 		struct Dbgbvr : System_register
@@ -133,6 +188,18 @@ class Cpu
 			: System_register(2, 0, 0, num, 5, "DBGBCR_EL1", true, 0x0, tree) {}
 		};
 
+		struct Dbgwcr : System_register
+		{
+			Dbgwcr(unsigned num, Genode::Avl_tree<System_register> & tree)
+			: System_register(2, 0, 0, num, 7, "DBGWCR_EL1", true, 0x0, tree) {}
+		};
+
+		struct Dbgwvr : System_register
+		{
+			Dbgwvr(unsigned num, Genode::Avl_tree<System_register> & tree)
+			: System_register(2, 0, 0, num, 6, "DBGWVR_EL1", true, 0x0, tree) {}
+		};
+
 	private:
 
 		unsigned                          _cpu_id;
@@ -143,12 +210,57 @@ class Cpu
 		State                           & _state;
 		bool                              _active { true };
 		Genode::Avl_tree<System_register> _reg_tree;
-		System_register                   _sr_ctr;
+
+		/******************************
+		 ** Identification registers **
+		 ******************************/
+
+		System_register                   _sr_id_aa64afr0_el1;
+		System_register                   _sr_id_aa64afr1_el1;
+		System_register                   _sr_id_aa64dfr0_el1;
+		System_register                   _sr_id_aa64dfr1_el1;
+		System_register                   _sr_id_aa64isar0_el1;
+		System_register                   _sr_id_aa64isar1_el1;
+		System_register                   _sr_id_aa64mmfr0_el1;
+		System_register                   _sr_id_aa64mmfr1_el1;
+		System_register                   _sr_id_aa64mmfr2_el1;
+		Id_aa64pfr0                       _sr_id_aa64pfr0_el1;
+		System_register                   _sr_id_aa64pfr1_el1;
+		System_register                   _sr_id_aa64zfr0_el1;
+		System_register                   _sr_aidr_el1;
+		System_register                   _sr_revidr_el1;
+
+		/*********************
+		 ** Cache registers **
+		 *********************/
+
+		System_register                   _sr_clidr_el1;
+		System_register                   _sr_csselr_el1;
+		Ctr_el0                           _sr_ctr_el0;
+		Ccsidr                            _sr_ccsidr_el1;
+
+		/***********************************
+		 ** Performance monitor registers **
+		 ***********************************/
+
+		System_register                   _sr_pmuserenr_el0;
+
+		/*****************************
+		 ** Debug monitor registers **
+		 *****************************/
+
 		Genode::Constructible<Dbgbcr>     _sr_dbgbcr[16];
 		Genode::Constructible<Dbgbvr>     _sr_dbgbvr[16];
+		Genode::Constructible<Dbgwcr>     _sr_dbgwcr[16];
+		Genode::Constructible<Dbgwvr>     _sr_dbgwvr[16];
 		System_register                   _sr_mdscr;
 		System_register                   _sr_osdlr;
 		System_register                   _sr_oslar;
+
+		/***********************
+		 ** Local peripherals **
+		 ***********************/
+
 		Gic::Gicd_banked                  _gic;
 		Generic_timer                     _timer;
 

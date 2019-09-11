@@ -56,6 +56,65 @@ Cpu::System_register::System_register(unsigned         op0,
 }
 
 
+Genode::addr_t Cpu::Ccsidr::read() const
+{
+	struct Clidr : Genode::Register<32>
+	{
+		enum Cache_entry {
+			NO_CACHE,
+			INSTRUCTION_CACHE_ONLY,
+			DATA_CACHE_ONLY,
+			SEPARATE_CACHE,
+			UNIFIED_CACHE
+		};
+
+		static unsigned level(unsigned l, access_t reg) {
+			return (reg >> l*3) & 0b111; }
+	};
+
+	struct Csselr : Genode::Register<32>
+	{
+		struct Instr : Bitfield<0, 1> {};
+		struct Level : Bitfield<1, 4> {};
+	};
+
+	enum { INVALID = 0xffffffff };
+
+	unsigned level = Csselr::Level::get(csselr.read());
+	bool     instr = Csselr::Instr::get(csselr.read());
+
+	if (level > 6) {
+		Genode::warning("Invalid Csselr value!");
+		return INVALID;
+	}
+
+	unsigned ce = Clidr::level(level, state.clidr_el1);
+
+	if (ce == Clidr::NO_CACHE ||
+	    (ce == Clidr::DATA_CACHE_ONLY && instr)) {
+		Genode::warning("Invalid Csselr value!");
+		return INVALID;
+	}
+
+	if (ce == Clidr::INSTRUCTION_CACHE_ONLY ||
+	    (ce == Clidr::SEPARATE_CACHE && instr)) {
+		Genode::log("Return Ccsidr instr value ", state.ccsidr_inst_el1[level]);
+		return state.ccsidr_inst_el1[level];
+	}
+
+	Genode::log("Return Ccsidr value ", state.ccsidr_data_el1[level]);
+	return state.ccsidr_data_el1[level];
+}
+
+
+Genode::addr_t Cpu::Ctr_el0::read() const
+{
+	Genode::addr_t ret;
+	asm volatile("mrs %0, ctr_el0" : "=r" (ret));
+	return ret;
+}
+
+
 bool Cpu::_handle_sys_reg()
 {
 	using Iss = System_register::Iss;
@@ -195,16 +254,46 @@ Cpu::Cpu(Vmm                     & vmm,
   _heap(heap),
   _vcpu_id(_vm.create_vcpu(heap, env, handler)),
   _state(*((State*)env.rm().attach(_vm.cpu_state(_vcpu_id)))),
-  _sr_ctr(  3, 0, 3, 0, 1, "CTR_EL0",   false, 0x84448004, _reg_tree),
-  _sr_mdscr(2, 0, 0, 2, 2, "MDSCR_EL1", true,  0x0,        _reg_tree),
-  _sr_osdlr(2, 1, 0, 3, 4, "OSDLR_EL1", true,  0x0,        _reg_tree),
-  _sr_oslar(2, 1, 0, 0, 4, "OSLAR_EL1", true,  0x0,        _reg_tree),
+	//                op0, crn, op1, crm, op2, writeable, reset value
+  _sr_id_aa64afr0_el1 (3, 0, 0, 5, 4, "ID_AA64AFR0_EL1",  false, 0x0,                     _reg_tree),
+  _sr_id_aa64afr1_el1 (3, 0, 0, 5, 5, "ID_AA64AFR1_EL1",  false, 0x0,                     _reg_tree),
+  _sr_id_aa64dfr0_el1 (3, 0, 0, 5, 0, "ID_AA64DFR0_EL1",  false, 0xf0f0f006,              _reg_tree),
+  _sr_id_aa64dfr1_el1 (3, 0, 0, 5, 1, "ID_AA64DFR1_EL1",  false, 0x0,                     _reg_tree),
+  _sr_id_aa64isar0_el1(3, 0, 0, 6, 0, "ID_AA64ISAR0_EL1", false, _state.id_aa64isar0_el1, _reg_tree),
+  _sr_id_aa64isar1_el1(3, 0, 0, 6, 1, "ID_AA64ISAR1_EL1", false, _state.id_aa64isar1_el1, _reg_tree),
+  _sr_id_aa64mmfr0_el1(3, 0, 0, 7, 0, "ID_AA64MMFR0_EL1", false, _state.id_aa64mmfr0_el1, _reg_tree),
+  _sr_id_aa64mmfr1_el1(3, 0, 0, 7, 1, "ID_AA64MMFR1_EL1", false, _state.id_aa64mmfr1_el1, _reg_tree),
+  _sr_id_aa64mmfr2_el1(3, 0, 0, 7, 2, "ID_AA64MMFR2_EL1", false, _state.id_aa64mmfr2_el1, _reg_tree),
+  _sr_id_aa64pfr0_el1 (_state.id_aa64pfr0_el1, _reg_tree),
+  _sr_id_aa64pfr1_el1 (3, 0, 0, 4, 1, "ID_AA64PFR1_EL1",  false, 0x0,                     _reg_tree),
+  _sr_id_aa64zfr0_el1 (3, 0, 0, 4, 4, "ID_AA64ZFR0_EL1",  false, 0x0,                     _reg_tree),
+  _sr_aidr_el1        (3, 0, 1, 0, 7, "AIDR_EL1",         false, 0x0,                     _reg_tree),
+  _sr_revidr_el1      (3, 0, 0, 0, 6, "REVIDR_EL1",       false, 0x0,                     _reg_tree),
+
+  _sr_clidr_el1       (3, 0, 1, 0, 2, "CLIDR_EL1",        false, _state.clidr_el1,        _reg_tree),
+  _sr_csselr_el1      (3, 0, 2, 0, 0, "CSSELR_EL1",       true,  0x0,                     _reg_tree),
+  _sr_ctr_el0         (_reg_tree),
+  _sr_ccsidr_el1      (_sr_csselr_el1, _state, _reg_tree),
+
+  //_sr_pmccfiltr_el0   (3, 14, 3, 15, 7, "PMCCFILTR_EL0",  true,  0x0,                     _reg_tree),
+  _sr_pmuserenr_el0   (3, 9, 3, 14, 0,  "PMUSEREN_EL0",   true,  0x0,                     _reg_tree),
+
+  _sr_mdscr           (2, 0, 0, 2, 2, "MDSCR_EL1",        true,  0x0,                     _reg_tree),
+  _sr_osdlr           (2, 1, 0, 3, 4, "OSDLR_EL1",        true,  0x0,                     _reg_tree),
+  _sr_oslar           (2, 1, 0, 0, 4, "OSLAR_EL1",        true,  0x0,                     _reg_tree),
+
   _gic(*this, gic),
   _timer(env, *_gic.ppi[11], *this)
 {
+	/*
+	 * Dummy debug register only used on QEMU,
+	 * because of incomplete trap behaviour
+	 */
 	for (unsigned i = 0; i < 16; i++) {
 		_sr_dbgbvr[i].construct(i, _reg_tree);
 		_sr_dbgbcr[i].construct(i, _reg_tree);
+		_sr_dbgwcr[i].construct(i, _reg_tree);
+		_sr_dbgwvr[i].construct(i, _reg_tree);
 	}
 
 	_state.r[0]   = dtb;
