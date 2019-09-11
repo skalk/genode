@@ -151,6 +151,7 @@ struct Hw::Arm_64_cpu
 		struct Sa  : Bitfield<3,  1> { };
 		struct Sa0 : Bitfield<4,  1> { };
 		struct I   : Bitfield<12, 1> { };
+		struct Uct : Bitfield<15, 1> { };
 		struct Wxn : Bitfield<19, 1> { };
 	};
 

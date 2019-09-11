@@ -185,7 +185,9 @@ void Vm::exception(Cpu & cpu)
 		_interrupt(cpu.id());
 		break;
 	case Cpu::SYNC_LEVEL_EL0: [[fallthrough]]
-	case Cpu::SYNC_LEVEL_EL1:
+	case Cpu::SYNC_LEVEL_EL1: [[fallthrough]]
+	case Cpu::SERR_LEVEL_EL0: [[fallthrough]]
+	case Cpu::SERR_LEVEL_EL1:
 		pause();
 		_context.submit(1);
 		break;
