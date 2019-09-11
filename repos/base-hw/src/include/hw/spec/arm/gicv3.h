@@ -257,6 +257,8 @@ class Hw::Pic
 		}
 
 		void irq_mode(unsigned, unsigned, unsigned) { }
+
+		void init_cpu_local() {}
 };
 
 #undef SYSTEM_REGISTER
