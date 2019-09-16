@@ -14,15 +14,17 @@
 #ifndef _SRC__SERVER__VMM__GIC_H_
 #define _SRC__SERVER__VMM__GIC_H_
 
-#include <device.h>
-#include <exception.h>
+#include <mmio.h>
+
 #include <base/env.h>
 #include <drivers/defs/arm_v7.h>
 #include <util/list.h>
 #include <util/register.h>
 #include <util/reconstructible.h>
 
-class Gic : public Device
+namespace Vmm { class Gic; }
+
+class Vmm::Gic : public Vmm::Mmio_device
 {
 	public:
 
@@ -90,43 +92,23 @@ class Gic : public Device
 				Irq_handler   * _handler { nullptr };
 		};
 
-		struct Gicd_banked
+		class Gicd_banked
 		{
-			Cpu                      & cpu;
-			Gic                      & gic;
-			Genode::Constructible<Irq> sgi[MAX_SGI];
-			Genode::Constructible<Irq> ppi[MAX_PPI];
-			Irq::List                  pending_list;
+			public:
 
-			Gicd_banked(Cpu & cpu, Gic & gic);
+				Irq & irq(unsigned num);
+				void handle_irq();
+				bool pending_irq();
 
-			template <typename func>
-			void for_each_sgi(func const &fn) {
-				for (unsigned i = 0; i < MAX_SGI; i++) fn(*sgi[i]); }
+				Gicd_banked(Cpu & cpu, Gic & gic);
 
-			template <typename FUNC>
-			void for_each_ppi(FUNC const &fn) {
-				for (unsigned i = 0; i < MAX_PPI; i++) fn(*ppi[i]); }
+			private:
 
-			template <typename FUNC>
-			void for_each(FUNC const &fn)
-			{
-				for_each_sgi(fn);
-				for_each_ppi(fn);
-			}
-
-			template <typename func>
-			void for_range_irq(Genode::uint64_t off, Genode::uint32_t reg,
-			                   unsigned irq_per_reg, func const &fn)
-			{
-				unsigned idx = (off - reg) / 4 * irq_per_reg;
-				for (unsigned i = 0; i < irq_per_reg; i++)
-					fn((idx >= MAX_SGI) ? *ppi[i+idx-MAX_SGI]
-					                    : *sgi[i+idx]);
-			}
-
-			void handle_irq();
-			bool pending_irq();
+				Cpu                      & _cpu;
+				Gic                      & _gic;
+				Genode::Constructible<Irq> _sgi[MAX_SGI];
+				Genode::Constructible<Irq> _ppi[MAX_PPI];
+				Irq::List                  _pending_list;
 		};
 
 		Gic(const char * const     name,
@@ -134,89 +116,149 @@ class Gic : public Device
 		    const Genode::uint64_t   size,
 		    Genode::Env            & env);
 
-		void read(Genode::uint32_t * reg, Genode::uint64_t off,
-		          Cpu & cpu) override;
-		void write(Genode::uint32_t * reg, Genode::uint64_t off,
-		           Cpu & cpu) override;
-
-		Irq & spi(unsigned num);
-
 	private:
 
 		friend struct Gicd_banked;
 
-		enum Offsets {
-			GICD_CTLR        = 0x0,
-			GICD_TYPER       = 0x4,
-			GICD_IIDR        = 0x8,
-			GICD_ISENABLER0  = 0x100,
-			GICD_ISENABLER1  = 0x104,
-			GICD_ICENABLER0  = 0x180,
-			GICD_ICENABLER1  = 0x184,
-			GICD_ISPENDR0    = 0x200,
-			GICD_ISPENDR1    = 0x204,
-			GICD_ICPENDR0    = 0x280,
-			GICD_ICPENDR1    = 0x284,
-			GICD_ISACTIVER0  = 0x300,
-			GICD_ISACTIVER1  = 0x304,
-			GICD_ICACTIVER0  = 0x380,
-			GICD_ICACTIVER1  = 0x384,
-			GICD_IPRIORITYR0 = 0x400,
-			GICD_IPRIORITYR8 = 0x420,
-			GICD_ITARGETSR0  = 0x800,
-			GICD_ITARGETSR8  = 0x820,
-			GICD_ICFGR0      = 0xc00,
-			GICD_ICFGR1      = 0xc04,
-			GICD_ICFGR2      = 0xc08,
-			GICD_SGIR        = 0xf00,
-			GICD_CPENDSGIR0  = 0xf10,
-			GICD_SPENDSGIR0  = 0xf20,
-		};
-
-		static unsigned _reg_idx(Offsets reg_off, Genode::uint64_t off) {
-			return (off - reg_off) / 4; }
-
-		static unsigned _reg_offset(Offsets off, unsigned irq, unsigned bits) {
-			return off + 4 * ((irq * bits) / 32); }
-
-		static bool _in_reg_range(Genode::uint64_t off, Offsets reg_off,
-		                          unsigned irq, unsigned bits) {
-			return off >= reg_off && off < _reg_offset(reg_off, irq, bits); }
-
-		struct Ctlr : Genode::Register<32>
+		struct Gicd_ctlr : Genode::Register<32>, Mmio_register
 		{
 			struct Enable : Bitfield<0, 1> {};
-		};
 
-		struct Typer : Genode::Register<32>
+			Gicd_ctlr()
+			: Mmio_register("GICD_CTLR", Mmio_register::RW, 0, 4, 0) {}
+		} _ctrl;
+
+		struct Gicd_typer : Genode::Register<32>, Mmio_register
 		{
 			struct It_lines_number : Bitfield<0, 5> {};
 			struct Cpu_number      : Bitfield<5, 3> {};
-		};
 
-		struct Iidr : Genode::Register<32>
+			Gicd_typer(unsigned cpus)
+			:  Mmio_register("GICD_TYPER", Mmio_register::RO, 0x4, 4,
+			                 It_lines_number::bits(31) | Cpu_number::bits(cpus-1)) {}
+		} _typer { 1 }; /* FIXME: smp support */
+
+		struct Gicd_iidr : Genode::Register<32>, Mmio_register
 		{
 			struct Implementer : Bitfield<0, 12> {};
 			struct Revision    : Bitfield<12, 4> {};
 			struct Variant     : Bitfield<16, 4> {};
 			struct Product_id  : Bitfield<24, 8> {};
+
+			Gicd_iidr()
+			: Mmio_register("GICD_IIDR", Mmio_register::RO, 0x8, 4, 0x123) {}
+		} _iidr;
+
+		struct Irq_reg : Mmio_register
+		{
+			virtual Register read(Irq & irq)  { return 0; }
+			virtual void     write(Irq & irq, Register reg) { }
+
+			Register read(Address_range  & access, Cpu&) override;
+			void     write(Address_range & access, Cpu&, Register value) override;
+
+			Irq_reg(Mmio_register::Name name,
+			        Mmio_register::Type type,
+			        Genode::uint64_t    start,
+			        unsigned            bits_per_irq)
+			: Mmio_register(name, type, start, bits_per_irq*1024/8) {}
 		};
 
-		bool                       _enabled { false };
+		struct Gicd_isenabler : Irq_reg
+		{
+			Register read(Irq & irq)              { return irq.enabled(); }
+			void     write(Irq & irq, Register v) { if (v) irq.enable();  }
+
+			Gicd_isenabler()
+			: Irq_reg("GICD_ISENABLER", Mmio_register::RW, 0x100, 1) {}
+		} _isenabler;
+
+		struct Gicd_icenabler : Irq_reg
+		{
+			Register read(Irq & irq)              { return irq.enabled(); }
+			void     write(Irq & irq, Register v) { if (v) irq.disable(); }
+
+			Gicd_icenabler()
+			: Irq_reg("GICD_ICENABLER", Mmio_register::RW, 0x180, 1) {}
+		} _csenabler;
+
+		struct Gicd_ispendr : Irq_reg
+		{
+			Register read(Irq & irq)              { return irq.pending(); }
+			void     write(Irq & irq, Register v) { if (v) irq.assert();  }
+
+			Gicd_ispendr()
+			: Irq_reg("GICD_ISPENDR", Mmio_register::RW, 0x200, 1) {}
+		} _ispendr;
+
+		struct Gicd_icpendr : Irq_reg
+		{
+			Register read(Irq & irq)              { return irq.pending();  }
+			void     write(Irq & irq, Register v) { if (v) irq.deassert(); }
+
+			Gicd_icpendr()
+			: Irq_reg("GICD_ICPENDR", Mmio_register::RW, 0x280, 1) {}
+		} _icpendr;
+
+		struct Gicd_isactiver : Irq_reg
+		{
+			Register read(Irq & irq)              { return irq.active();   }
+			void     write(Irq & irq, Register v) { if (v) irq.activate(); }
+
+			Gicd_isactiver()
+			: Irq_reg("GICD_ISACTIVER", Mmio_register::RW, 0x300, 1) {}
+		} _isactiver;
+
+		struct Gicd_icactiver : Irq_reg
+		{
+			Register read(Irq & irq)              { return irq.active();     }
+			void     write(Irq & irq, Register v) { if (v) irq.deactivate(); }
+
+			Gicd_icactiver()
+			: Irq_reg("GICD_ICACTIVER", Mmio_register::RW, 0x380, 1) {}
+		} _icactiver;
+
+		struct Gicd_ipriorityr : Irq_reg
+		{
+			Register read(Irq & irq)              { return irq.priority(); }
+			void     write(Irq & irq, Register v) { irq.priority(v);       }
+
+			Gicd_ipriorityr()
+			: Irq_reg("GICD_IPRIORITYR", Mmio_register::RW, 0x400, 8) {}
+		} _ipriorityr;
+
+		struct Gicd_itargetr : Irq_reg
+		{
+			Register read(Irq & irq)              { return irq.target(); }
+			void     write(Irq & irq, Register v) { irq.target(v);       }
+
+			Gicd_itargetr()
+			: Irq_reg("GICD_ITARGETSR", Mmio_register::RW, 0x800, 8) {}
+		} _itargetr;
+
+
+		struct Gicd_icfgr : Irq_reg
+		{
+			Register read(Irq & irq)              { return irq.target(); }
+			void     write(Irq & irq, Register v) { irq.target(v);       }
+
+			Gicd_icfgr()
+			: Irq_reg("GICD_ICFGR", Mmio_register::RW, 0xc00, 8) {}
+		} _icfgr;
+
+		/**
+		 * FIXME: missing registers:
+		 * GICD_IGROUP      = 0x80,
+		 * GICD_NSACR       = 0xe00,
+		 * GICD_SGIR        = 0xf00,
+		 * GICD_CPENDSGIR0  = 0xf10,
+		 * GICD_SPENDSGIR0  = 0xf20,
+         * GICD identification registers 0xfd0...
+		 */
+
 		Genode::Constructible<Irq> _spi[MAX_SPI];
 		Irq::List                  _pending_list;
 		unsigned                   _cpu_cnt { 1 };
-
-		void _enable();
-		void _disable();
-
-		template <typename func>
-		void _for_range_spi(Genode::uint64_t off, Genode::uint32_t reg,
-		                    unsigned irq_per_reg, func const &fn)
-		{
-			unsigned idx = (off - reg) / 4 * irq_per_reg;
-			for (unsigned i = 0; i < irq_per_reg; i++) fn(*_spi[i+idx]);
-		}
 };
 
 #endif /* _SRC__SERVER__VMM__GIC_H_ */

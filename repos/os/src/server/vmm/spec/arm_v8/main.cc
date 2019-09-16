@@ -11,8 +11,7 @@
  * under the terms of the GNU Affero General Public License version 3.
  */
 
-#include <vmm.h>
+#include <vm.h>
 #include <base/component.h>
 
-
-void Component::construct(Genode::Env & env) { static Vmm vmm(env); }
+void Component::construct(Genode::Env & env) { static Vmm::Vm vm(env); }

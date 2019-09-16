@@ -21,9 +21,12 @@
 #include <timer_session/connection.h>
 #include <util/register.h>
 
-class Cpu;
+namespace Vmm {
+	class Cpu;
+	class Generic_timer;
+}
 
-class Generic_timer : Gic::Irq::Irq_handler
+class Vmm::Generic_timer : Gic::Irq::Irq_handler
 {
 	private:
 

@@ -11,8 +11,8 @@
  * under the terms of the GNU Affero General Public License version 3.
  */
 
-#ifndef _SRC__SERVER__VMM__VMM_H_
-#define _SRC__SERVER__VMM__VMM_H_
+#ifndef _SRC__SERVER__VMM__VM_H_
+#define _SRC__SERVER__VMM__VM_H_
 
 #include <ram.h>
 #include <exception.h>
@@ -24,7 +24,9 @@
 #include <base/attached_rom_dataspace.h>
 #include <vm_session/connection.h>
 
-class Vmm
+namespace Vmm { class Vm; }
+
+class Vmm::Vm
 {
 	private:
 
@@ -43,8 +45,8 @@ class Vmm
 		Genode::Attached_ram_dataspace _vm_ram;
 		Ram                            _ram;
 		Genode::Heap                   _heap;
-		Cpu::Signal_handler<Vmm>       _vm_handler;
-		Genode::Avl_tree<Device>       _device_tree;
+		Cpu::Signal_handler<Vm>        _vm_handler;
+		Mmio_bus                       _bus;
 		Gic                            _gic;
 		Cpu                            _cpu;
 		Pl011                          _uart;
@@ -56,11 +58,11 @@ class Vmm
 
 	public:
 
-		Vmm(Genode::Env & env);
+		Vm(Genode::Env & env);
 
-		void  handle_data_abort(Genode::uint64_t ipa);
+		void  handle_data_abort();
 		void  handle_hyper_call();
 		Cpu & cpu() { return _cpu; }
 };
 
-#endif /* _SRC__SERVER__VMM__VMM_H_ */
+#endif /* _SRC__SERVER__VMM__VM_H_ */

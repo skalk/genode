@@ -23,9 +23,12 @@
 #include <util/mmio.h>
 #include <vm_session/connection.h>
 
-class Vmm;
+namespace Vmm {
+	class Vm;
+	class Cpu;
+}
 
-class Cpu
+class Vmm::Cpu
 {
 	public:
 
@@ -203,8 +206,8 @@ class Cpu
 	private:
 
 		unsigned                          _cpu_id;
-		Vmm                             & _vmm;
-		Genode::Vm_connection           & _vm;
+		Vm                              & _vm;
+		Genode::Vm_connection           & _vm_session;
 		Genode::Heap                    & _heap;
 		Genode::Vm_session::Vcpu_id       _vcpu_id;
 		State                           & _state;
@@ -272,8 +275,8 @@ class Cpu
 
 	public:
 
-		Cpu(Vmm                     & vmm,
-		    Genode::Vm_connection   & vm,
+		Cpu(Vm                      & vm,
+		    Genode::Vm_connection   & vm_session,
 		    Gic                     & gic,
 		    Genode::Env             & env,
 		    Genode::Heap            & heap,
@@ -281,12 +284,12 @@ class Cpu
 		    Genode::addr_t            ip,
 		    Genode::addr_t            dtb);
 
-		unsigned cpu_id() const   { return _cpu_id;                 }
-		void run()                { if (_active) _vm.run(_vcpu_id); }
-		void pause()              { _vm.pause(_vcpu_id);            }
-		bool active()             { return _active;                 }
-		State & state() const     { return _state;                  }
-		Gic::Gicd_banked & gic()  { return _gic;                    }
+		unsigned cpu_id() const   { return _cpu_id;                         }
+		void run()                { if (_active) _vm_session.run(_vcpu_id); }
+		void pause()              { _vm_session.pause(_vcpu_id);            }
+		bool active()             { return _active;                         }
+		State & state() const     { return _state;                          }
+		Gic::Gicd_banked & gic()  { return _gic;                            }
 		void dump();
 
 		template <typename FUNC>
@@ -328,7 +331,7 @@ class Cpu
 				try {
 					cpu.handle_signal([this] () { (obj.*member)(); });
 				} catch(Exception &e) {
-					e.print();
+					Genode::error(e);
 					cpu.dump();
 				}
 			}

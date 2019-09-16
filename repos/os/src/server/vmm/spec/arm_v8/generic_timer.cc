@@ -14,6 +14,8 @@
 #include <cpu.h>
 #include <generic_timer.h>
 
+using Vmm::Generic_timer;
+
 Genode::uint64_t Generic_timer::_ticks_per_ms()
 {
 	static Genode::uint64_t ticks_per_ms = 0;

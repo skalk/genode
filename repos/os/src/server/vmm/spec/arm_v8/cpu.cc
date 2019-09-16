@@ -11,7 +11,9 @@
  * under the terms of the GNU Affero General Public License version 3.
  */
 #include <cpu.h>
-#include <vmm.h>
+#include <vm.h>
+
+using Vmm::Cpu;
 
 Cpu::System_register::Iss::access_t
 Cpu::System_register::Iss::value(unsigned op0, unsigned crn, unsigned op1,
@@ -167,13 +169,13 @@ void Cpu::_handle_sync()
 	/* check device number*/
 	switch (Esr::Ec::get(_state.esr_el2)) {
 	case Esr::Ec::HVC:
-		_vmm.handle_hyper_call();
+		_vm.handle_hyper_call();
 		break;
 	case Esr::Ec::MRS_MSR:
 		_handle_sys_reg();
 		break;
 	case Esr::Ec::DA:
-		_vmm.handle_data_abort((Genode::uint64_t)_state.hpfar_el2 << 8);
+		_vm.handle_data_abort();
 		break;
 	case Esr::Ec::WFI:
 		_handle_wfi();
@@ -241,19 +243,19 @@ void Cpu::dump()
 }
 
 
-Cpu::Cpu(Vmm                     & vmm,
-         Genode::Vm_connection   & vm,
+Cpu::Cpu(Vm                      & vm,
+         Genode::Vm_connection   & vm_session,
          Gic                     & gic,
          Genode::Env             & env,
          Genode::Heap            & heap,
          Genode::Vm_handler_base & handler,
          Genode::addr_t            ip,
          Genode::addr_t            dtb)
-: _vmm(vmm),
-  _vm(vm),
+: _vm(vm),
+  _vm_session(vm_session),
   _heap(heap),
-  _vcpu_id(_vm.create_vcpu(heap, env, handler)),
-  _state(*((State*)env.rm().attach(_vm.cpu_state(_vcpu_id)))),
+  _vcpu_id(_vm_session.create_vcpu(heap, env, handler)),
+  _state(*((State*)env.rm().attach(_vm_session.cpu_state(_vcpu_id)))),
 	//                op0, crn, op1, crm, op2, writeable, reset value
   _sr_id_aa64afr0_el1 (3, 0, 0, 5, 4, "ID_AA64AFR0_EL1",  false, 0x0,                     _reg_tree),
   _sr_id_aa64afr1_el1 (3, 0, 0, 5, 5, "ID_AA64AFR1_EL1",  false, 0x0,                     _reg_tree),
@@ -283,7 +285,7 @@ Cpu::Cpu(Vmm                     & vmm,
   _sr_oslar           (2, 1, 0, 0, 4, "OSLAR_EL1",        true,  0x0,                     _reg_tree),
 
   _gic(*this, gic),
-  _timer(env, *_gic.ppi[11], *this)
+  _timer(env, _gic.irq(27), *this)
 {
 	/*
 	 * Dummy debug register only used on QEMU,
