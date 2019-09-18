@@ -277,6 +277,7 @@ class Vmm::Cpu
 
 		Cpu(Vm                      & vm,
 		    Genode::Vm_connection   & vm_session,
+		    Mmio_bus                & bus,
 		    Gic                     & gic,
 		    Genode::Env             & env,
 		    Genode::Heap            & heap,

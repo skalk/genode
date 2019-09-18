@@ -79,8 +79,9 @@ Pl011::Pl011(const char * const       name,
              const Genode::uint64_t   addr,
              const Genode::uint64_t   size,
              unsigned                 irq,
-             Cpu                     &cpu,
-             Genode::Env             &env)
+             Cpu                    & cpu,
+             Mmio_bus               & bus,
+             Genode::Env            & env)
 : Mmio_device(name, addr, size),
   _terminal(env),
   _handler(cpu, env.ep(), *this, &Pl011::_read),
@@ -96,4 +97,6 @@ Pl011::Pl011(const char * const       name,
 	add(_uart_icr);
 
 	_terminal.read_avail_sigh(_handler);
+
+	bus.add(*this);
 }

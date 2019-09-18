@@ -137,8 +137,9 @@ class Vmm::Pl011 : public Vmm::Mmio_device
 		      const Genode::uint64_t   addr,
 		      const Genode::uint64_t   size,
 		      unsigned                 irq,
-		      Cpu                     &cpu,
-		      Genode::Env             &env);
+		      Cpu                    & cpu,
+		      Mmio_bus               & bus,
+		      Genode::Env            & env);
 };
 
 #endif /* _SRC__SERVER__VMM__PL011_H_ */

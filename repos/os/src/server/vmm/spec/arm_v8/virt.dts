@@ -52,11 +52,12 @@
 	};
 
 	intc@8000000 {
-		compatible = "arm,cortex-a15-gic";
+		compatible = "arm,gic-v3";
 		phandle = <0x8001>;
-		reg = <0x00 0x8000000 0x00 0x10000 0x00 0x8010000 0x00 0x10000>;
+		reg = <0x00 0x8000000 0x00 0x10000 0x00 0x8010000 0x00 0xf60000>;
 		ranges;
 		#address-cells = <0x02>;
+		#redistributor-regions = <0x01>;
 		interrupt-controller;
 		#interrupt-cells = <0x03>;
 		#size-cells = <0x02>;

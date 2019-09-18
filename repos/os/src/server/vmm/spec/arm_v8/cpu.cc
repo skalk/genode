@@ -245,6 +245,7 @@ void Cpu::dump()
 
 Cpu::Cpu(Vm                      & vm,
          Genode::Vm_connection   & vm_session,
+         Mmio_bus                & bus,
          Gic                     & gic,
          Genode::Env             & env,
          Genode::Heap            & heap,
@@ -284,7 +285,7 @@ Cpu::Cpu(Vm                      & vm,
   _sr_osdlr           (2, 1, 0, 3, 4, "OSDLR_EL1",        true,  0x0,                     _reg_tree),
   _sr_oslar           (2, 1, 0, 0, 4, "OSLAR_EL1",        true,  0x0,                     _reg_tree),
 
-  _gic(*this, gic),
+  _gic(*this, gic, bus),
   _timer(env, _gic.irq(27), *this)
 {
 	/*

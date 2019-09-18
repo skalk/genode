@@ -171,7 +171,8 @@ bool Gic::Gicd_banked::pending_irq()
 }
 
 
-Gic::Gicd_banked::Gicd_banked(Cpu & cpu, Gic & gic) : _cpu(cpu), _gic(gic)
+Gic::Gicd_banked::Gicd_banked(Cpu & cpu, Gic & gic, Mmio_bus & bus)
+: _cpu(cpu), _gic(gic)
 {
 	for (unsigned i = 0; i < MAX_SGI; i++)
 		_sgi[i].construct(i, Irq::SGI, _pending_list);
@@ -181,6 +182,9 @@ Gic::Gicd_banked::Gicd_banked(Cpu & cpu, Gic & gic) : _cpu(cpu), _gic(gic)
 
 	_cpu.state().irqs.last_irq    = 1023;
 	_cpu.state().irqs.virtual_irq = 1023;
+
+	_rdist.construct(0x8010000, 0x10000);
+	bus.add(*_rdist);
 }
 
 
@@ -210,7 +214,8 @@ void Gic::Irq_reg::write(Address_range & access, Cpu & cpu, Register value)
 Gic::Gic(const char * const     name,
          const Genode::uint64_t addr,
          const Genode::uint64_t size,
-         Genode::Env & env)
+         Mmio_bus             & bus,
+         Genode::Env          & env)
 : Mmio_device(name, addr, size)
 {
 	add(_ctrl);
@@ -226,6 +231,11 @@ Gic::Gic(const char * const     name,
 	add(_itargetr);
 	add(_icfgr);
 
+	for (unsigned i = 0; i < (sizeof(Dummy::regs) / sizeof(Mmio_register)); i++)
+		add(_reg_container.regs[i]);
+
 	for (unsigned i = 0; i < MAX_SPI; i++)
 		_spi[i].construct(i+MAX_SGI+MAX_PPI, Irq::SPI, _pending_list);
+
+	bus.add(*this);
 }

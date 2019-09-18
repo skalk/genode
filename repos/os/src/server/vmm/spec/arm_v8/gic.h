@@ -100,7 +100,7 @@ class Vmm::Gic : public Vmm::Mmio_device
 				void handle_irq();
 				bool pending_irq();
 
-				Gicd_banked(Cpu & cpu, Gic & gic);
+				Gicd_banked(Cpu & cpu, Gic & gic, Mmio_bus & bus);
 
 			private:
 
@@ -109,16 +109,37 @@ class Vmm::Gic : public Vmm::Mmio_device
 				Genode::Constructible<Irq> _sgi[MAX_SGI];
 				Genode::Constructible<Irq> _ppi[MAX_PPI];
 				Irq::List                  _pending_list;
+
+				struct Redistributor : Mmio_device
+				{
+					Mmio_register gicr_pidr2 { "GICD_PIDR2", Mmio_register::RO,
+					                           0xffe8, 4, (3<<4) };
+
+					Redistributor(const Genode::uint64_t addr,
+					              const Genode::uint64_t size)
+					: Mmio_device("GICR", addr, size)
+					{
+						add(gicr_pidr2);
+					}
+				};
+
+				Genode::Constructible<Redistributor> _rdist;
 		};
 
-		Gic(const char * const     name,
+		Gic(const char * const       name,
 		    const Genode::uint64_t   addr,
 		    const Genode::uint64_t   size,
+		    Mmio_bus               & bus,
 		    Genode::Env            & env);
 
 	private:
 
 		friend struct Gicd_banked;
+
+		Genode::Constructible<Irq> _spi[MAX_SPI];
+		Irq::List                  _pending_list;
+		unsigned                   _cpu_cnt { 1 }; /* FIXME: smp support */
+		unsigned                   _version { 3 }; /* FIXME: version support */
 
 		struct Gicd_ctlr : Genode::Register<32>, Mmio_register
 		{
@@ -136,7 +157,7 @@ class Vmm::Gic : public Vmm::Mmio_device
 			Gicd_typer(unsigned cpus)
 			:  Mmio_register("GICD_TYPER", Mmio_register::RO, 0x4, 4,
 			                 It_lines_number::bits(31) | Cpu_number::bits(cpus-1)) {}
-		} _typer { 1 }; /* FIXME: smp support */
+		} _typer { _cpu_cnt };
 
 		struct Gicd_iidr : Genode::Register<32>, Mmio_register
 		{
@@ -256,9 +277,22 @@ class Vmm::Gic : public Vmm::Mmio_device
          * GICD identification registers 0xfd0...
 		 */
 
-		Genode::Constructible<Irq> _spi[MAX_SPI];
-		Irq::List                  _pending_list;
-		unsigned                   _cpu_cnt { 1 };
+		/**
+		 * Dummy container for holding array of noncopyable objects
+		 * Workaround for gcc bug: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=70395
+		 */
+		struct Dummy {
+			Mmio_register regs[8];
+		} _reg_container { .regs = {
+			{ "GICD_PIDR4", Mmio_register::RO, 0xffd0, 4, 0x0                 },
+			{ "GICD_PIDR5", Mmio_register::RO, 0xffd4, 4, 0x0                 },
+			{ "GICD_PIDR6", Mmio_register::RO, 0xffd8, 4, 0x0                 },
+			{ "GICD_PIDR7", Mmio_register::RO, 0xffdc, 4, 0x0                 },
+			{ "GICD_PIDR0", Mmio_register::RO, 0xffe0, 4, 0x492               },
+			{ "GICD_PIDR1", Mmio_register::RO, 0xffe4, 4, 0xb0                },
+			{ "GICD_PIDR2", Mmio_register::RO, 0xffe8, 4, (_version<<4) | 0xb },
+			{ "GICD_PIDR3", Mmio_register::RO, 0xffec, 4, 0x44                }
+		}};
 };
 
 #endif /* _SRC__SERVER__VMM__GIC_H_ */
