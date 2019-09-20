@@ -64,6 +64,7 @@ void Gic::Irq::assert()
 {
 	if (pending()) return;
 
+	Genode::error("ASSERT ", _num);
 	_state = PENDING;
 	_pending_list.insert(*this);
 }
@@ -183,7 +184,7 @@ Gic::Gicd_banked::Gicd_banked(Cpu & cpu, Gic & gic, Mmio_bus & bus)
 	_cpu.state().irqs.last_irq    = 1023;
 	_cpu.state().irqs.virtual_irq = 1023;
 
-	_rdist.construct(0x8010000, 0x10000);
+	_rdist.construct(0x8010000, 0x20000);
 	bus.add(*_rdist);
 }
 
@@ -192,7 +193,7 @@ Register Gic::Irq_reg::read(Address_range & access, Cpu & cpu)
 {
 	Register ret = 0;
 
-	Register bits_per_irq = size * 8 / 1024;
+	Register bits_per_irq = size * 8 / irq_count;
 	for (unsigned i = (access.start * 8) / bits_per_irq;
 	     i < ((access.start+access.size) * 8) / bits_per_irq; i++)
 		ret |= read(cpu.gic().irq(i)) << (i % 32/bits_per_irq);
@@ -202,7 +203,7 @@ Register Gic::Irq_reg::read(Address_range & access, Cpu & cpu)
 
 void Gic::Irq_reg::write(Address_range & access, Cpu & cpu, Register value)
 {
-	Register bits_per_irq   = size * 8 / 1024;
+	Register bits_per_irq   = size * 8 / irq_count;
 	Register irq_value_mask = (1<<bits_per_irq) - 1;
 	for (unsigned i = (access.start * 8) / bits_per_irq;
 	     i < ((access.start+access.size) * 8) / bits_per_irq; i++)
@@ -221,6 +222,7 @@ Gic::Gic(const char * const     name,
 	add(_ctrl);
 	add(_typer);
 	add(_iidr);
+	add(_igroupr);
 	add(_isenabler);
 	add(_csenabler);
 	add(_ispendr);
@@ -230,6 +232,7 @@ Gic::Gic(const char * const     name,
 	add(_ipriorityr);
 	add(_itargetr);
 	add(_icfgr);
+	add(_irouter);
 
 	for (unsigned i = 0; i < (sizeof(Dummy::regs) / sizeof(Mmio_register)); i++)
 		add(_reg_container.regs[i]);

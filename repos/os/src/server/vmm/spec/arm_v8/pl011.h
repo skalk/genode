@@ -82,7 +82,7 @@ class Vmm::Pl011 : public Vmm::Mmio_device
 			  terminal(terminal), rx(rx), ris(ris) {}
 		} _uart_dr { _terminal, _rx_buf, _uart_ris };
 
-		struct Uartfr : Mmio_register, Genode::Register<16>
+		struct Uartfr : Mmio_register, Genode::Register<32>
 		{
 			struct Rx_empty : Bitfield<4, 1> {};
 			struct Rx_full  : Bitfield<6, 1> {};
@@ -92,7 +92,7 @@ class Vmm::Pl011 : public Vmm::Mmio_device
 			Mmio_register::Register read(Address_range&, Cpu&) override;
 
 			Uartfr(Ring_buffer & rx)
-			: Mmio_register("UARTFR", Mmio_register::RO, 0x18, 2), rx(rx) {}
+			: Mmio_register("UARTFR", Mmio_register::RO, 0x18, 4), rx(rx) {}
 		} _uart_fr { _rx_buf };
 
 		struct Uartimsc : Mmio_register

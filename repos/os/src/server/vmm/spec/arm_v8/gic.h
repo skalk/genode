@@ -92,6 +92,25 @@ class Vmm::Gic : public Vmm::Mmio_device
 				Irq_handler   * _handler { nullptr };
 		};
 
+		struct Irq_reg: Mmio_register
+		{
+			unsigned const irq_count;
+
+			virtual Register read(Irq & irq)  { return 0; }
+			virtual void     write(Irq & irq, Register reg) { }
+
+			Register read(Address_range  & access, Cpu&) override;
+			void     write(Address_range & access, Cpu&, Register value) override;
+
+			Irq_reg(Mmio_register::Name name,
+			        Mmio_register::Type type,
+			        Genode::uint64_t    start,
+			        unsigned            bits_per_irq,
+			        unsigned            irq_count)
+			: Mmio_register(name, type, start, bits_per_irq*irq_count/8),
+			  irq_count(irq_count) {}
+		};
+
 		class Gicd_banked
 		{
 			public:
@@ -112,14 +131,106 @@ class Vmm::Gic : public Vmm::Mmio_device
 
 				struct Redistributor : Mmio_device
 				{
-					Mmio_register gicr_pidr2 { "GICD_PIDR2", Mmio_register::RO,
-					                           0xffe8, 4, (3<<4) };
+					Mmio_register gicr_ctlr     { "GICR_CTLR", Mmio_register::RO,
+					                              0x0, 4, 0b10010 };
+					Mmio_register gicr_typer    { "GICR_TYPER", Mmio_register::RO,
+					                              0x8, 8, 1<<4 }; // FIXME: smp
+					Mmio_register gicr_waker    { "GICR_WAKER", Mmio_register::RO,
+					                              0x14, 4, 0 };
+					Mmio_register gicr_pidr2    { "GICR_PIDR2", Mmio_register::RO,
+					                              0xffe8, 4, (3<<4) };
+					Mmio_register gicr_igroupr0 { "GICR_IGROUPR0", Mmio_register::RO,
+					                              0x10080, 4, 0 };
+
+					struct Gicr_isenabler0 : Irq_reg
+					{
+						Register read(Irq & irq)              { return irq.enabled(); }
+						void     write(Irq & irq, Register v) { if (v) irq.enable();  }
+
+						Gicr_isenabler0()
+						: Irq_reg("GICR_ISENABLER0", Mmio_register::RW, 0x10100, 1, 32) {}
+					} gicr_isenabler0;
+
+					struct Gicr_icenabler0 : Irq_reg
+					{
+						Register read(Irq & irq)              { return irq.enabled(); }
+						void     write(Irq & irq, Register v) { if (v) irq.disable();  }
+
+						Gicr_icenabler0()
+						: Irq_reg("GICR_ICENABLER0", Mmio_register::RW, 0x10180, 1, 32) {}
+					} gicr_icenabler0;
+
+					struct Gicr_ispendr0 : Irq_reg
+					{
+						Register read(Irq & irq)              { return irq.pending(); }
+						void     write(Irq & irq, Register v) { if (v) irq.assert();  }
+
+						Gicr_ispendr0()
+						: Irq_reg("GICR_ISPENDR0", Mmio_register::RW, 0x10200, 1, 32) {}
+					} gicr_ispendr0;
+
+					struct Gicr_icpendr0 : Irq_reg
+					{
+						Register read(Irq & irq)              { return irq.pending();  }
+						void     write(Irq & irq, Register v) { if (v) irq.deassert(); }
+
+						Gicr_icpendr0()
+						: Irq_reg("GICR_ICPENDR0", Mmio_register::RW, 0x10280, 1, 32) {}
+					} gicr_icpendr0;
+
+					struct Gicr_isactiver0 : Irq_reg
+					{
+						Register read(Irq & irq)              { return irq.active();   }
+						void     write(Irq & irq, Register v) { if (v) irq.activate(); }
+
+						Gicr_isactiver0()
+						: Irq_reg("GICR_ISACTIVER0", Mmio_register::RW, 0x10300, 1, 32) {}
+					} gicr_isactiver0;
+
+					struct Gicr_icactiver0 : Irq_reg
+					{
+						Register read(Irq & irq)              { return irq.active();     }
+						void     write(Irq & irq, Register v) { if (v) irq.deactivate(); }
+
+						Gicr_icactiver0()
+						: Irq_reg("GICR_ICACTIVER0", Mmio_register::RW, 0x10380, 1, 32) {}
+					} gicr_icactiver0;
+
+					struct Gicr_ipriorityr : Irq_reg
+					{
+						Register read(Irq & irq)              { return irq.priority(); }
+						void     write(Irq & irq, Register v) { irq.priority(v);       }
+
+						Gicr_ipriorityr()
+						: Irq_reg("GICR_IPRIORITYR", Mmio_register::RW, 0x10400, 8, 32) {}
+					} gicr_ipriorityr;
+
+					struct Gicr_icfgr : Irq_reg
+					{
+						Register read(Irq & irq)              { return irq.target(); }
+						void     write(Irq & irq, Register v) { irq.target(v);       }
+
+						Gicr_icfgr()
+						: Irq_reg("GICR_ICFGR", Mmio_register::RW, 0x10c00, 8, 32) {}
+					} gicr_icfgr;
 
 					Redistributor(const Genode::uint64_t addr,
 					              const Genode::uint64_t size)
 					: Mmio_device("GICR", addr, size)
 					{
+						add(gicr_ctlr);
+						add(gicr_typer);
+						add(gicr_waker);
 						add(gicr_pidr2);
+						add(gicr_igroupr0);
+						add(gicr_isenabler0);
+						add(gicr_icenabler0);
+						add(gicr_ispendr0);
+						add(gicr_icpendr0);
+						add(gicr_isactiver0);
+						add(gicr_icactiver0);
+						add(gicr_ipriorityr);
+						add(gicr_icfgr);
 					}
 				};
 
@@ -143,7 +254,16 @@ class Vmm::Gic : public Vmm::Mmio_device
 
 		struct Gicd_ctlr : Genode::Register<32>, Mmio_register
 		{
-			struct Enable : Bitfield<0, 1> {};
+			struct Enable  : Bitfield<0, 1> {};
+			struct Disable : Bitfield<6, 1> {};
+
+			void write(Address_range & access, Cpu & cpu,
+			           Mmio_register::Register value) override
+			{
+				access_t v = value;
+				Disable::set(v, 0);
+				Mmio_register::write(access, cpu, v);
+			}
 
 			Gicd_ctlr()
 			: Mmio_register("GICD_CTLR", Mmio_register::RW, 0, 4, 0) {}
@@ -170,20 +290,11 @@ class Vmm::Gic : public Vmm::Mmio_device
 			: Mmio_register("GICD_IIDR", Mmio_register::RO, 0x8, 4, 0x123) {}
 		} _iidr;
 
-		struct Irq_reg : Mmio_register
+		struct Gicd_igroupr : Irq_reg
 		{
-			virtual Register read(Irq & irq)  { return 0; }
-			virtual void     write(Irq & irq, Register reg) { }
-
-			Register read(Address_range  & access, Cpu&) override;
-			void     write(Address_range & access, Cpu&, Register value) override;
-
-			Irq_reg(Mmio_register::Name name,
-			        Mmio_register::Type type,
-			        Genode::uint64_t    start,
-			        unsigned            bits_per_irq)
-			: Mmio_register(name, type, start, bits_per_irq*1024/8) {}
-		};
+			Gicd_igroupr()
+			: Irq_reg("GICD_IGROUPR", Mmio_register::RW, 0x80, 1, 1024) {}
+		} _igroupr;
 
 		struct Gicd_isenabler : Irq_reg
 		{
@@ -191,7 +302,7 @@ class Vmm::Gic : public Vmm::Mmio_device
 			void     write(Irq & irq, Register v) { if (v) irq.enable();  }
 
 			Gicd_isenabler()
-			: Irq_reg("GICD_ISENABLER", Mmio_register::RW, 0x100, 1) {}
+			: Irq_reg("GICD_ISENABLER", Mmio_register::RW, 0x100, 1, 1024) {}
 		} _isenabler;
 
 		struct Gicd_icenabler : Irq_reg
@@ -200,7 +311,7 @@ class Vmm::Gic : public Vmm::Mmio_device
 			void     write(Irq & irq, Register v) { if (v) irq.disable(); }
 
 			Gicd_icenabler()
-			: Irq_reg("GICD_ICENABLER", Mmio_register::RW, 0x180, 1) {}
+			: Irq_reg("GICD_ICENABLER", Mmio_register::RW, 0x180, 1, 1024) {}
 		} _csenabler;
 
 		struct Gicd_ispendr : Irq_reg
@@ -209,7 +320,7 @@ class Vmm::Gic : public Vmm::Mmio_device
 			void     write(Irq & irq, Register v) { if (v) irq.assert();  }
 
 			Gicd_ispendr()
-			: Irq_reg("GICD_ISPENDR", Mmio_register::RW, 0x200, 1) {}
+			: Irq_reg("GICD_ISPENDR", Mmio_register::RW, 0x200, 1, 1024) {}
 		} _ispendr;
 
 		struct Gicd_icpendr : Irq_reg
@@ -218,7 +329,7 @@ class Vmm::Gic : public Vmm::Mmio_device
 			void     write(Irq & irq, Register v) { if (v) irq.deassert(); }
 
 			Gicd_icpendr()
-			: Irq_reg("GICD_ICPENDR", Mmio_register::RW, 0x280, 1) {}
+			: Irq_reg("GICD_ICPENDR", Mmio_register::RW, 0x280, 1, 1024) {}
 		} _icpendr;
 
 		struct Gicd_isactiver : Irq_reg
@@ -227,7 +338,7 @@ class Vmm::Gic : public Vmm::Mmio_device
 			void     write(Irq & irq, Register v) { if (v) irq.activate(); }
 
 			Gicd_isactiver()
-			: Irq_reg("GICD_ISACTIVER", Mmio_register::RW, 0x300, 1) {}
+			: Irq_reg("GICD_ISACTIVER", Mmio_register::RW, 0x300, 1, 1024) {}
 		} _isactiver;
 
 		struct Gicd_icactiver : Irq_reg
@@ -236,7 +347,7 @@ class Vmm::Gic : public Vmm::Mmio_device
 			void     write(Irq & irq, Register v) { if (v) irq.deactivate(); }
 
 			Gicd_icactiver()
-			: Irq_reg("GICD_ICACTIVER", Mmio_register::RW, 0x380, 1) {}
+			: Irq_reg("GICD_ICACTIVER", Mmio_register::RW, 0x380, 1, 1024) {}
 		} _icactiver;
 
 		struct Gicd_ipriorityr : Irq_reg
@@ -245,7 +356,7 @@ class Vmm::Gic : public Vmm::Mmio_device
 			void     write(Irq & irq, Register v) { irq.priority(v);       }
 
 			Gicd_ipriorityr()
-			: Irq_reg("GICD_IPRIORITYR", Mmio_register::RW, 0x400, 8) {}
+			: Irq_reg("GICD_IPRIORITYR", Mmio_register::RW, 0x400, 8, 1024) {}
 		} _ipriorityr;
 
 		struct Gicd_itargetr : Irq_reg
@@ -254,7 +365,7 @@ class Vmm::Gic : public Vmm::Mmio_device
 			void     write(Irq & irq, Register v) { irq.target(v);       }
 
 			Gicd_itargetr()
-			: Irq_reg("GICD_ITARGETSR", Mmio_register::RW, 0x800, 8) {}
+			: Irq_reg("GICD_ITARGETSR", Mmio_register::RW, 0x800, 8, 1024) {}
 		} _itargetr;
 
 
@@ -264,8 +375,17 @@ class Vmm::Gic : public Vmm::Mmio_device
 			void     write(Irq & irq, Register v) { irq.target(v);       }
 
 			Gicd_icfgr()
-			: Irq_reg("GICD_ICFGR", Mmio_register::RW, 0xc00, 8) {}
+			: Irq_reg("GICD_ICFGR", Mmio_register::RW, 0xc00, 8, 1024) {}
 		} _icfgr;
+
+		struct Gicd_irouter : Irq_reg
+		{
+			Register read(Irq &)            { return 0x0; } // FIXME smp
+			void     write(Irq &, Register) { }
+
+			Gicd_irouter()
+			: Irq_reg("GICD_IROUTER", Mmio_register::RW, 0x6100, 64, 1024) {}
+		} _irouter;
 
 		/**
 		 * FIXME: missing registers:
@@ -284,14 +404,14 @@ class Vmm::Gic : public Vmm::Mmio_device
 		struct Dummy {
 			Mmio_register regs[8];
 		} _reg_container { .regs = {
-			{ "GICD_PIDR4", Mmio_register::RO, 0xffd0, 4, 0x0                 },
-			{ "GICD_PIDR5", Mmio_register::RO, 0xffd4, 4, 0x0                 },
-			{ "GICD_PIDR6", Mmio_register::RO, 0xffd8, 4, 0x0                 },
-			{ "GICD_PIDR7", Mmio_register::RO, 0xffdc, 4, 0x0                 },
-			{ "GICD_PIDR0", Mmio_register::RO, 0xffe0, 4, 0x492               },
-			{ "GICD_PIDR1", Mmio_register::RO, 0xffe4, 4, 0xb0                },
-			{ "GICD_PIDR2", Mmio_register::RO, 0xffe8, 4, (_version<<4) | 0xb },
-			{ "GICD_PIDR3", Mmio_register::RO, 0xffec, 4, 0x44                }
+			{ "GICD_PIDR4",    Mmio_register::RO, 0xffd0, 4, 0x0                 },
+			{ "GICD_PIDR5",    Mmio_register::RO, 0xffd4, 4, 0x0                 },
+			{ "GICD_PIDR6",    Mmio_register::RO, 0xffd8, 4, 0x0                 },
+			{ "GICD_PIDR7",    Mmio_register::RO, 0xffdc, 4, 0x0                 },
+			{ "GICD_PIDR0",    Mmio_register::RO, 0xffe0, 4, 0x492               },
+			{ "GICD_PIDR1",    Mmio_register::RO, 0xffe4, 4, 0xb0                },
+			{ "GICD_PIDR2",    Mmio_register::RO, 0xffe8, 4, (_version<<4) | 0xb },
+			{ "GICD_PIDR3",    Mmio_register::RO, 0xffec, 4, 0x44                }
 		}};
 };
 
