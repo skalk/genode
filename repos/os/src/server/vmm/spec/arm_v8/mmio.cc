@@ -85,7 +85,7 @@ void Vmm::Mmio_bus::handle_memory_access(Vmm::Cpu & cpu)
 	struct Iss : Cpu::Esr
 	{
 		struct Write        : Bitfield<6,  1> {};
-		struct Register     : Bitfield<16, 4> {};
+		struct Register     : Bitfield<16, 5> {};
 		struct Sign_extend  : Bitfield<21, 1> {};
 		struct Access_size  : Bitfield<22, 2> {
 			enum { BYTE, HALFWORD, WORD, DOUBLEWORD }; };
@@ -111,8 +111,13 @@ void Vmm::Mmio_bus::handle_memory_access(Vmm::Cpu & cpu)
 		Address_range bus_range(ipa, width);
 		Mmio_device & dev = get<Mmio_device>(bus_range);
 		Address_range dev_range(ipa - dev.start,width);
-		if (wr) dev.write(dev_range, cpu, state.r[idx]);
-		else    state.r[idx] = dev.read(dev_range, cpu);
+		if (wr) {
+			dev.write(dev_range, cpu, (idx == 31) ? 0 : state.r[idx]);
+		} else {
+			if (idx > 30)
+				throw Exception("Wrong register index when reading ", bus_range);
+			state.r[idx] = dev.read(dev_range, cpu);
+		}
 	} catch(Exception & e) {
 		Genode::warning(e);
 		Genode::warning("Will ignore invalid bus access (IPA=",
