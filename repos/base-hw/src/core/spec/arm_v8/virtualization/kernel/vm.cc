@@ -86,10 +86,10 @@ struct Pic_maintainance_irq : Vm_irq
 	Pic_maintainance_irq()
 	: Vm_irq(Board::VT_MAINTAINANCE_IRQ) { enable(); }
 
-	void handle(Cpu & cpu, Vm & vm, unsigned irq) override
+	void handle(Cpu &, Vm &, unsigned) override
 	{
-		cpu.pic().ack_virtual_irq();
-		vm.inject_irq(irq);
+		//cpu.pic().ack_virtual_irq(vm._pic);
+		//vm.inject_irq(irq);
 	}
 };
 
@@ -196,8 +196,10 @@ void Vm::exception(Cpu & cpu)
 		            " not implemented!");
 	};
 
-	cpu.pic().save(_pic);
-	cpu.pic().disable_virtualization();
+	//cpu.pic().save(_pic);
+	//cpu.pic().disable_virtualization();
+	if (cpu.pic().ack_virtual_irq(_pic))
+		inject_irq(Board::VT_MAINTAINANCE_IRQ);
 	Virtual_timer::timer().disable();
 }
 
@@ -207,7 +209,7 @@ void Vm::proceed(Cpu & cpu)
 	if (_state.timer.irq) Virtual_timer::timer().enable();
 
 	cpu.pic().insert_virtual_irq(_pic, _state.irqs.virtual_irq);
-	cpu.pic().load(_pic);
+	//cpu.pic().load(_pic);
 
 	/*
 	 * the following values have to be enforced by the hypervisor

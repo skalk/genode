@@ -135,6 +135,22 @@ _host_to_vm:
 	msr  mdcr_el2, x0
 
 
+	/**********************
+	 ** Load pic context **
+	 **********************/
+
+	ldr x0, [sp]
+
+	ldr x1,     [x0], #8    /* lr0        */
+	ldp w2, w3, [x0]        /* apr, vmcr  */
+
+	msr S3_4_C12_C12_0, x1
+	msr S3_4_C12_C9_0,  x2
+	msr S3_4_C12_C11_7, x3
+
+	mov  x0, #1              /* enable PIC virtualization */
+	msr  S3_4_C12_C11_0, x0
+
 	/** enable VM mode **/
 	movz x1, #0b1110000000111001
 	movk x1, #0b10111, lsl 16
@@ -276,6 +292,25 @@ _vm_to_host:
 	stp x0,  x1, [x2]          /* save x0, x1 to vm state           */
 
 
+	/**********************
+	 ** Save pic context **
+	 **********************/
+
+	mrs x10, S3_4_C12_C12_0
+	mrs x11, S3_4_C12_C9_0
+	mrs x12, S3_4_C12_C11_7
+	mrs x13, S3_4_C12_C11_2
+	mrs x14, S3_4_C12_C11_3
+	mrs x15, S3_4_C12_C11_5
+
+	str x10,      [x29], #8    /* lr0        */
+	stp w11, w12, [x29], #2*4  /* apr, vmcr  */
+	stp w13, w14, [x29], #2*4  /* misr, eisr */
+	str w15,      [x29]        /* elrsr      */
+
+	msr  S3_4_C12_C11_0, xzr   /* disable PIC virtualization */
+
+
 	/***********************
 	 ** Load host context **
 	 ***********************/
@@ -316,7 +351,6 @@ _vm_to_host:
 	movz x1, #0b111101100000
 	bic  x0, x0, x1
 	msr  mdcr_el2, x0
-
 
 	/** disable VM mode **/
 	movz x1, #0b1110000000111001
