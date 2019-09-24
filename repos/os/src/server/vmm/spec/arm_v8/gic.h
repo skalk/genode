@@ -271,12 +271,13 @@ class Vmm::Gic : public Vmm::Mmio_device
 
 		struct Gicd_typer : Genode::Register<32>, Mmio_register
 		{
-			struct It_lines_number : Bitfield<0, 5> {};
-			struct Cpu_number      : Bitfield<5, 3> {};
+			struct It_lines_number : Bitfield<0,  5> {};
+			struct Cpu_number      : Bitfield<5,  3> {};
+			struct Id_bits         : Bitfield<19, 5> {};
 
 			Gicd_typer(unsigned cpus)
 			:  Mmio_register("GICD_TYPER", Mmio_register::RO, 0x4, 4,
-			                 It_lines_number::bits(31) | Cpu_number::bits(cpus-1)) {}
+			                 It_lines_number::bits(31) | Cpu_number::bits(cpus-1) | Id_bits::bits(9)) {}
 		} _typer { _cpu_cnt };
 
 		struct Gicd_iidr : Genode::Register<32>, Mmio_register

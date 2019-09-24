@@ -64,7 +64,6 @@ void Gic::Irq::assert()
 {
 	if (pending()) return;
 
-	Genode::error("ASSERT ", _num);
 	_state = PENDING;
 	_pending_list.insert(*this);
 }
@@ -184,7 +183,7 @@ Gic::Gicd_banked::Gicd_banked(Cpu & cpu, Gic & gic, Mmio_bus & bus)
 	_cpu.state().irqs.last_irq    = 1023;
 	_cpu.state().irqs.virtual_irq = 1023;
 
-	_rdist.construct(0x8010000, 0x20000);
+	_rdist.construct(0x80a0000, 0x20000);
 	bus.add(*_rdist);
 }
 
