@@ -179,30 +179,6 @@ class Vmm::Cpu
 			virtual Genode::addr_t read() const override;
 		};
 
-		struct Dbgbvr : System_register
-		{
-			Dbgbvr(unsigned num, Genode::Avl_tree<System_register> & tree)
-			: System_register(2, 0, 0, num, 4, "DBGBVR_EL1", true, 0x0, tree) {}
-		};
-
-		struct Dbgbcr : System_register
-		{
-			Dbgbcr(unsigned num, Genode::Avl_tree<System_register> & tree)
-			: System_register(2, 0, 0, num, 5, "DBGBCR_EL1", true, 0x0, tree) {}
-		};
-
-		struct Dbgwcr : System_register
-		{
-			Dbgwcr(unsigned num, Genode::Avl_tree<System_register> & tree)
-			: System_register(2, 0, 0, num, 7, "DBGWCR_EL1", true, 0x0, tree) {}
-		};
-
-		struct Dbgwvr : System_register
-		{
-			Dbgwvr(unsigned num, Genode::Avl_tree<System_register> & tree)
-			: System_register(2, 0, 0, num, 6, "DBGWVR_EL1", true, 0x0, tree) {}
-		};
-
 	private:
 
 		unsigned                          _cpu_id;
@@ -252,10 +228,10 @@ class Vmm::Cpu
 		 ** Debug monitor registers **
 		 *****************************/
 
-		Genode::Constructible<Dbgbcr>     _sr_dbgbcr[16];
-		Genode::Constructible<Dbgbvr>     _sr_dbgbvr[16];
-		Genode::Constructible<Dbgwcr>     _sr_dbgwcr[16];
-		Genode::Constructible<Dbgwvr>     _sr_dbgwvr[16];
+		System_register                   _sr_dbgbcr0;
+		System_register                   _sr_dbgbvr0;
+		System_register                   _sr_dbgwcr0;
+		System_register                   _sr_dbgwvr0;
 		System_register                   _sr_mdscr;
 		System_register                   _sr_osdlr;
 		System_register                   _sr_oslar;

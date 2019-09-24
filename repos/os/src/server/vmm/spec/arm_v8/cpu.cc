@@ -258,47 +258,39 @@ Cpu::Cpu(Vm                      & vm,
   _vcpu_id(_vm_session.create_vcpu(heap, env, handler)),
   _state(*((State*)env.rm().attach(_vm_session.cpu_state(_vcpu_id)))),
 	//                op0, crn, op1, crm, op2, writeable, reset value
-  _sr_id_aa64afr0_el1 (3, 0, 0, 5, 4, "ID_AA64AFR0_EL1",  false, 0x0,                     _reg_tree),
-  _sr_id_aa64afr1_el1 (3, 0, 0, 5, 5, "ID_AA64AFR1_EL1",  false, 0x0,                     _reg_tree),
-  _sr_id_aa64dfr0_el1 (3, 0, 0, 5, 0, "ID_AA64DFR0_EL1",  false, 0xf0f0f006,              _reg_tree),
-  _sr_id_aa64dfr1_el1 (3, 0, 0, 5, 1, "ID_AA64DFR1_EL1",  false, 0x0,                     _reg_tree),
+  _sr_id_aa64afr0_el1 (3, 0, 0, 5, 4, "ID_AA64AFR0_EL1",  false, 0x0, _reg_tree),
+  _sr_id_aa64afr1_el1 (3, 0, 0, 5, 5, "ID_AA64AFR1_EL1",  false, 0x0, _reg_tree),
+  _sr_id_aa64dfr0_el1 (3, 0, 0, 5, 0, "ID_AA64DFR0_EL1",  false, 0x6, _reg_tree),
+  _sr_id_aa64dfr1_el1 (3, 0, 0, 5, 1, "ID_AA64DFR1_EL1",  false, 0x0, _reg_tree),
   _sr_id_aa64isar0_el1(3, 0, 0, 6, 0, "ID_AA64ISAR0_EL1", false, _state.id_aa64isar0_el1, _reg_tree),
   _sr_id_aa64isar1_el1(3, 0, 0, 6, 1, "ID_AA64ISAR1_EL1", false, _state.id_aa64isar1_el1, _reg_tree),
   _sr_id_aa64mmfr0_el1(3, 0, 0, 7, 0, "ID_AA64MMFR0_EL1", false, _state.id_aa64mmfr0_el1, _reg_tree),
   _sr_id_aa64mmfr1_el1(3, 0, 0, 7, 1, "ID_AA64MMFR1_EL1", false, _state.id_aa64mmfr1_el1, _reg_tree),
   _sr_id_aa64mmfr2_el1(3, 0, 0, 7, 2, "ID_AA64MMFR2_EL1", false, _state.id_aa64mmfr2_el1, _reg_tree),
   _sr_id_aa64pfr0_el1 (_state.id_aa64pfr0_el1, _reg_tree),
-  _sr_id_aa64pfr1_el1 (3, 0, 0, 4, 1, "ID_AA64PFR1_EL1",  false, 0x0,                     _reg_tree),
-  _sr_id_aa64zfr0_el1 (3, 0, 0, 4, 4, "ID_AA64ZFR0_EL1",  false, 0x0,                     _reg_tree),
-  _sr_aidr_el1        (3, 0, 1, 0, 7, "AIDR_EL1",         false, 0x0,                     _reg_tree),
-  _sr_revidr_el1      (3, 0, 0, 0, 6, "REVIDR_EL1",       false, 0x0,                     _reg_tree),
+  _sr_id_aa64pfr1_el1 (3, 0, 0, 4, 1, "ID_AA64PFR1_EL1",  false, 0x0, _reg_tree),
+  _sr_id_aa64zfr0_el1 (3, 0, 0, 4, 4, "ID_AA64ZFR0_EL1",  false, 0x0, _reg_tree),
+  _sr_aidr_el1        (3, 0, 1, 0, 7, "AIDR_EL1",         false, 0x0, _reg_tree),
+  _sr_revidr_el1      (3, 0, 0, 0, 6, "REVIDR_EL1",       false, 0x0, _reg_tree),
 
-  _sr_clidr_el1       (3, 0, 1, 0, 2, "CLIDR_EL1",        false, _state.clidr_el1,        _reg_tree),
-  _sr_csselr_el1      (3, 0, 2, 0, 0, "CSSELR_EL1",       true,  0x0,                     _reg_tree),
+  _sr_clidr_el1       (3, 0, 1, 0, 1, "CLIDR_EL1",        false, _state.clidr_el1,        _reg_tree),
+  _sr_csselr_el1      (3, 0, 2, 0, 0, "CSSELR_EL1",       true,  0x0, _reg_tree),
   _sr_ctr_el0         (_reg_tree),
   _sr_ccsidr_el1      (_sr_csselr_el1, _state, _reg_tree),
 
   //_sr_pmccfiltr_el0   (3, 14, 3, 15, 7, "PMCCFILTR_EL0",  true,  0x0,                     _reg_tree),
-  _sr_pmuserenr_el0   (3, 9, 3, 14, 0,  "PMUSEREN_EL0",   true,  0x0,                     _reg_tree),
-
-  _sr_mdscr           (2, 0, 0, 2, 2, "MDSCR_EL1",        true,  0x0,                     _reg_tree),
-  _sr_osdlr           (2, 1, 0, 3, 4, "OSDLR_EL1",        true,  0x0,                     _reg_tree),
-  _sr_oslar           (2, 1, 0, 0, 4, "OSLAR_EL1",        true,  0x0,                     _reg_tree),
+  _sr_pmuserenr_el0   (3, 9, 3, 14, 0,  "PMUSEREN_EL0",   true,  0x0, _reg_tree),
+  _sr_dbgbcr0         (2, 0, 0, 0, 5, "DBGBCR_EL1",       true,  0x0, _reg_tree),
+  _sr_dbgbvr0         (2, 0, 0, 0, 4, "DBGBVR_EL1",       true,  0x0, _reg_tree),
+  _sr_dbgwcr0         (2, 0, 0, 0, 7, "DBGWCR_EL1",       true,  0x0, _reg_tree),
+  _sr_dbgwvr0         (2, 0, 0, 0, 6, "DBGWVR_EL1",       true,  0x0, _reg_tree),
+  _sr_mdscr           (2, 0, 0, 2, 2, "MDSCR_EL1",        true,  0x0, _reg_tree),
+  _sr_osdlr           (2, 1, 0, 3, 4, "OSDLR_EL1",        true,  0x0, _reg_tree),
+  _sr_oslar           (2, 1, 0, 0, 4, "OSLAR_EL1",        true,  0x0, _reg_tree),
 
   _gic(*this, gic, bus),
   _timer(env, _gic.irq(27), *this)
 {
-	/*
-	 * Dummy debug register only used on QEMU,
-	 * because of incomplete trap behaviour
-	 */
-	for (unsigned i = 0; i < 16; i++) {
-		_sr_dbgbvr[i].construct(i, _reg_tree);
-		_sr_dbgbcr[i].construct(i, _reg_tree);
-		_sr_dbgwcr[i].construct(i, _reg_tree);
-		_sr_dbgwvr[i].construct(i, _reg_tree);
-	}
-
 	_state.r[0]   = dtb;
 	_state.ip     = ip;
 	_state.pstate = 0b1111000101; /* el1 mode and IRQs disabled */
