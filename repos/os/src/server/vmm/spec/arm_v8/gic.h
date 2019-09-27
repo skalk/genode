@@ -48,7 +48,8 @@ class Vmm::Gic : public Vmm::Mmio_device
 
 				struct Irq_handler {
 					virtual void eoi()   {};
-					virtual void level() {};
+					virtual void enabled() {};
+					virtual void disabled() {};
 				};
 
 				enum Type   { SGI, PPI, SPI };
