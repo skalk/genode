@@ -18,6 +18,7 @@
 #include <exception.h>
 #include <cpu.h>
 #include <gic.h>
+#include <hw_device.h>
 #include <pl011.h>
 
 #include <base/attached_ram_dataspace.h>
@@ -50,6 +51,7 @@ class Vmm::Vm
 		Gic                            _gic;
 		Cpu                            _cpu;
 		Pl011                          _uart;
+		Hw_device<1, 3>                _fec;
 
 		void _load_kernel();
 		void _load_dtb();

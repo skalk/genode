@@ -103,7 +103,7 @@ void Generic_timer::schedule_timeout()
 void Generic_timer::cancel_timeout()
 {
 	if (!_time) return;
-	Genode::error("Timer cancel_timeout");
+#warning "Timer cancel_timeout"
 	_timeout.discard();
 	//Genode::uint64_t time_passed =
 	//	_timer.curr_time().trunc_to_plain_us().value - _time;

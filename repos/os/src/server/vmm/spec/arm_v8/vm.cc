@@ -65,10 +65,15 @@ Vm::Vm(Genode::Env & env)
   _cpu(*this, _vm, _bus, _gic, env, _heap, _vm_handler,
        _ram.base() + KERNEL_OFFSET,
        _ram.base() + DTB_OFFSET),
-  _uart("Pl011", 0x9000000, 0x1000, 33, _cpu, _bus, env)
+  _uart("Pl011", 0x9000000, 0x1000, 33, _cpu, _bus, env),
+  _fec(env, _vm, _cpu)
 {
 	_vm.attach(_vm_ram.cap(), RAM_ADDRESS);
 	//_vm.attach_pic(0x8010000);
+
+    _fec.mmio(0x30be0000, 0x10000);
+	_fec.irqs(150, 151, 152);
+
 	_load_kernel();
 	_load_dtb();
 	_load_initrd();
