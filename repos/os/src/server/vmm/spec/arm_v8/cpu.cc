@@ -164,6 +164,22 @@ void Cpu::_handle_wfi()
 }
 
 
+void Cpu::_handle_brk()
+{
+	Genode::uint64_t offset = 0x0;
+	if (!(_state.pstate & 0b100)) {
+		offset = 0x400;
+	} else if (_state.pstate & 0b1) {
+		offset = 0x200;
+	}
+	_state.esr_el1  = _state.esr_el2;
+	_state.spsr_el1 = _state.pstate;
+	_state.elr_el1  = _state.ip;
+	_state.ip       = _state.vbar_el1 + offset;
+	_state.pstate   = 0b1111000101;
+}
+
+
 void Cpu::_handle_sync()
 {
 	/* check device number*/
@@ -179,6 +195,9 @@ void Cpu::_handle_sync()
 		break;
 	case Esr::Ec::WFI:
 		_handle_wfi();
+		return;
+	case Esr::Ec::BRK:
+		_handle_brk();
 		return;
 	default:
 		throw Exception("Unknown trap: %x",

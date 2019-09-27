@@ -40,7 +40,8 @@ class Vmm::Cpu
 					WFI     = 0x1,
 					HVC     = 0x16,
 					MRS_MSR = 0x18,
-					DA      = 0x24
+					DA      = 0x24,
+					BRK     = 0x3c
 				};
 			};
 		};
@@ -244,6 +245,7 @@ class Vmm::Cpu
 		Generic_timer                     _timer;
 
 		bool _handle_sys_reg();
+		void _handle_brk();
 		void _handle_wfi();
 		void _handle_sync();
 		void _handle_irq();
