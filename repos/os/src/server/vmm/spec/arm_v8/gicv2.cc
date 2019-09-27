@@ -34,8 +34,18 @@ Genode::uint8_t Gic::Irq::priority() const { return _prio; }
 Genode::uint8_t Gic::Irq::target() const { return _target; }
 
 
-void Gic::Irq::enable()  { _enabled = true;  }
-void Gic::Irq::disable() { _enabled = false; }
+void Gic::Irq::enable()
+{
+	_enabled = true;
+	if (_handler) _handler->enabled();
+}
+
+
+void Gic::Irq::disable()
+{
+	_enabled = false;
+	if (_handler) _handler->disabled();
+}
 
 
 void Gic::Irq::activate()
@@ -92,10 +102,6 @@ void Gic::Irq::level(bool l)
 	if (level() == l) return;
 
 	_config = l ? LEVEL : EDGE;
-
-	if (!_handler) return;
-
-	_handler->level();
 }
 
 
