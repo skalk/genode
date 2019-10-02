@@ -29,7 +29,11 @@ proc append_qemu_nic_args { { extra_netdev_args "" } } {
 		append qemu_args ",$extra_netdev_args"
 	}
 
-	append qemu_args " -net nic,model=[qemu_nic_model],netdev=net0 "
+	if {[have_spec virt_qemu]} {
+		append qemu_args " -global virtio-mmio.force-legacy=false -device virtio-net-device,bus=virtio-mmio-bus.0,netdev=net0"
+	} else {
+		append qemu_args " -net nic,model=[qemu_nic_model],netdev=net0 "
+	}
 }
 
 
