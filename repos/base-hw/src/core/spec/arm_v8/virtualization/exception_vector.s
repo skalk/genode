@@ -356,6 +356,7 @@ _vm_to_host:
 	movz x1, #0b1110000000111001
 	movk x1, #0b10111, lsl 16
 	mrs  x0, hcr_el2
+	msr vttbr_el2, xzr   /* stage2 table pointer zeroing */
 	bic  x0, x0, x1
 	msr  hcr_el2, x0
 
