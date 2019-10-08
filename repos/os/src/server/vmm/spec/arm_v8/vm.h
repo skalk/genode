@@ -32,7 +32,7 @@ class Vmm::Vm
 	private:
 
 		enum {
-			RAM_ADDRESS   = 0x40000000,
+			RAM_ADDRESS   = 0x48000000,
 			RAM_SIZE      = 128 * 1024 *1024,
 			KERNEL_OFFSET = 0x80000,
 			INITRD_OFFSET = 32 * 1024 * 1024,

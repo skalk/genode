@@ -266,7 +266,7 @@ class Hw::Long_translation_table
 			struct Mem_attr : Block_descriptor_base::template Bitfield<2,4>{};
 			struct Hap      : Block_descriptor_base::template Bitfield<6,2>{};
 
-			static typename Descriptor::access_t create(Page_flags const &,
+			static typename Descriptor::access_t create(Page_flags const & flags,
 			                                            addr_t const pa)
 			{
 				return Base::Shareability::bits(
@@ -274,7 +274,7 @@ class Hw::Long_translation_table
 					| Base::Output_address::masked(pa)
 					| Base::Access_flag::bits(1)
 					| Descriptor::Valid::bits(1)
-					| Mem_attr::bits(0xf)
+					| Mem_attr::bits((flags.type == Hw::RAM) ? 0b0101 : 0b0011)
 					| Hap::bits(0x3);
 			}
 		};

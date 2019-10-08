@@ -38,7 +38,9 @@ void Vm_session_component::_attach(addr_t phys_addr, addr_t vm_addr, size_t size
 {
 	using namespace Hw;
 
-	Page_flags pflags { RW, NO_EXEC, USER, NO_GLOBAL, RAM, CACHED };
+	Page_flags pflags { RW, NO_EXEC, USER, NO_GLOBAL,
+	                    (vm_addr == 0x30be0000) ? DEVICE : RAM,
+	                    /*(vm_addr == 0x30be0000) ?*/ UNCACHED /*: CACHED*/ };
 
 	try {
 		_table.insert_translation(vm_addr, phys_addr, size, pflags,
