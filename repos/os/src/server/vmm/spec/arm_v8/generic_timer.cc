@@ -20,8 +20,8 @@ Genode::uint64_t Generic_timer::_ticks_per_ms()
 {
 	static Genode::uint64_t ticks_per_ms = 0;
 	if (!ticks_per_ms) {
-		Genode::uint32_t freq = 62500000;
-		// FIXME asm volatile("mrs %0, cntfrq_el0" : "=r" (freq));
+		Genode::uint32_t freq = 0;
+		asm volatile("mrs %0, cntfrq_el0" : "=r" (freq));
 		ticks_per_ms = freq / 1000;
 	}
 	return ticks_per_ms;
@@ -43,7 +43,7 @@ bool Generic_timer::_pending() {
 void Generic_timer::_handle_timeout(Genode::Duration)
 {
 	_cpu.handle_signal([this] (void) {
-		_cpu.state().timer.count    = _cpu.state().timer.compare + 1;
+		_cpu.state().timer.count = _cpu.state().timer.compare + 1;
 		_time = 0;
 		if (_enabled() && !_masked()) handle_irq();
 	});
@@ -55,18 +55,6 @@ Genode::uint64_t Generic_timer::_usecs_left()
 	Genode::uint64_t ticks = _cpu.state().timer.compare -
 	                         _cpu.state().timer.count;
 	if (_cpu.state().timer.count > _cpu.state().timer.compare) return 0;
-#if 0
-	if (_cpu.state().timer.kcontrol & (1 << 2)) {
-		bool dir   = _cpu.state().timer.kcontrol & (1 << 3);
-		unsigned i = (_cpu.state().timer.kcontrol >> 4) & 0b1111;
-		Genode::uint64_t mask = (1 << i) - 1;
-		Genode::uint64_t t    = mask - (_cpu.state().timer.count & mask);
-		t += (((dir ? 1 : 0) << i) == (_cpu.state().timer.count & (1 << i)))
-			? 0 : mask;
-		Genode::log("Sonderfall ", t, " ", ticks);
-		if (t < ticks) ticks = t;
-	}
-#endif
 	return Genode::timer_ticks_to_us(ticks, _ticks_per_ms());
 }
 
@@ -92,7 +80,7 @@ void Generic_timer::schedule_timeout()
 	}
 
 	if (_enabled()) {
-		_time = _timer.curr_time().trunc_to_plain_us().value;
+		asm volatile("mrs %0, cntpct_el0" : "=r" (_time));
 		if (_usecs_left()) {
 			_timeout.schedule(Genode::Microseconds(_usecs_left()));
 		} else _handle_timeout(Genode::Duration(Genode::Microseconds(0)));
@@ -103,11 +91,10 @@ void Generic_timer::schedule_timeout()
 void Generic_timer::cancel_timeout()
 {
 	if (!_time) return;
-#warning "Timer cancel_timeout"
 	_timeout.discard();
-	//Genode::uint64_t time_passed =
-	//	_timer.curr_time().trunc_to_plain_us().value - _time;
-	//FIXME
+	Genode::uint64_t ticks = 0;
+	asm volatile("mrs %0, cntpct_el0" : "=r" (ticks));
+	_cpu.state().timer.count += ticks - _time;
 	_time = 0;
 }
 
