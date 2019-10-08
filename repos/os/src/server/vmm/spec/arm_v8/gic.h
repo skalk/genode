@@ -208,8 +208,8 @@ class Vmm::Gic : public Vmm::Mmio_device
 
 					struct Gicr_icfgr : Irq_reg
 					{
-						Register read(Irq & irq)              { return irq.target(); }
-						void     write(Irq & irq, Register v) { irq.target(v);       }
+						Register read(Irq & irq)              { return irq.level() ? 0 : 1; }
+						void     write(Irq & irq, Register v) { irq.level(!v);              }
 
 						Gicr_icfgr()
 						: Irq_reg("GICR_ICFGR", Mmio_register::RW, 0x10c00, 8, 32) {}
@@ -373,8 +373,8 @@ class Vmm::Gic : public Vmm::Mmio_device
 
 		struct Gicd_icfgr : Irq_reg
 		{
-			Register read(Irq & irq)              { return irq.target(); }
-			void     write(Irq & irq, Register v) { irq.target(v);       }
+			Register read(Irq & irq)              { return irq.level() ? 0 : 1; }
+			void     write(Irq & irq, Register v) { irq.level(!v);              }
 
 			Gicd_icfgr()
 			: Irq_reg("GICD_ICFGR", Mmio_register::RW, 0xc00, 8, 1024) {}
