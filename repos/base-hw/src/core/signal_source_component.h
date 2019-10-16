@@ -46,18 +46,17 @@ struct Genode::Signal_context_component : private Kernel_object<Kernel::Signal_c
 };
 
 
-struct Genode::Signal_source_component : private Kernel_object<Kernel::Signal_receiver>,
-                                         public Signal_source_pool::Entry
+struct Genode::Signal_source_component : public Signal_source_pool::Entry
 {
 	friend class Object_pool<Signal_source_component>;
 	friend class Signal_context_component;
 
 	using Signal_source_pool::Entry::cap;
 
+	Kernel_object<Kernel::Signal_receiver> kobj { true };
+
 	Signal_source_component()
-	:
-		Kernel_object<Kernel::Signal_receiver>(true),
-		Signal_source_pool::Entry(Kernel_object<Kernel::Signal_receiver>::_cap)
+	: Signal_source_pool::Entry(kobj.cap())
 	{ }
 
 	void submit(Signal_context_component *, unsigned long) { ASSERT_NEVER_CALLED; }
@@ -67,7 +66,7 @@ struct Genode::Signal_source_component : private Kernel_object<Kernel::Signal_re
 Genode::Signal_context_component::Signal_context_component(Signal_source_component &s,
                                                            addr_t const imprint)
 :
-	Kernel_object<Kernel::Signal_context>(true, s.kernel_object(), imprint),
+	Kernel_object<Kernel::Signal_context>(true, *s.kobj, imprint),
 	Signal_context_pool::Entry(Kernel_object<Kernel::Signal_context>::_cap)
 { }
 
