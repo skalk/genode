@@ -63,6 +63,8 @@ struct Genode::Vm_state : Genode::Cpu_state
 	Genode::uint64_t tpidr_el0      { 0 };
 	Genode::uint64_t tpidr_el1      { 0 };
 
+	Genode::uint64_t vmpidr_el2     { 0 };
+
 	Genode::uint64_t far_el2        { 0 };
 	Genode::uint64_t hpfar_el2      { 0 };
 

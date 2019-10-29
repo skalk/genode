@@ -12,8 +12,13 @@
  */
 #include <cpu.h>
 #include <vm.h>
+#include <psci.h>
 
 using Vmm::Cpu;
+using Vmm::Gic;
+
+Genode::Lock & Vmm::lock() { static Genode::Lock l {}; return l; }
+
 
 Cpu::System_register::Iss::access_t
 Cpu::System_register::Iss::value(unsigned op0, unsigned crn, unsigned op1,
@@ -117,6 +122,23 @@ Genode::addr_t Cpu::Ctr_el0::read() const
 }
 
 
+void Cpu::Icc_sgi1r_el1::write(Genode::addr_t v)
+{
+
+	unsigned target_list = v & 0xffff;
+	unsigned irq         = (v >> 24) & 0xf;
+
+	for (unsigned i = 0; i <= Vm::last_cpu(); i++) {
+		if (target_list & (1<<i)) {
+			vm.cpu(i, [&] (Cpu & cpu) {
+				cpu.gic().irq(irq).assert();
+				cpu.recall();
+			});
+		}
+	}
+};
+
+
 bool Cpu::_handle_sys_reg()
 {
 	using Iss = System_register::Iss;
@@ -126,7 +148,7 @@ bool Cpu::_handle_sys_reg()
 	if (reg) reg = reg->find_by_encoding(Iss::mask_encoding(v));
 
 	if (!reg) {
-		Genode::error("unknown system register access @ ip=", (void*)_state.ip, ":");
+		Genode::error("ignore unknown system register access @ ip=", (void*)_state.ip, ":");
 		Genode::error(Iss::Direction::get(v) ? "read" : "write",
 		              ": "
 		              "op0=",  Iss::Opcode0::get(v), " "
@@ -135,6 +157,8 @@ bool Cpu::_handle_sys_reg()
 		              "crn=",  Iss::Crn::get(v),        " "
 		              "crm=",  Iss::Crm::get(v), " ",
 		              "op2=",  Iss::Opcode2::get(v));
+		if (Iss::Direction::get(v)) _state.r[Iss::Register::get(v)] = 0;
+		_state.ip += sizeof(Genode::uint32_t);
 		return false;
 	}
 
@@ -155,8 +179,8 @@ bool Cpu::_handle_sys_reg()
 
 void Cpu::_handle_wfi()
 {
-	if (_state.esr_el2 & 1)
-		throw Exception("WFE not implemented yet");
+//	if (_state.esr_el2 & 1)
+//		throw Exception("WFE not implemented yet");
 
 	_active = false;
 	_timer.schedule_timeout();
@@ -185,13 +209,13 @@ void Cpu::_handle_sync()
 	/* check device number*/
 	switch (Esr::Ec::get(_state.esr_el2)) {
 	case Esr::Ec::HVC:
-		_vm.handle_hyper_call();
+		_handle_hyper_call();
 		break;
 	case Esr::Ec::MRS_MSR:
 		_handle_sys_reg();
 		break;
 	case Esr::Ec::DA:
-		_vm.handle_data_abort();
+		_handle_data_abort();
 		break;
 	case Esr::Ec::WFI:
 		_handle_wfi();
@@ -219,11 +243,66 @@ void Cpu::_handle_irq()
 }
 
 
+void Cpu::_handle_hyper_call()
+{
+	switch(_state.r[0]) {
+		case Psci::PSCI_VERSION:
+			_state.r[0] = Psci::VERSION;
+			return;
+		case Psci::MIGRATE_INFO_TYPE:
+			_state.r[0] = Psci::NOT_SUPPORTED;
+			return;
+		case Psci::PSCI_FEATURES:
+			_state.r[0] = Psci::NOT_SUPPORTED;
+			return;
+		case Psci::CPU_ON:
+			_vm.cpu((unsigned)_state.r[1], [&] (Cpu & cpu) {
+				cpu.state().ip   = _state.r[2];
+				cpu.state().r[0] = _state.r[3];
+				cpu.run();
+			});
+			_state.r[0] = Psci::SUCCESS;
+			return;
+		default:
+			Genode::warning("unknown hypercall!");
+			dump();
+	};
+}
+
+
+void Cpu::_handle_data_abort()
+{
+	_vm.bus().handle_memory_access(*this);
+	_state.ip += sizeof(Genode::uint32_t);
+}
+
+
 void Cpu::_update_state()
 {
 	if (!_gic.pending_irq()) return;
 	_active = true;
 	_timer.cancel_timeout();
+}
+
+unsigned Cpu::cpu_id() const    { return _vcpu_id.id;                     }
+void Cpu::run()                 { if (_active) _vm_session.run(_vcpu_id); }
+void Cpu::pause()               { _vm_session.pause(_vcpu_id);            }
+bool Cpu::active() const        { return _active;                         }
+Cpu::State & Cpu::state() const { return _state;                          }
+Gic::Gicd_banked & Cpu::gic()   { return _gic;                            }
+
+
+void Cpu::handle_exception()
+{
+	/* check exception reason */
+	switch (_state.exception_type) {
+	case NO_EXCEPTION:                 break;
+	case AARCH64_IRQ:  _handle_irq();  break;
+	case AARCH64_SYNC: _handle_sync(); break;
+	default:
+		throw Exception("Curious exception ",
+		                _state.exception_type, " occured");
+	}
 }
 
 
@@ -262,19 +341,26 @@ void Cpu::dump()
 }
 
 
+void Cpu::recall()
+{
+	Genode::Signal_transmitter(_vm_handler).submit();
+};
+
+
 Cpu::Cpu(Vm                      & vm,
          Genode::Vm_connection   & vm_session,
          Mmio_bus                & bus,
          Gic                     & gic,
          Genode::Env             & env,
          Genode::Heap            & heap,
-         Genode::Vm_handler_base & handler,
-         Genode::addr_t            ip,
-         Genode::addr_t            dtb)
+         Genode::Entrypoint      & ep)
 : _vm(vm),
   _vm_session(vm_session),
   _heap(heap),
-  _vcpu_id(_vm_session.create_vcpu(heap, env, handler)),
+  _vm_handler(*this, ep, *this, &Cpu::_handle_nothing),
+  _vcpu_id(_vm_session.with_upgrade([&]() {
+	return _vm_session.create_vcpu(heap, env, _vm_handler);
+  })),
   _state(*((State*)env.rm().attach(_vm_session.cpu_state(_vcpu_id)))),
 	//                op0, crn, op1, crm, op2, writeable, reset value
   _sr_id_aa64afr0_el1 (3, 0, 0, 5, 4, "ID_AA64AFR0_EL1",  false, 0x0, _reg_tree),
@@ -297,8 +383,8 @@ Cpu::Cpu(Vm                      & vm,
   _sr_ctr_el0         (_reg_tree),
   _sr_ccsidr_el1      (_sr_csselr_el1, _state, _reg_tree),
 
-  //_sr_pmccfiltr_el0   (3, 14, 3, 15, 7, "PMCCFILTR_EL0",  true,  0x0,                     _reg_tree),
-  _sr_pmuserenr_el0   (3, 9, 3, 14, 0,  "PMUSEREN_EL0",   true,  0x0, _reg_tree),
+//_sr_pmccfiltr_el0   (3, 14, 3, 15, 7, "PMCCFILTR_EL0",  true,  0x0,                     _reg_tree),
+  _sr_pmuserenr_el0   (3, 9, 3, 14, 0, "PMUSEREN_EL0",    true,  0x0, _reg_tree),
   _sr_dbgbcr0         (2, 0, 0, 0, 5, "DBGBCR_EL1",       true,  0x0, _reg_tree),
   _sr_dbgbvr0         (2, 0, 0, 0, 4, "DBGBVR_EL1",       true,  0x0, _reg_tree),
   _sr_dbgwcr0         (2, 0, 0, 0, 7, "DBGWCR_EL1",       true,  0x0, _reg_tree),
@@ -306,11 +392,10 @@ Cpu::Cpu(Vm                      & vm,
   _sr_mdscr           (2, 0, 0, 2, 2, "MDSCR_EL1",        true,  0x0, _reg_tree),
   _sr_osdlr           (2, 1, 0, 3, 4, "OSDLR_EL1",        true,  0x0, _reg_tree),
   _sr_oslar           (2, 1, 0, 0, 4, "OSLAR_EL1",        true,  0x0, _reg_tree),
-
+  _sr_sgi1r_el1       (_reg_tree, vm),
   _gic(*this, gic, bus),
   _timer(env, _gic.irq(27), *this)
 {
-	_state.r[0]   = dtb;
-	_state.ip     = ip;
-	_state.pstate = 0b1111000101; /* el1 mode and IRQs disabled */
+	_state.pstate     = 0b1111000101; /* el1 mode and IRQs disabled */
+	_state.vmpidr_el2 = cpu_id();
 }

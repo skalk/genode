@@ -122,6 +122,8 @@ static inline void prepare_hypervisor(Cpu::Ttbr::access_t const ttbr)
 	Cpu::Sctlr::Wxn::set(sctlr, 0);
 	Cpu::Sctlr_el2::write(sctlr);
 
+	asm volatile("msr cnthctl_el2, %0" :: "r" (0b111));
+
 	asm volatile("mov x0, sp      \n"
 	             "msr sp_el1, x0  \n"
 	             "adr x0, 1f      \n"
@@ -155,6 +157,8 @@ unsigned Bootstrap::Platform::enable_mmu()
 
 	/* enable performance counter for user-land */
 	Cpu::Pmuserenr_el0::write(0b1111);
+
+	asm volatile("msr cntkctl_el1, %0" :: "r" (0b11));
 
 	Cpu::Vbar_el1::write(Hw::Mm::supervisor_exception_vector().base);
 

@@ -28,13 +28,15 @@ addr_t Vm_session_component::_alloc_ds()
 }
 
 
-void Vm_session_component::_run(Vcpu_id)
+void Vm_session_component::_run(Vcpu_id id)
 {
-	if (_kobj.constructed()) Kernel::run_vm(*_kobj);
+	if (_valid_id(id) && _vcpus[id.id].kobj.constructed())
+		Kernel::run_vm(*_vcpus[id.id].kobj);
 }
 
 
-void Vm_session_component::_pause(Vcpu_id)
+void Vm_session_component::_pause(Vcpu_id id)
 {
-	if (_kobj.constructed()) Kernel::pause_vm(*_kobj);
+	if (_valid_id(id) && _vcpus[id.id].kobj.constructed())
+		Kernel::pause_vm(*_vcpus[id.id].kobj);
 }

@@ -18,6 +18,7 @@
 #include <kernel/core_interface.h>
 #include <spec/arm/virtualization/vm_session_component.h>
 #include <platform.h>
+#include <cpu_thread_component.h>
 #include <core_env.h>
 
 using namespace Genode;
@@ -26,11 +27,26 @@ static Core_mem_allocator & cma() {
 	return static_cast<Core_mem_allocator&>(platform().core_mem_alloc()); }
 
 
-void Vm_session_component::_exception_handler(Signal_context_capability handler, Vcpu_id)
+void Vm_session_component::_exception_handler(Signal_context_capability handler,
+                                              Vcpu_id id)
 {
-	if (!_kobj.create(_ds_addr, Capability_space::capid(handler),
-	                  cma().phys_addr(&_table)))
-		Genode::warning("Cannot instantiate vm kernel object, invalid signal context?");
+	if (!_valid_id(id)) {
+		Genode::warning("invalid vcpu id ", id.id);
+		return;
+	}
+
+	Vcpu & vcpu = _vcpus[id.id];
+	if (vcpu.kobj.constructed()) {
+		Genode::warning("Cannot register vcpu handler twice");
+		return;
+	}
+
+	unsigned const cpu = vcpu.location.valid() ? vcpu.location.xpos() : 0;
+
+	if (!vcpu.kobj.create(cpu, vcpu.ds_addr, Capability_space::capid(handler),
+	                      cma().phys_addr(&_table)))
+		Genode::warning("Cannot instantiate vm kernel object, ",
+		                "invalid signal context?");
 }
 
 
@@ -87,6 +103,42 @@ void * Vm_session_component::_alloc_table()
 }
 
 
+Vm_session::Vcpu_id Vm_session_component::_create_vcpu(Thread_capability tcap)
+{
+	using namespace Genode;
+
+	if (_id_alloc == VCPU_MAX) return Vcpu_id{Vcpu_id::INVALID};
+
+	Affinity::Location vcpu_location;
+	auto lambda = [&] (Cpu_thread_component *ptr) {
+		if (!ptr) return;
+		vcpu_location = ptr->platform_thread().affinity();
+	};
+	_ep.apply(tcap, lambda);
+
+	Vcpu & vcpu = _vcpus[_id_alloc];
+	vcpu.ds_cap = _constrained_md_ram_alloc.alloc(_ds_size(),
+	                                              Cache_attribute::UNCACHED);
+	try {
+		vcpu.ds_addr = _region_map.attach(vcpu.ds_cap);
+	} catch (...) {
+		_constrained_md_ram_alloc.free(vcpu.ds_cap);
+		throw;
+	}
+
+	vcpu.location = vcpu_location;
+	return Vcpu_id { _id_alloc++ };
+}
+
+
+Genode::Dataspace_capability
+Vm_session_component::_cpu_state(Vm_session::Vcpu_id id)
+{
+	return (_valid_id(id)) ? _vcpus[id.id].ds_cap
+	                       : Genode::Ram_dataspace_capability();
+}
+
+
 Vm_session_component::Vm_session_component(Rpc_entrypoint &ds_ep,
                                            Resources resources,
                                            Label const &,
@@ -105,15 +157,6 @@ Vm_session_component::Vm_session_component(Rpc_entrypoint &ds_ep,
   _table_array(*(new (cma()) Array([this] (void * virt) {
 	return (addr_t)cma().phys_addr(virt);})))
 {
-	_ds_cap = _constrained_md_ram_alloc.alloc(_ds_size(), Genode::Cache_attribute::UNCACHED);
-
-	try {
-		_ds_addr = region_map.attach(_ds_cap);
-	} catch (...) {
-		_constrained_md_ram_alloc.free(_ds_cap);
-		throw;
-	}
-
 	/* configure managed VM area */
 	_map.add_range(0, 0UL - 0x1000);
 	_map.add_range(0UL - 0x1000, 0x1000);
@@ -133,9 +176,12 @@ Vm_session_component::~Vm_session_component()
 	}
 
 	/* free region in allocator */
-	if (_ds_cap.valid()) {
-		_region_map.detach(_ds_addr);
-		_constrained_md_ram_alloc.free(_ds_cap);
+	for (unsigned i = 0; i < _id_alloc; i++) {
+		Vcpu & vcpu = _vcpus[i];
+		if (vcpu.ds_cap.valid()) {
+			_region_map.detach(vcpu.ds_addr);
+			_constrained_md_ram_alloc.free(vcpu.ds_cap);
+		}
 	}
 
 	/* free guest-to-host page tables */

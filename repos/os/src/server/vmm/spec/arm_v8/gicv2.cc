@@ -13,6 +13,7 @@
 
 #include <cpu.h>
 #include <gic.h>
+#include <vm.h>
 
 using Vmm::Gic;
 using Register = Vmm::Mmio_register::Register;
@@ -189,7 +190,7 @@ Gic::Gicd_banked::Gicd_banked(Cpu & cpu, Gic & gic, Mmio_bus & bus)
 	_cpu.state().irqs.last_irq    = 1023;
 	_cpu.state().irqs.virtual_irq = 1023;
 
-	_rdist.construct(0x80a0000, 0x20000);
+	_rdist.construct(0x80a0000 + (cpu.cpu_id()*0x20000), 0x20000, cpu.cpu_id(), Vm::last_cpu() == cpu.cpu_id());
 	bus.add(*_rdist);
 }
 
@@ -238,6 +239,7 @@ Gic::Gic(const char * const     name,
 	add(_itargetr);
 	add(_icfgr);
 	add(_irouter);
+	add(_sgir);
 
 	for (unsigned i = 0; i < (sizeof(Dummy::regs) / sizeof(Mmio_register)); i++)
 		add(_reg_container.regs[i]);

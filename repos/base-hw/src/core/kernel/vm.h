@@ -40,6 +40,33 @@ class Kernel::Vm : public Cpu_job,
 
 		using State = Genode::Vm_state;
 
+		struct Vm_irq : Kernel::Irq
+		{
+			Vm_irq(unsigned const irq);
+
+			virtual void handle(Cpu &, Vm & vm, unsigned irq);
+			void occurred() override;
+		};
+
+
+		struct Pic_maintainance_irq : Vm_irq
+		{
+			Pic_maintainance_irq();
+
+			void handle(Cpu &, Vm &, unsigned) override { }
+		};
+
+
+		struct Virtual_timer
+		{
+			Vm_irq irq;
+
+			Virtual_timer();
+
+			void enable();
+			void disable();
+		};
+
 		/*
 		 * Noncopyable
 		 */
@@ -54,6 +81,8 @@ class Kernel::Vm : public Cpu_job,
 		Signal_context            & _context;
 		void             * const    _table;
 		Scheduler_state             _scheduled = INACTIVE;
+		Pic_maintainance_irq        _pic_irq {};
+		Virtual_timer               _vtimer {};
 
 	public:
 
@@ -64,7 +93,8 @@ class Kernel::Vm : public Cpu_job,
 		 * \param context  signal for VM exceptions other than interrupts
 		 * \param table    translation table for guest to host physical memory
 		 */
-		Vm(State            & state,
+		Vm(unsigned           cpu,
+		   State            & state,
 		   Signal_context   & context,
 		   void       * const table);
 
@@ -90,12 +120,13 @@ class Kernel::Vm : public Cpu_job,
 		 * \retval cap id when successful, otherwise invalid cap id
 		 */
 		static capid_t syscall_create(Genode::Kernel_object<Vm> & vm,
+		                              unsigned                    cpu,
 		                              void * const                state,
 		                              capid_t const               signal_context_id,
 		                              void * const                table)
 		{
-			return call(call_id_new_vm(), (Call_arg)&vm, (Call_arg)state,
-			            (Call_arg)table, signal_context_id);
+			return call(call_id_new_vm(), (Call_arg)&vm, (Call_arg)cpu,
+			            (Call_arg)state, (Call_arg)table, signal_context_id);
 		}
 
 		/**

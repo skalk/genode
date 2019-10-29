@@ -14,7 +14,20 @@
 			compatible = "arm,cortex-a53";
 			reg = <0x00>;
 			device_type = "cpu";
+			enable-method = "psci";
 		};
+
+		cpu@1 {
+			compatible = "arm,cortex-a53";
+			reg = <0x01>;
+			device_type = "cpu";
+			enable-method = "psci";
+		};
+	};
+
+	psci {
+		compatible = "arm,psci-1.0";
+		method = "hvc";
 	};
 
 	timer {

@@ -83,7 +83,8 @@ _host_to_vm:
 	ldp  x14, x15, [x0], #2*8  /* tcr_el1,   mair_el1        */
 	ldp  x16, x17, [x0], #2*8  /* amair_el1, far_el1         */
 	ldp  x18, x19, [x0], #2*8  /* par_el1,   tpidrro_el0     */
-	ldp  x20, x21, [x0], #4*8  /* tpidr_el0, tpidr_el1       */
+	ldp  x20, x21, [x0], #2*8  /* tpidr_el0, tpidr_el1       */
+	ldr  x22,      [x0], #3*8  /* vmpidr_el2                 */
 	msr  elr_el1,        x1
 	msr  sp_el1,         x2
 	msr  spsr_el1,       x3
@@ -105,6 +106,7 @@ _host_to_vm:
 	msr  tpidrro_el0,    x19
 	msr  tpidr_el0,      x20
 	msr  tpidr_el1,      x21
+	msr  vmpidr_el2,     x22
 
 
 	/**********************
@@ -267,7 +269,7 @@ _vm_to_host:
 	stp x16, x17, [x0], #2*8
 	stp x18, x19, [x0], #2*8
 	stp x20, x21, [x0], #2*8
-	stp x22, x23, [x0], #2*8
+	stp x22, x23, [x0], #3*8
 	stp x24, x25, [x0], #2*8
 
 
@@ -327,20 +329,22 @@ _vm_to_host:
 	ldp x11, x12, [x30], #2*8   /* tcr_el1, mair_el1                */
 	ldr      x13, [x30]         /* amair_el1                        */
 
-	msr elr_el2,   x0
-	msr spsr_el2,  x1
-	msr fpcr,      x2
-	msr fpsr,      x3
-	msr sp_el1,    x4
-	msr sctlr_el1, x5
-	msr actlr_el1, x6
-	msr vbar_el1,  x7
-	msr cpacr_el1, x8
-	msr ttbr0_el1, x9
-	msr ttbr1_el1, x10
-	msr tcr_el1,   x11
-	msr mair_el1,  x12
-	msr amair_el1, x13
+	msr elr_el2,    x0
+	msr spsr_el2,   x1
+	msr fpcr,       x2
+	msr fpsr,       x3
+	msr sp_el1,     x4
+	msr sctlr_el1,  x5
+	msr actlr_el1,  x6
+	msr vbar_el1,   x7
+	msr cpacr_el1,  x8
+	msr ttbr0_el1,  x9
+	msr ttbr1_el1,  x10
+	msr tcr_el1,    x11
+	msr mair_el1,   x12
+	msr amair_el1,  x13
+	mrs x0, mpidr_el1
+	msr vmpidr_el2, x0
 
 
 	/************************

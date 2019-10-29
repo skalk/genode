@@ -26,11 +26,14 @@
 namespace Vmm {
 	class Vm;
 	class Cpu;
+	Genode::Lock & lock();
 }
 
 class Vmm::Cpu
 {
 	public:
+
+		using State = Genode::Vm_state;
 
 		struct Esr : Genode::Register<32>
 		{
@@ -46,7 +49,66 @@ class Vmm::Cpu
 			};
 		};
 
-		using State = Genode::Vm_state;
+		Cpu(Vm                      & vm,
+		    Genode::Vm_connection   & vm_session,
+		    Mmio_bus                & bus,
+		    Gic                     & gic,
+		    Genode::Env             & env,
+		    Genode::Heap            & heap,
+		    Genode::Entrypoint      & ep);
+
+		unsigned           cpu_id() const;
+		void               run();
+		void               pause();
+		bool               active() const;
+		State &            state()  const;
+		Gic::Gicd_banked & gic();
+		void               dump();
+		void               handle_exception();
+		void               recall();
+
+		template <typename FUNC>
+		void handle_signal(FUNC handler)
+		{
+			Genode::Lock::Guard guard(lock());
+
+			if (active()) {
+				pause();
+				handle_exception();
+			}
+			handler();
+			_update_state();
+			if (active()) run();
+		}
+
+		template <typename T>
+		struct Signal_handler : Genode::Vm_handler<Signal_handler<T>>
+		{
+			using Base = Genode::Vm_handler<Signal_handler<T>>;
+
+			Cpu & cpu;
+			T   & obj;
+			void (T::*member)();
+
+			void handle()
+			{
+				try {
+					cpu.handle_signal([this] () { (obj.*member)(); });
+				} catch(Exception &e) {
+					Genode::error(e);
+					cpu.dump();
+				}
+			}
+
+			Signal_handler(Cpu                & cpu,
+			               Genode::Entrypoint & ep,
+			               T                  & o,
+			               void                 (T::*f)())
+			: Base(ep, *this, &Signal_handler::handle),
+			  cpu(cpu), obj(o), member(f) {}
+		};
+
+	private:
 
 		enum Exception_type {
 			AARCH64_SYNC   = 0x400,
@@ -75,7 +137,7 @@ class Vmm::Cpu
 				{
 					struct Direction : Bitfield<0,  1> {};
 					struct Crm       : Bitfield<1,  4> {};
-					struct Register  : Bitfield<5,  4> {};
+					struct Register  : Bitfield<5,  5> {};
 					struct Crn       : Bitfield<10, 4> {};
 					struct Opcode1   : Bitfield<14, 3> {};
 					struct Opcode2   : Bitfield<17, 3> {};
@@ -180,15 +242,24 @@ class Vmm::Cpu
 			virtual Genode::addr_t read() const override;
 		};
 
-	private:
+		struct Icc_sgi1r_el1 : System_register
+		{
+			Vm & vm;
 
-		unsigned                          _cpu_id;
+			Icc_sgi1r_el1(Genode::Avl_tree<System_register> & tree, Vm & vm)
+			: System_register(3, 12, 0, 11, 5, "SGI1R_EL1", true, 0x0, tree),
+			  vm(vm) {}
+
+			virtual void write(Genode::addr_t v) override;
+		};
+
+		bool                              _active { true };
 		Vm                              & _vm;
 		Genode::Vm_connection           & _vm_session;
 		Genode::Heap                    & _heap;
+		Signal_handler<Cpu>               _vm_handler;
 		Genode::Vm_session::Vcpu_id       _vcpu_id;
 		State                           & _state;
-		bool                              _active { true };
 		Genode::Avl_tree<System_register> _reg_tree;
 
 		/******************************
@@ -241,87 +312,19 @@ class Vmm::Cpu
 		 ** Local peripherals **
 		 ***********************/
 
+		Icc_sgi1r_el1                     _sr_sgi1r_el1;
 		Gic::Gicd_banked                  _gic;
 		Generic_timer                     _timer;
 
+		void _handle_nothing() {}
 		bool _handle_sys_reg();
 		void _handle_brk();
 		void _handle_wfi();
 		void _handle_sync();
 		void _handle_irq();
+		void _handle_data_abort();
+		void _handle_hyper_call();
 		void _update_state();
-
-	public:
-
-		Cpu(Vm                      & vm,
-		    Genode::Vm_connection   & vm_session,
-		    Mmio_bus                & bus,
-		    Gic                     & gic,
-		    Genode::Env             & env,
-		    Genode::Heap            & heap,
-		    Genode::Vm_handler_base & handler,
-		    Genode::addr_t            ip,
-		    Genode::addr_t            dtb);
-
-		unsigned cpu_id() const   { return _cpu_id;                         }
-		void run()                { if (_active) _vm_session.run(_vcpu_id); }
-		void pause()              { _vm_session.pause(_vcpu_id);            }
-		bool active()             { return _active;                         }
-		State & state() const     { return _state;                          }
-		Gic::Gicd_banked & gic()  { return _gic;                            }
-		void dump();
-
-		template <typename FUNC>
-		void handle_signal(FUNC handler)
-		{
-			if (_active) {
-
-				pause();
-
-				/* check exception reason */
-				switch (_state.exception_type) {
-				case NO_EXCEPTION:                 break;
-				case AARCH64_IRQ:  _handle_irq();  break;
-				case AARCH64_SYNC: _handle_sync(); break;
-				default:
-					throw Exception("Curious exception ",
-					                _state.exception_type, " occured");
-				}
-			}
-
-			handler();
-
-			_update_state();
-
-			if (_active) run();
-		}
-
-		template <typename T>
-		struct Signal_handler : Genode::Vm_handler<Signal_handler<T>>
-		{
-			using Base = Genode::Vm_handler<Signal_handler<T>>;
-
-			Cpu & cpu;
-			T   & obj;
-			void (T::*member)();
-
-			void handle()
-			{
-				try {
-					cpu.handle_signal([this] () { (obj.*member)(); });
-				} catch(Exception &e) {
-					Genode::error(e);
-					cpu.dump();
-				}
-			}
-
-			Signal_handler(Cpu                & cpu,
-			               Genode::Entrypoint & ep,
-			               T                  & o,
-			               void                 (T::*f)())
-			: Base(ep, *this, &Signal_handler::handle),
-			  cpu(cpu), obj(o), member(f) {}
-		};
 };
 
 #endif /* _SRC__SERVER__VMM__CPU_H_ */

@@ -38,34 +38,18 @@ void Vm::_load_initrd()
 }
 
 
-void Vm::handle_hyper_call()
+Vmm::Cpu & Vm::boot_cpu()
 {
-	Genode::warning("unknown hypercall!");
-	_cpu.dump();
-}
-
-
-void Vm::handle_data_abort()
-{
-	_bus.handle_memory_access(_cpu);
-	_cpu.state().ip += sizeof(Genode::uint32_t);
+	if (!_cpus[0].constructed())
+		_cpus[0].construct(*this, _vm, _bus, _gic, _env, _heap, _env.ep());
+	return *_cpus[0];
 }
 
 
 Vm::Vm(Genode::Env & env)
-: _vm(env),
-  _kernel_rom(env, "linux"),
-  _dtb_rom(env, "dtb"),
-  _initrd_rom(env, "initrd"),
-  _vm_ram(env.ram(), env.rm(), RAM_SIZE, Genode::UNCACHED),
-  _ram(RAM_ADDRESS, RAM_SIZE, (Genode::addr_t)_vm_ram.local_addr<void>()),
-  _heap(env.ram(), env.rm()),
-  _vm_handler(_cpu, env.ep(), *this, &Vm::_handle),
+: _env(env),
   _gic("Gicv3", 0x8000000, 0x10000, _bus, env),
-  _cpu(*this, _vm, _bus, _gic, env, _heap, _vm_handler,
-       _ram.base() + KERNEL_OFFSET,
-       _ram.base() + DTB_OFFSET),
-  _uart("Pl011", 0x9000000, 0x1000, 33, _cpu, _bus, env)
+  _uart("Pl011", 0x9000000, 0x1000, 33, boot_cpu(), _bus, env)
 {
 	_vm.attach(_vm_ram.cap(), RAM_ADDRESS);
 	//_vm.attach_pic(0x8010000);
@@ -74,7 +58,17 @@ Vm::Vm(Genode::Env & env)
 	_load_dtb();
 	_load_initrd();
 
+	for (unsigned i = 1; i < MAX_CPUS; i++) {
+		Genode::Affinity::Space space = _env.cpu().affinity_space();
+		Genode::Affinity::Location location(space.location_of_index(i));
+		_eps[i].construct(_env, STACK_SIZE, "vcpu ep", location);
+		_cpus[i].construct(*this, _vm, _bus, _gic, _env, _heap, *_eps[i]);
+	}
+
 	Genode::log("Start virtual machine ...");
 
-	_cpu.run();
+	Cpu & cpu = boot_cpu();
+	cpu.state().ip   = _ram.base() + KERNEL_OFFSET;
+	cpu.state().r[0] = _ram.base() + DTB_OFFSET;
+	cpu.run();
 };
