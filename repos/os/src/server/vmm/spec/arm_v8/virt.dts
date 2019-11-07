@@ -58,7 +58,8 @@
 	};
 
 	chosen {
-		bootargs = "rdinit=/bin/sh";
+		/*bootargs = "rdinit=/bin/sh rdinit=/bin/sh";*/
+		bootargs = "rdinit=/bin/sh earlycon=pl011,0x9000000 keep_bootcon rdinit=/bin/sh";
 		linux,initrd-start = <0x42000000>;
 		linux,initrd-end   = <0x42113b86>;
 		stdout-path = "/pl011@9000000";

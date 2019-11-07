@@ -61,8 +61,8 @@ static Genode::Vm_state & host_context()
 }
 
 
-Vm::Vm_irq::Vm_irq(unsigned const irq)
-: Kernel::Irq(irq, Kernel::cpu_pool().executing_cpu().irq_pool())
+Vm::Vm_irq::Vm_irq(unsigned const irq, Cpu & cpu)
+: Kernel::Irq(irq, cpu.irq_pool())
 { }
 
 
@@ -79,12 +79,13 @@ void Vm::Vm_irq::occurred()
 }
 
 
-Vm::Pic_maintainance_irq::Pic_maintainance_irq()
-: Vm::Vm_irq(Board::VT_MAINTAINANCE_IRQ) { enable(); }
+Vm::Pic_maintainance_irq::Pic_maintainance_irq(Cpu & cpu)
+: Vm::Vm_irq(Board::VT_MAINTAINANCE_IRQ, cpu) {
+	//FIXME Irq::enable only enables caller cpu
+	cpu.pic().unmask(_irq_nr, cpu.id()); }
 
-
-Vm::Virtual_timer::Virtual_timer()
-: irq(Board::VT_TIMER_IRQ) {}
+Vm::Virtual_timer::Virtual_timer(Cpu & cpu)
+: irq(Board::VT_TIMER_IRQ, cpu) {}
 
 
 void Vm::Virtual_timer::enable() { irq.enable(); }
@@ -113,7 +114,6 @@ static Vmid_allocator &alloc()
 	return *allocator;
 }
 
-static bool debug = false;
 
 Vm::Vm(unsigned                 cpu,
        Genode::Vm_state       & state,
@@ -123,7 +123,9 @@ Vm::Vm(unsigned                 cpu,
   _id(alloc().alloc()),
   _state(state),
   _context(context),
-  _table(table)
+  _table(table),
+  _pic_irq(cpu_pool().cpu(cpu)),
+  _vtimer(cpu_pool().cpu(cpu))
 {
 	//if (cpu != 0) debug = true;
 	cpu = 0;
@@ -185,16 +187,15 @@ void Vm::exception(Cpu & cpu)
 
 	//cpu.pic().save(_pic);
 	//cpu.pic().disable_virtualization();
-	if (cpu.pic().ack_virtual_irq(_pic))
+	if (cpu.pic().ack_virtual_irq(_pic)) {
 		inject_irq(Board::VT_MAINTAINANCE_IRQ);
+	}
 	_vtimer.disable();
-	if (debug) Genode::raw(_state.vmpidr_el2, " exception ", (void*)_state.exception_type, " ", (void*)_state.ip);
 }
 
 
 void Vm::proceed(Cpu & cpu)
 {
-	if (debug) Genode::raw(_state.vmpidr_el2, " proceed ", (void*)_state.ip);
 	if (_state.timer.irq) _vtimer.enable();
 
 	cpu.pic().insert_virtual_irq(_pic, _state.irqs.virtual_irq);
@@ -213,7 +214,6 @@ void Vm::proceed(Cpu & cpu)
 
 	hypervisor_enter_vm(guest, host, pic, vttbr_el2);
 }
-
 
 void Vm::inject_irq(unsigned irq)
 {

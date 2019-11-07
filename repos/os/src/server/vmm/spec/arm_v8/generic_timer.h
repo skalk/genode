@@ -54,9 +54,10 @@ class Vmm::Generic_timer : Gic::Irq::Irq_handler
 
 	public:
 
-		Generic_timer(Genode::Env & env,
-		              Gic::Irq    & irq,
-		              Cpu         & cpu);
+		Generic_timer(Genode::Env        & env,
+		              Genode::Entrypoint & ep,
+		              Gic::Irq           & irq,
+		              Cpu                & cpu);
 
 		void schedule_timeout();
 		void cancel_timeout();

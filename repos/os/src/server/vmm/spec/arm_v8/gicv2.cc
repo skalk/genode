@@ -73,7 +73,10 @@ void Gic::Irq::deactivate()
 
 void Gic::Irq::assert()
 {
-	if (pending()) return;
+	if (pending()) {
+		if (_num < 16) Genode::error("IPI owei");
+		return;
+	}
 
 	_state = PENDING;
 	_pending_list.insert(*this);

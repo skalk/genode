@@ -246,35 +246,22 @@ struct Hw::Arm_64_cpu
 	using Cntpct    = Cntpct_el0;
 	using Cntp_tval = Cntp_tval_el0;
 
-	static inline void wait_for_xchg(volatile int * addr,
-	                                 int new_value,
-	                                 int expected_value)
+	static inline void wait_for_xchg(volatile int * addr)
 	{
 		asm volatile(
-			/* check if load value of 'addr' is as expected */
-			"1: ldxr w7, [%0]     \n"
-			"cmp w7, %w2          \n"
-			"b.eq 2f              \n"
-
-			/* if not, wait for other CPU to send us an event */
-			"wfe                  \n"
-			"b.ne 1b              \n"
-
-			/* if yes, attempt to write 'new_value' to 'addr' */
-			"2: stxr w7, %w1, [%0]\n"
-
-			/* if write failed, restart */
-			"cbnz w7, 1b          \n"
-			"dmb #0               \n"
-		:: "r"(addr), "r"(new_value), "r"(expected_value) : "cc", "x7");
+			"mov   w7, #1         \n"
+			"sevl                 \n"
+			"1: wfe               \n"
+			"2: ldaxr w8, [%0]    \n"
+			"cbnz  w8, 1b         \n"
+			"stxr  w8, w7, [%0]   \n"
+			"cbnz  w8, 2b         \n"
+		:: "r"(addr) : "cc", "x7", "x8");
 	}
 
-	static inline void wakeup_waiting_cpus()
+	static inline void wakeup_waiting_cpus(volatile int * addr)
 	{
-		asm volatile(
-			"dsb #0 \n"
-			"sev    \n"
-		);
+		asm volatile("stlr wzr, [%0]" :: "r" (addr));
 	}
 };
 

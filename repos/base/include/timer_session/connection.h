@@ -259,7 +259,9 @@ class Timer::Connection : public  Genode::Connection<Session>,
 		/**
 		 * Constructor
 		 */
-		Connection(Genode::Env &env, char const *label = "");
+		Connection(Genode::Env &env,
+		           Genode::Entrypoint & ep,
+		           char const *label = "");
 
 		~Connection() { _sig_rec.dissolve(&_default_sigh_ctx); }
 

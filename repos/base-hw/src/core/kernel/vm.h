@@ -42,7 +42,7 @@ class Kernel::Vm : public Cpu_job,
 
 		struct Vm_irq : Kernel::Irq
 		{
-			Vm_irq(unsigned const irq);
+			Vm_irq(unsigned const irq, Cpu &);
 
 			virtual void handle(Cpu &, Vm & vm, unsigned irq);
 			void occurred() override;
@@ -51,7 +51,7 @@ class Kernel::Vm : public Cpu_job,
 
 		struct Pic_maintainance_irq : Vm_irq
 		{
-			Pic_maintainance_irq();
+			Pic_maintainance_irq(Cpu &);
 
 			void handle(Cpu &, Vm &, unsigned) override { }
 		};
@@ -61,7 +61,7 @@ class Kernel::Vm : public Cpu_job,
 		{
 			Vm_irq irq;
 
-			Virtual_timer();
+			Virtual_timer(Cpu &);
 
 			void enable();
 			void disable();
@@ -81,8 +81,8 @@ class Kernel::Vm : public Cpu_job,
 		Signal_context            & _context;
 		void             * const    _table;
 		Scheduler_state             _scheduled = INACTIVE;
-		Pic_maintainance_irq        _pic_irq {};
-		Virtual_timer               _vtimer {};
+		Pic_maintainance_irq        _pic_irq;
+		Virtual_timer               _vtimer;
 
 	public:
 

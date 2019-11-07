@@ -118,10 +118,13 @@ _host_to_vm:
 	msr  cntv_cval_el0,  x23
 	msr  cntv_ctl_el0,   x24
 	msr  cntkctl_el1,    x25
+	msr  cntvoff_el2,    xzr
 
+/*
 	mrs  x0, cntpct_el0
 	sub  x22, x0, x22
 	msr  cntvoff_el2,    x22
+*/
 
 	mov  x0, #0b100
 	msr  cnthctl_el2, x0

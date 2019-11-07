@@ -43,7 +43,8 @@ bool Generic_timer::_pending() {
 void Generic_timer::_handle_timeout(Genode::Duration)
 {
 	_cpu.handle_signal([this] (void) {
-		_cpu.state().timer.count = _cpu.state().timer.compare + 1;
+		//_cpu.state().timer.count = _cpu.state().timer.compare + 1;
+					   Genode::log(_cpu.cpu_id(), " ifw");
 		_time = 0;
 		if (_enabled() && !_masked()) handle_irq();
 	});
@@ -59,10 +60,11 @@ Genode::uint64_t Generic_timer::_usecs_left()
 }
 
 
-Generic_timer::Generic_timer(Genode::Env & env,
-                             Gic::Irq    & irq,
-                             Cpu         & cpu)
-: _timer(env),
+Generic_timer::Generic_timer(Genode::Env        & env,
+                             Genode::Entrypoint & ep,
+                             Gic::Irq           & irq,
+                             Cpu                & cpu)
+: _timer(env, ep),
   _timeout(_timer, *this, &Generic_timer::_handle_timeout),
   _irq(irq),
   _cpu(cpu)
@@ -82,6 +84,7 @@ void Generic_timer::schedule_timeout()
 	if (_enabled()) {
 		asm volatile("mrs %0, cntpct_el0" : "=r" (_time));
 		if (_usecs_left()) {
+			Genode::log(_cpu.cpu_id(), " wfi ", _usecs_left());
 			_timeout.schedule(Genode::Microseconds(_usecs_left()));
 		} else _handle_timeout(Genode::Duration(Genode::Microseconds(0)));
 	}
@@ -95,7 +98,8 @@ void Generic_timer::cancel_timeout()
 	_timeout.discard();
 	Genode::uint64_t ticks = 0;
 	asm volatile("mrs %0, cntpct_el0" : "=r" (ticks));
-	_cpu.state().timer.count += ticks - _time;
+	//_cpu.state().timer.count += ticks - _time;
+					   Genode::log(_cpu.cpu_id(), " ifw");
 	_time = 0;
 }
 

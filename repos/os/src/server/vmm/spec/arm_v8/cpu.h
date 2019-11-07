@@ -76,6 +76,11 @@ class Vmm::Cpu
 				pause();
 				handle_exception();
 			}
+
+		//	static unsigned counter[2] = { 0, 0 };
+		//	if ((++counter[cpu_id()] % 100) == 0)
+		//		Genode::log(cpu_id(), " ", (void*)state().ip);
+
 			handler();
 			_update_state();
 			if (active()) run();
@@ -175,7 +180,7 @@ class Vmm::Cpu
 				}
 
 				virtual void write(Genode::addr_t v) {
-					_value = (Genode::uint32_t)v; }
+					_value = (Genode::addr_t)v; }
 
 				virtual Genode::addr_t read() const {
 					return (Genode::addr_t)(_value); }
@@ -316,7 +321,7 @@ class Vmm::Cpu
 		Gic::Gicd_banked                  _gic;
 		Generic_timer                     _timer;
 
-		void _handle_nothing() {}
+		void _handle_nothing() { }
 		bool _handle_sys_reg();
 		void _handle_brk();
 		void _handle_wfi();

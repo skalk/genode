@@ -131,6 +131,7 @@ void Cpu::Icc_sgi1r_el1::write(Genode::addr_t v)
 	for (unsigned i = 0; i <= Vm::last_cpu(); i++) {
 		if (target_list & (1<<i)) {
 			vm.cpu(i, [&] (Cpu & cpu) {
+				if (irq) Genode::error("IPI ", irq, " => ", cpu.cpu_id());
 				cpu.gic().irq(irq).assert();
 				cpu.recall();
 			});
@@ -179,12 +180,14 @@ bool Cpu::_handle_sys_reg()
 
 void Cpu::_handle_wfi()
 {
-//	if (_state.esr_el2 & 1)
-//		throw Exception("WFE not implemented yet");
+	_state.ip += sizeof(Genode::uint32_t);
+
+	if (_state.esr_el2 & 1) return; /* WFE */
+	//if (_state.irqs.virtual_irq != 1023) return; /* IRQ avail */
+	//Genode::raw("WFI ", cpu_id());
 
 	_active = false;
 	_timer.schedule_timeout();
-	_state.ip += sizeof(Genode::uint32_t);
 }
 
 
@@ -262,10 +265,12 @@ void Cpu::_handle_hyper_call()
 				cpu.run();
 			});
 			_state.r[0] = Psci::SUCCESS;
+			Genode::error("start cpu");
 			return;
 		default:
-			Genode::warning("unknown hypercall!");
-			dump();
+			Genode::warning("unknown hypercall! ", cpu_id());
+			for (unsigned i = 0; i < 2; i++)
+				_vm.cpu(i, [] (Cpu & c) { c.dump(); });;
 	};
 }
 
@@ -280,16 +285,17 @@ void Cpu::_handle_data_abort()
 void Cpu::_update_state()
 {
 	if (!_gic.pending_irq()) return;
+
 	_active = true;
 	_timer.cancel_timeout();
 }
 
-unsigned Cpu::cpu_id() const    { return _vcpu_id.id;                     }
-void Cpu::run()                 { if (_active) _vm_session.run(_vcpu_id); }
-void Cpu::pause()               { _vm_session.pause(_vcpu_id);            }
-bool Cpu::active() const        { return _active;                         }
-Cpu::State & Cpu::state() const { return _state;                          }
-Gic::Gicd_banked & Cpu::gic()   { return _gic;                            }
+unsigned Cpu::cpu_id() const    { return _vcpu_id.id;          }
+void Cpu::run()                 { _vm_session.run(_vcpu_id);   }
+void Cpu::pause()               { _vm_session.pause(_vcpu_id); }
+bool Cpu::active() const        { return _active;              }
+Cpu::State & Cpu::state() const { return _state;               }
+Gic::Gicd_banked & Cpu::gic()   { return _gic;                 }
 
 
 void Cpu::handle_exception()
@@ -303,6 +309,7 @@ void Cpu::handle_exception()
 		throw Exception("Curious exception ",
 		                _state.exception_type, " occured");
 	}
+	_state.exception_type = NO_EXCEPTION;
 }
 
 
@@ -394,7 +401,7 @@ Cpu::Cpu(Vm                      & vm,
   _sr_oslar           (2, 1, 0, 0, 4, "OSLAR_EL1",        true,  0x0, _reg_tree),
   _sr_sgi1r_el1       (_reg_tree, vm),
   _gic(*this, gic, bus),
-  _timer(env, _gic.irq(27), *this)
+  _timer(env, ep, _gic.irq(27), *this)
 {
 	_state.pstate     = 0b1111000101; /* el1 mode and IRQs disabled */
 	_state.vmpidr_el2 = cpu_id();

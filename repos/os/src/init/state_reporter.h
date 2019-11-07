@@ -136,7 +136,7 @@ class Init::State_reporter : public Report_update_trigger
 
 			if (_report_delay_ms) {
 				if (!_timer.constructed()) {
-					_timer.construct(_env);
+					_timer.construct(_env, _env.ep());
 					_timer->sigh(_timer_handler);
 				}
 				trigger_update = true;
@@ -164,7 +164,7 @@ class Init::State_reporter : public Report_update_trigger
 			                                  || _report_detail->child_caps();
 
 			if (report_periodically && !_timer_periodic.constructed()) {
-				_timer_periodic.construct(_env);
+				_timer_periodic.construct(_env, _env.ep());
 				_timer_periodic->sigh(_timer_periodic_handler);
 			}
 

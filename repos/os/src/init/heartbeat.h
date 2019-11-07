@@ -68,7 +68,7 @@ class Init::Heartbeat : Genode::Noncopyable
 		{
 			bool const enabled = config.has_sub_node("heartbeat");
 
-			_timer.conditional(enabled, _env);
+			_timer.conditional(enabled, _env, _env.ep());
 
 			if (!enabled) {
 				_rate_ms = 0;
