@@ -132,10 +132,12 @@ class Vmm::Gic : public Vmm::Mmio_device
 
 				struct Redistributor : Mmio_device
 				{
+					unsigned      cpu_id;
+					bool          last;
 					Mmio_register gicr_ctlr     { "GICR_CTLR", Mmio_register::RO,
 					                              0x0, 4, 0b10010 };
 					Mmio_register gicr_typer    { "GICR_TYPER", Mmio_register::RO,
-					                              0x8, 8, 1<<4 }; // FIXME: smp
+					                              0x8, 8, (Genode::uint64_t)cpu_id<<32 | cpu_id<<8 | (last ? 1<<4 : 0) };
 					Mmio_register gicr_waker    { "GICR_WAKER", Mmio_register::RO,
 					                              0x14, 4, 0 };
 					Mmio_register gicr_pidr2    { "GICR_PIDR2", Mmio_register::RO,
@@ -216,8 +218,10 @@ class Vmm::Gic : public Vmm::Mmio_device
 					} gicr_icfgr;
 
 					Redistributor(const Genode::uint64_t addr,
-					              const Genode::uint64_t size)
-					: Mmio_device("GICR", addr, size)
+					              const Genode::uint64_t size,
+					              unsigned               cpu_id,
+					              bool                   last)
+					: Mmio_device("GICR", addr, size), cpu_id(cpu_id), last(last)
 					{
 						add(gicr_ctlr);
 						add(gicr_typer);
@@ -250,7 +254,7 @@ class Vmm::Gic : public Vmm::Mmio_device
 
 		Genode::Constructible<Irq> _spi[MAX_SPI];
 		Irq::List                  _pending_list;
-		unsigned                   _cpu_cnt { 1 }; /* FIXME: smp support */
+		unsigned                   _cpu_cnt { 2 }; /* FIXME: smp support */
 		unsigned                   _version { 3 }; /* FIXME: version support */
 
 		struct Gicd_ctlr : Genode::Register<32>, Mmio_register
@@ -379,6 +383,22 @@ class Vmm::Gic : public Vmm::Mmio_device
 			Gicd_icfgr()
 			: Irq_reg("GICD_ICFGR", Mmio_register::RW, 0xc00, 8, 1024) {}
 		} _icfgr;
+
+		struct Gicd_sgir : Genode::Register<32>, Mmio_register
+		{
+			struct Enable  : Bitfield<0, 1> {};
+			struct Disable : Bitfield<6, 1> {};
+
+			void write(Address_range & access, Cpu & cpu,
+			           Mmio_register::Register value) override
+			{
+				Genode::error("SGIR WRITE ", value);
+			}
+
+			Gicd_sgir()
+			: Mmio_register("GICD_SGIR", Mmio_register::WO, 0xf00, 4, 0) {}
+		} _sgir;
+
 
 		struct Gicd_irouter : Irq_reg
 		{

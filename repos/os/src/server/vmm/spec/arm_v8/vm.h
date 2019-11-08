@@ -30,39 +30,53 @@ class Vmm::Vm
 {
 	private:
 
+		using Ep = Genode::Entrypoint;
+
 		enum {
 			RAM_ADDRESS   = 0x40000000,
 			RAM_SIZE      = 128 * 1024 *1024,
 			KERNEL_OFFSET = 0x80000,
 			INITRD_OFFSET = 32 * 1024 * 1024,
 			DTB_OFFSET    = 64 * 1024 * 1024,
+			MAX_CPUS      = 1,
+			STACK_SIZE    = sizeof(unsigned long) * 2048,
 		};
 
-		Genode::Vm_connection          _vm;
-		Genode::Attached_rom_dataspace _kernel_rom;
-		Genode::Attached_rom_dataspace _dtb_rom;
-		Genode::Attached_rom_dataspace _initrd_rom;
-		Genode::Attached_ram_dataspace _vm_ram;
-		Ram                            _ram;
-		Genode::Heap                   _heap;
-		Cpu::Signal_handler<Vm>        _vm_handler;
+		Genode::Env                  & _env;
+		Genode::Vm_connection          _vm         { _env           };
+		Genode::Attached_rom_dataspace _kernel_rom { _env, "linux"  };
+		Genode::Attached_rom_dataspace _dtb_rom    { _env, "dtb"    };
+		Genode::Attached_rom_dataspace _initrd_rom { _env, "initrd" };
+		Genode::Attached_ram_dataspace _vm_ram     { _env.ram(), _env.rm(),
+		                                             RAM_SIZE, Genode::UNCACHED };
+		Ram                            _ram        { RAM_ADDRESS, RAM_SIZE,
+		                                             (Genode::addr_t)_vm_ram.local_addr<void>()};
+		Genode::Heap                   _heap       { _env.ram(), _env.rm() };
 		Mmio_bus                       _bus;
 		Gic                            _gic;
-		Cpu                            _cpu;
+		Genode::Constructible<Ep>      _eps[MAX_CPUS];
+		Genode::Constructible<Cpu>     _cpus[MAX_CPUS];
 		Pl011                          _uart;
 
 		void _load_kernel();
 		void _load_dtb();
 		void _load_initrd();
-		void _handle() {} /* dummy handler */
 
 	public:
 
 		Vm(Genode::Env & env);
 
-		void  handle_data_abort();
-		void  handle_hyper_call();
-		Cpu & cpu() { return _cpu; }
+		Mmio_bus & bus() { return _bus; }
+		Cpu      & boot_cpu();
+
+		template <typename F>
+		void cpu(unsigned cpu, F func)
+		{
+			if (cpu >= MAX_CPUS) Genode::error("Cpu number out of bounds ");
+			else                 func(*_cpus[cpu]);
+		}
+
+		static unsigned last_cpu() { return MAX_CPUS - 1; }
 };
 
 #endif /* _SRC__SERVER__VMM__VM_H_ */

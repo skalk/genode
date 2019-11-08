@@ -43,8 +43,6 @@ bool Generic_timer::_pending() {
 void Generic_timer::_handle_timeout(Genode::Duration)
 {
 	_cpu.handle_signal([this] (void) {
-		_cpu.state().timer.count = _cpu.state().timer.compare + 1;
-		_time = 0;
 		if (_enabled() && !_masked()) handle_irq();
 	});
 }
@@ -52,17 +50,20 @@ void Generic_timer::_handle_timeout(Genode::Duration)
 
 Genode::uint64_t Generic_timer::_usecs_left()
 {
-	Genode::uint64_t ticks = _cpu.state().timer.compare -
-	                         _cpu.state().timer.count;
-	if (_cpu.state().timer.count > _cpu.state().timer.compare) return 0;
-	return Genode::timer_ticks_to_us(ticks, _ticks_per_ms());
+	Genode::uint64_t count;
+	asm volatile("mrs %0, cntpct_el0" : "=r" (count));
+	count -= _cpu.state().timer.offset;
+	if (count > _cpu.state().timer.compare) return 0;
+	return Genode::timer_ticks_to_us(_cpu.state().timer.compare - count,
+	                                 _ticks_per_ms());
 }
 
 
-Generic_timer::Generic_timer(Genode::Env & env,
-                             Gic::Irq    & irq,
-                             Cpu         & cpu)
-: _timer(env),
+Generic_timer::Generic_timer(Genode::Env        & env,
+                             Genode::Entrypoint & ep,
+                             Gic::Irq           & irq,
+                             Cpu                & cpu)
+: _timer(env, ep),
   _timeout(_timer, *this, &Generic_timer::_handle_timeout),
   _irq(irq),
   _cpu(cpu)
@@ -80,7 +81,6 @@ void Generic_timer::schedule_timeout()
 	}
 
 	if (_enabled()) {
-		asm volatile("mrs %0, cntpct_el0" : "=r" (_time));
 		if (_usecs_left()) {
 			_timeout.schedule(Genode::Microseconds(_usecs_left()));
 		} else _handle_timeout(Genode::Duration(Genode::Microseconds(0)));
@@ -90,13 +90,7 @@ void Generic_timer::schedule_timeout()
 
 void Generic_timer::cancel_timeout()
 {
-	if (!_time) return;
-
-	_timeout.discard();
-	Genode::uint64_t ticks = 0;
-	asm volatile("mrs %0, cntpct_el0" : "=r" (ticks));
-	_cpu.state().timer.count += ticks - _time;
-	_time = 0;
+	if (_timeout.scheduled()) _timeout.discard();
 }
 
 
