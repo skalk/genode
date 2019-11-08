@@ -40,6 +40,33 @@ class Kernel::Vm : public Cpu_job,
 
 		using State = Genode::Vm_state;
 
+		struct Vm_irq : Kernel::Irq
+		{
+			Vm_irq(unsigned const irq, Cpu &);
+
+			virtual void handle(Cpu &, Vm & vm, unsigned irq);
+			void occurred() override;
+		};
+
+
+		struct Pic_maintainance_irq : Vm_irq
+		{
+			Pic_maintainance_irq(Cpu &);
+
+			void handle(Cpu &, Vm &, unsigned) override { }
+		};
+
+
+		struct Virtual_timer
+		{
+			Vm_irq irq;
+
+			Virtual_timer(Cpu &);
+
+			void enable();
+			void disable();
+		};
+
 		/*
 		 * Noncopyable
 		 */
@@ -54,6 +81,8 @@ class Kernel::Vm : public Cpu_job,
 		Signal_context            & _context;
 		void             * const    _table;
 		Scheduler_state             _scheduled = INACTIVE;
+		Pic_maintainance_irq        _pic_irq;
+		Virtual_timer               _vtimer;
 
 	public:
 

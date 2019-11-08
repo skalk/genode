@@ -61,58 +61,43 @@ static Genode::Vm_state & host_context()
 }
 
 
-struct Vm_irq : Kernel::Irq
+Vm::Vm_irq::Vm_irq(unsigned const irq, Cpu & cpu)
+: Kernel::Irq(irq, cpu.irq_pool())
+{ }
+
+
+void Vm::Vm_irq::handle(Cpu &, Vm & vm, unsigned irq) {
+	vm.inject_irq(irq); }
+
+
+void Vm::Vm_irq::occurred()
 {
-	Vm_irq(unsigned const irq)
-	:
-		Kernel::Irq(irq, Kernel::cpu_pool().executing_cpu().irq_pool())
-	{ }
-
-	virtual void handle(Cpu &, Vm & vm, unsigned irq) {
-		vm.inject_irq(irq); }
-
-	void occurred() override
-	{
-		Cpu & cpu = Kernel::cpu_pool().executing_cpu();
-		Vm *vm = dynamic_cast<Vm*>(&cpu.scheduled_job());
-		if (!vm) Genode::raw("VM interrupt while VM is not runnning!");
-		else     handle(cpu, *vm, _irq_nr);
-	}
-};
+	Cpu & cpu = Kernel::cpu_pool().executing_cpu();
+	Vm *vm = dynamic_cast<Vm*>(&cpu.scheduled_job());
+	if (!vm) Genode::raw("VM interrupt while VM is not runnning!");
+	else     handle(cpu, *vm, _irq_nr);
+}
 
 
-struct Pic_maintainance_irq : Vm_irq
+Vm::Pic_maintainance_irq::Pic_maintainance_irq(Cpu & cpu)
+: Vm::Vm_irq(Board::VT_MAINTAINANCE_IRQ, cpu) {
+	//FIXME Irq::enable only enables caller cpu
+	cpu.pic().unmask(_irq_nr, cpu.id()); }
+
+Vm::Virtual_timer::Virtual_timer(Cpu & cpu)
+: irq(Board::VT_TIMER_IRQ, cpu) {}
+
+
+void Vm::Virtual_timer::enable() { irq.enable(); }
+
+
+void Vm::Virtual_timer::disable()
 {
-	Pic_maintainance_irq()
-	: Vm_irq(Board::VT_MAINTAINANCE_IRQ) { enable(); }
+	irq.disable();
+	asm volatile("msr cntv_ctl_el0, xzr");
+	asm volatile("msr cntkctl_el1,  %0" :: "r" (0b11));
+}
 
-	void handle(Cpu &, Vm &, unsigned) override
-	{
-		//cpu.pic().ack_virtual_irq(vm._pic);
-		//vm.inject_irq(irq);
-	}
-};
-
-
-struct Virtual_timer
-{
-	Vm_irq irq { Board::VT_TIMER_IRQ };
-
-	static Virtual_timer& timer()
-	{
-		static Virtual_timer timer;
-		return timer;
-	}
-
-	void enable() { irq.enable(); }
-
-	void disable()
-	{
-		irq.disable();
-		asm volatile("msr cntv_ctl_el0, xzr");
-		asm volatile("msr cntkctl_el1,  %0" :: "r" (0b11));
-	}
-};
 
 using Vmid_allocator = Genode::Bit_allocator<256>;
 
@@ -138,11 +123,11 @@ Vm::Vm(unsigned                 cpu,
   _id(alloc().alloc()),
   _state(state),
   _context(context),
-  _table(table)
+  _table(table),
+  _pic_irq(cpu_pool().cpu(cpu)),
+  _vtimer(cpu_pool().cpu(cpu))
 {
 	affinity(cpu_pool().cpu(cpu));
-
-	static Pic_maintainance_irq pic_irq;
 
 	_state.id_aa64isar0_el1 = Cpu::Id_aa64isar0_el1::read();
 	_state.id_aa64isar1_el1 = Cpu::Id_aa64isar1_el1::read();
@@ -197,20 +182,17 @@ void Vm::exception(Cpu & cpu)
 		            " not implemented!");
 	};
 
-	//cpu.pic().save(_pic);
-	//cpu.pic().disable_virtualization();
 	if (cpu.pic().ack_virtual_irq(_pic))
 		inject_irq(Board::VT_MAINTAINANCE_IRQ);
-	Virtual_timer::timer().disable();
+	_vtimer.disable();
 }
 
 
 void Vm::proceed(Cpu & cpu)
 {
-	if (_state.timer.irq) Virtual_timer::timer().enable();
+	if (_state.timer.irq) _vtimer.enable();
 
 	cpu.pic().insert_virtual_irq(_pic, _state.irqs.virtual_irq);
-	//cpu.pic().load(_pic);
 
 	/*
 	 * the following values have to be enforced by the hypervisor
@@ -225,7 +207,6 @@ void Vm::proceed(Cpu & cpu)
 
 	hypervisor_enter_vm(guest, host, pic, vttbr_el2);
 }
-
 
 void Vm::inject_irq(unsigned irq)
 {

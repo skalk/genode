@@ -240,6 +240,8 @@ struct Hw::Arm_64_cpu
 
 	SYSTEM_REGISTER(64, Cntpct_el0, cntpct_el0);
 	SYSTEM_REGISTER(32, Cntp_tval_el0, cntp_tval_el0);
+	SYSTEM_REGISTER(32, Cntkctl_el1, cntkctl_el1);
+	SYSTEM_REGISTER(32, Cnthctl_el2, cnthctl_el2);
 
 	using Cntfrq    = Cntfrq_el0;
 	using Cntp_ctl  = Cntp_ctl_el0;

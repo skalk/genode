@@ -63,6 +63,8 @@ struct Genode::Vm_state : Genode::Cpu_state
 	Genode::uint64_t tpidr_el0      { 0 };
 	Genode::uint64_t tpidr_el1      { 0 };
 
+	Genode::uint64_t vmpidr_el2     { 0 };
+
 	Genode::uint64_t far_el2        { 0 };
 	Genode::uint64_t hpfar_el2      { 0 };
 
@@ -70,7 +72,7 @@ struct Genode::Vm_state : Genode::Cpu_state
 	 * Timer related registers
 	 */
 	struct Timer {
-		Genode::uint64_t count    { 0 };
+		Genode::uint64_t offset   { 0 };
 		Genode::uint64_t compare  { 0 };
 		Genode::uint32_t control  { 0 };
 		Genode::uint32_t kcontrol { 0 };

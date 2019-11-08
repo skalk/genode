@@ -22,33 +22,25 @@ Pic::Gich::Gich()
 : Genode::Mmio(Genode::Platform::mmio_to_virt(Board::Cpu_mmio::IRQ_CONTROLLER_VT_CTRL_BASE)) { }
 
 
-void Pic::load(Pic::Virtual_context & context)
+bool Pic::ack_virtual_irq(Pic::Virtual_context & c)
 {
-	_gich.write<Gich::Gich_misr  >(context.misr);
-	_gich.write<Gich::Gich_vmcr  >(context.vmcr);
-	_gich.write<Gich::Gich_apr   >(context.apr);
-	_gich.write<Gich::Gich_elrsr0>(context.elrsr);
-	_gich.write<Gich::Gich_lr0   >(context.lr);
-	_gich.write<Gich::Gich_hcr>(0b1);
-}
+	c.misr   = _gich.read<Gich::Gich_misr  >();
+	c.vmcr   = _gich.read<Gich::Gich_vmcr  >();
+	c.apr    = _gich.read<Gich::Gich_apr   >();
+	c.eisr   = _gich.read<Gich::Gich_eisr0 >();
+	c.elrsr  = _gich.read<Gich::Gich_elrsr0>();
+	c.lr     = _gich.read<Gich::Gich_lr0   >();
+	_gich.write<Gich::Gich_hcr>(0);
 
+	if (c.eisr & 1) {
+		c.lr    = 0;
+		c.elrsr = 0xffffffff;
+		c.misr  = 0;
+		c.eisr  = 0;
+		return true;
+	}
 
-void Pic::save(Pic::Virtual_context & context)
-{
-	context.misr   = _gich.read<Gich::Gich_misr  >();
-	context.vmcr   = _gich.read<Gich::Gich_vmcr  >();
-	context.apr    = _gich.read<Gich::Gich_apr   >();
-	context.eisr   = _gich.read<Gich::Gich_eisr0 >();
-	context.elrsr  = _gich.read<Gich::Gich_elrsr0>();
-	context.lr     = _gich.read<Gich::Gich_lr0   >();
-}
-
-
-void Pic::ack_virtual_irq()
-{
-	_gich.write<Gich::Gich_lr0>(0);
-	_gich.write<Gich::Gich_elrsr0>(_gich.read<Gich::Gich_elrsr0>() | 1);
-	_gich.write<Gich::Gich_misr>(0);
+	return false;
 }
 
 
@@ -60,10 +52,11 @@ void Pic::insert_virtual_irq(Pic::Virtual_context & c, unsigned irq)
 		c.elrsr &= 0x7ffffffe;
 		c.lr     = irq | 1 << 28 | 1 << 19;
 	}
-}
 
-
-void Pic::disable_virtualization()
-{
-	_gich.write<Gich::Gich_hcr>(0);
+	_gich.write<Gich::Gich_misr  >(c.misr);
+	_gich.write<Gich::Gich_vmcr  >(c.vmcr);
+	_gich.write<Gich::Gich_apr   >(c.apr);
+	_gich.write<Gich::Gich_elrsr0>(c.elrsr);
+	_gich.write<Gich::Gich_lr0   >(c.lr);
+	_gich.write<Gich::Gich_hcr>(0b1);
 }

@@ -48,12 +48,8 @@ class Board::Pic : public Hw::Gicv2
 			Genode::uint32_t elrsr { 0xffffffff };
 		};
 
-		void load(Virtual_context & context);
-		void save(Virtual_context & context);
-
-		void ack_virtual_irq();
+		bool ack_virtual_irq(Virtual_context & c);
 		void insert_virtual_irq(Virtual_context & c, unsigned irq);
-		void disable_virtualization();
 };
 
 #endif /* _CORE__SPEC__ARM__VIRTUALIZATION__GICV2_H_ */

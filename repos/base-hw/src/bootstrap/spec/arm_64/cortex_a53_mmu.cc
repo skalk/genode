@@ -67,6 +67,9 @@ static inline void prepare_hypervisor(Cpu::Ttbr::access_t const ttbr)
 	Cpu::Cptr_el2::Tta::set(cptr, 1);
 	Cpu::Cptr_el2::write(cptr);
 
+	/* allow physical counter/timer access without trapping */
+	Cpu::Cnthctl_el2::write(0b111);
+
 	/* forbid any 32bit access to coprocessor/sysregs */
 	Cpu::Hstr_el2::write(0xffff);
 
@@ -155,6 +158,9 @@ unsigned Bootstrap::Platform::enable_mmu()
 
 	/* enable performance counter for user-land */
 	Cpu::Pmuserenr_el0::write(0b1111);
+
+	/* enable user-level access of physical/virtual counter */
+	Cpu::Cntkctl_el1::write(0b11);
 
 	Cpu::Vbar_el1::write(Hw::Mm::supervisor_exception_vector().base);
 
