@@ -55,21 +55,30 @@ class Genode::Vm_session_component
 		using Table = Hw::Level_1_stage_2_translation_table;
 		using Array = Table::Allocator::Array<Kernel::DEFAULT_TRANSLATION_TABLE_MAX>;
 
+		enum { VCPU_MAX = 16 };
+
+		struct Vcpu
+		{
+			Ram_dataspace_capability   ds_cap   { };
+			Region_map::Local_addr     ds_addr  { nullptr };
+			Kernel_object<Kernel::Vm>  kobj     {};
+			Affinity::Location         location {};
+		} _vcpus[VCPU_MAX];
+
 		Rpc_entrypoint            &_ep;
 		Constrained_ram_allocator  _constrained_md_ram_alloc;
 		Sliced_heap                _sliced_heap;
 		Avl_region                 _map { &_sliced_heap };
 		Region_map                &_region_map;
-		Ram_dataspace_capability   _ds_cap  { };
-		Region_map::Local_addr     _ds_addr { nullptr };
 		Table                     &_table;
 		Array                     &_table_array;
-		Kernel_object<Kernel::Vm>  _kobj {};
+		unsigned                   _id_alloc { 0 };
 
 		static size_t _ds_size() {
 			return align_addr(sizeof(Vm_state),
 			                  get_page_size_log2()); }
 
+		bool   _valid_id(Vcpu_id id) { return id.id < VCPU_MAX; }
 		addr_t _alloc_ds();
 		void * _alloc_table();
 		void   _attach(addr_t phys_addr, addr_t vm_addr, size_t size);
@@ -104,14 +113,14 @@ class Genode::Vm_session_component
 		 ** Vm session interface **
 		 **************************/
 
-		Dataspace_capability _cpu_state(Vcpu_id) { return _ds_cap; }
+		Dataspace_capability _cpu_state(Vcpu_id);
 		void _exception_handler(Signal_context_capability, Vcpu_id);
 		void _run(Vcpu_id);
 		void _pause(Vcpu_id);
 		void attach(Dataspace_capability, addr_t, Attach_attr) override;
 		void attach_pic(addr_t) override;
 		void detach(addr_t, size_t) override;
-		void _create_vcpu(Thread_capability) {}
+		Vcpu_id _create_vcpu(Thread_capability);
 };
 
 #endif /* _CORE__SPEC__ARM_V7__VIRTUALIZATION__VM_SESSION_COMPONENT_H_ */

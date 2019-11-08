@@ -130,7 +130,8 @@ static Vmid_allocator &alloc()
 }
 
 
-Vm::Vm(Genode::Vm_state       & state,
+Vm::Vm(unsigned                 cpu,
+       Genode::Vm_state       & state,
        Kernel::Signal_context & context,
        void                   * const table)
 :  Cpu_job(Cpu_priority::MIN, 0),
@@ -139,7 +140,7 @@ Vm::Vm(Genode::Vm_state       & state,
   _context(context),
   _table(table)
 {
-	affinity(cpu_pool().primary_cpu());
+	affinity(cpu_pool().cpu(cpu));
 
 	static Pic_maintainance_irq pic_irq;
 
