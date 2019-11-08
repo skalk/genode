@@ -35,7 +35,7 @@ void Kernel::Lock::lock()
 		            " error: re-entered lock. Kernel exception?!");
 	}
 
-	Cpu::wait_for_xchg(&_locked, LOCKED, UNLOCKED);
+	Cpu::wait_for_xchg(&_locked);
 	_current_cpu = Cpu::executing_id();
 }
 
@@ -45,6 +45,5 @@ void Kernel::Lock::unlock()
 	_current_cpu = INVALID;
 
 	Genode::memory_barrier();
-	_locked = UNLOCKED;
-	Cpu::wakeup_waiting_cpus();
+	Cpu::wakeup_waiting_cpus(&_locked);
 }
