@@ -38,7 +38,7 @@ class Vmm::Vm
 			KERNEL_OFFSET = 0x80000,
 			INITRD_OFFSET = 32 * 1024 * 1024,
 			DTB_OFFSET    = 64 * 1024 * 1024,
-			MAX_CPUS      = 1,
+			MAX_CPUS      = 2,
 			STACK_SIZE    = sizeof(unsigned long) * 2048,
 		};
 
