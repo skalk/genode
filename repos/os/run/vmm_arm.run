@@ -154,8 +154,8 @@ set boot_modules {
 	vmm
 	linux
 	dtb
+	initrd
 }
-append_if [have_spec arm_64] boot_modules initrd
 build_boot_image $boot_modules
 
 #

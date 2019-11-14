@@ -14,6 +14,7 @@
 #ifndef _SRC__SERVER__VMM__VM_H_
 #define _SRC__SERVER__VMM__VM_H_
 
+#include <board.h>
 #include <ram.h>
 #include <exception.h>
 #include <cpu.h>
@@ -33,12 +34,9 @@ class Vmm::Vm
 		using Ep = Genode::Entrypoint;
 
 		enum {
-			RAM_ADDRESS   = 0x40000000,
-			RAM_SIZE      = 128 * 1024 *1024,
 			KERNEL_OFFSET = 0x80000,
 			INITRD_OFFSET = 32 * 1024 * 1024,
 			DTB_OFFSET    = 64 * 1024 * 1024,
-			MAX_CPUS      = 1,
 			STACK_SIZE    = sizeof(unsigned long) * 2048,
 		};
 
@@ -49,7 +47,7 @@ class Vmm::Vm
 		Genode::Attached_rom_dataspace _initrd_rom { _env, "initrd" };
 		Genode::Attached_ram_dataspace _vm_ram     { _env.ram(), _env.rm(),
 		                                             RAM_SIZE, Genode::UNCACHED };
-		Ram                            _ram        { RAM_ADDRESS, RAM_SIZE,
+		Ram                            _ram        { RAM_START, RAM_SIZE,
 		                                             (Genode::addr_t)_vm_ram.local_addr<void>()};
 		Genode::Heap                   _heap       { _env.ram(), _env.rm() };
 		Mmio_bus                       _bus;

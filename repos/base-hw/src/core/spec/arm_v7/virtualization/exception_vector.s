@@ -101,6 +101,11 @@ _host_to_vm:
 	add  r1, r0, #4
 	vldm r1!, {d0-d15}
 	vldm r1!, {d16-d31}
+	ldm  r1!, {r2-r7}
+	mcrr p15, 4, r2, r3,  c14     /* write cntvoff          */
+	mcrr p15, 3, r4, r5,  c14     /* write cntv_cval        */
+	mcr  p15, 0, r6, c14, c3, 1   /* write cntv_ctl         */
+	mcr  p15, 0, r7, c14, c1, 0   /* write cntkctl          */
 	ldmia sp, {r0-r12}            /* load vm's r0-r12       */
 	eret
 
@@ -146,6 +151,11 @@ _vm_to_host:
 	stmia  r0!, {r4}
 	vstm   r0!, {d0-d15}
 	vstm   r0!, {d16-d31}
+	mrrc p15, 4, r3, r4,  c14     /* read cntvoff          */
+	mrrc p15, 3, r5, r6,  c14     /* read cntv_cval        */
+	mrc  p15, 0, r7, c14, c3, 1   /* write cntv_ctl         */
+	mrc  p15, 0, r8, c14, c1, 0   /* write cntkctl          */
+	stm  r0!, {r3-r8}
 	add r0, sp, #13*4
 	ldr r3, _vt_host_context_ptr
 	ldr sp, [r3]

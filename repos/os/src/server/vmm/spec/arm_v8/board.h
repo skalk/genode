@@ -17,7 +17,7 @@
 namespace Vmm {
 
 	enum {
-		GIC_VERSION      = 2,
+		GIC_VERSION      = 3,
 		GICD_MMIO_START  = 0x8000000,
 		GICD_MMIO_SIZE   = 0x10000,
 		GICC_MMIO_START  = 0x8010000,

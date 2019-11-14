@@ -48,12 +48,12 @@ Vmm::Cpu & Vm::boot_cpu()
 
 Vm::Vm(Genode::Env & env)
 : _env(env),
-  _gic("Gicv3", 0x8000000, 0x10000, _bus, env),
-  _uart("Pl011", 0x9000000, 0x1000, 33, boot_cpu(), _bus, env)
+  _gic("Gicv3", GICD_MMIO_START, GICD_MMIO_SIZE,
+       MAX_CPUS, GIC_VERSION, _vm, _bus, env),
+  _uart("Pl011", PL011_MMIO_START, PL011_MMIO_SIZE,
+        PL011_IRQ, boot_cpu(), _bus, env)
 {
-	_vm.attach(_vm_ram.cap(), RAM_ADDRESS);
-
-	/* FIXME extend for gicv2 by: _vm.attach_pic(0x8010000); */
+	_vm.attach(_vm_ram.cap(), RAM_START);
 
 	_load_kernel();
 	_load_dtb();
@@ -69,7 +69,7 @@ Vm::Vm(Genode::Env & env)
 	Genode::log("Start virtual machine ...");
 
 	Cpu & cpu = boot_cpu();
-	cpu.state().ip   = _ram.base() + KERNEL_OFFSET;
-	cpu.state().r[0] = _ram.base() + DTB_OFFSET;
+	cpu.initialize_boot(_ram.base() + KERNEL_OFFSET,
+	                    _ram.base() + DTB_OFFSET);
 	cpu.run();
 };
