@@ -34,9 +34,10 @@ class Vmm::Vm
 		using Ep = Genode::Entrypoint;
 
 		enum {
-			KERNEL_OFFSET = 0x80000,
-			INITRD_OFFSET = 32 * 1024 * 1024,
-			DTB_OFFSET    = 64 * 1024 * 1024,
+			SIZE_1_MB     = 1024 * 1024,
+			KERNEL_OFFSET = /*32 * SIZE_1_MB,*/ 0x208000,
+			DTB_OFFSET    = 64 * SIZE_1_MB,
+			INITRD_OFFSET = 96 * SIZE_1_MB,
 			STACK_SIZE    = sizeof(unsigned long) * 2048,
 		};
 
