@@ -83,7 +83,10 @@ void Generic_timer::schedule_timeout()
 	if (_enabled()) {
 		if (_usecs_left()) {
 			_timeout.schedule(Genode::Microseconds(_usecs_left()));
-		} else _handle_timeout(Genode::Duration(Genode::Microseconds(0)));
+		} else {
+			if (!_masked())
+				handle_irq();
+		}
 	}
 }
 
