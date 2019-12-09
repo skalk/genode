@@ -70,6 +70,8 @@ namespace Kernel
 	 * corresponding object identity reference for core
 	 */
 	template <typename T> class Core_object;
+
+	Genode::List<Genode::List_element<Object>> & kernel_objects();
 }
 
 
@@ -78,7 +80,12 @@ struct Kernel::Object : private Object_identity_list
 	using Object_identity_list::remove;
 	using Object_identity_list::insert;
 
+	Genode::List_element<Object> le;
+
+	Object();
 	virtual ~Object();
+
+	virtual void print(Genode::Output & out) const = 0;
 };
 
 

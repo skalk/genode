@@ -736,9 +736,25 @@ Thread::Thread(unsigned const priority, unsigned const quota,
 
 void Thread::print(Genode::Output &out) const
 {
+	auto state_lambda = [this] () {
+		switch (_state) {
+		case ACTIVE                     : return "active";
+		case AWAITS_START               : return "awaits_start";
+		case AWAITS_IPC                 : return "awaits_ipc";
+		case AWAITS_RESTART             : return "awaits_restart";
+		case AWAITS_SIGNAL              : return "awaits_signal";
+		case AWAITS_SIGNAL_CONTEXT_KILL : return "awaits_signal_context_kill";
+		case DEAD                       : return "dead";
+		}
+		return "";
+	};
+
+	Genode::print(out, "THREAD (", this, ") : ");
 	Genode::print(out, _pd ? _pd->platform_pd().label() : "?");
 	Genode::print(out, " -> ");
 	Genode::print(out, label());
+	Genode::print(out, " ip=", (void*)regs->ip, " sp=", (void*)regs->sp);
+	Genode::print(out, " state=", state_lambda());
 }
 
 

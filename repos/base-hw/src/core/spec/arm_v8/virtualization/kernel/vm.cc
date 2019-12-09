@@ -213,3 +213,11 @@ void Vm::inject_irq(unsigned irq)
 	pause();
 	_context.submit(1);
 }
+
+
+void Vm::print(Genode::Output &out) const
+{
+	Genode::print(out, "VM (", this, ")    : ");
+	Genode::print(out, "ip=", (void*)_state.ip);
+	Genode::print(out, " state=", _scheduled == ACTIVE ? "active" : "blocked");
+}

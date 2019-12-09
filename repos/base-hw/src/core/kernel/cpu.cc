@@ -25,6 +25,8 @@
 /* base-internal includes */
 #include <base/internal/unmanaged_singleton.h>
 
+#define DEBUG 0
+
 using namespace Kernel;
 
 Kernel::Cpu_pool &Kernel::cpu_pool() { return *unmanaged_singleton<Cpu_pool>(); }
@@ -142,6 +144,16 @@ Cpu_job & Cpu::schedule()
 		_timer.set_timeout(this, t);
 		_timer.schedule_timeout();
 	}
+
+#if DEBUG
+	Cpu_job & new_job = scheduled_job();
+	if (&new_job == static_cast<Cpu_job*>(&_idle)) {
+		for (Genode::List_element<Object> * le = kernel_objects().first();
+		     le; le = le->next())
+			Genode::raw(*le->object());
+		while (1) { ; }
+	}
+#endif
 
 	/* return new job */
 	return scheduled_job();

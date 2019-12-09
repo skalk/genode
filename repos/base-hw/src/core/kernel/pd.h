@@ -113,6 +113,9 @@ class Kernel::Pd : public Kernel::Object
 		Capid_allocator     &capid_alloc()         { return _capid_alloc; }
 		Object_identity_reference_tree &cap_tree() { return _cap_tree;    }
 		bool                 core_pd() const       { return _core_pd;     }
+
+
+		void print(Genode::Output &) const override {}
 };
 
 

@@ -186,6 +186,9 @@ class Kernel::User_irq : public Kernel::Irq, public Kernel::Object
 		 */
 		static void syscall_destroy(Genode::Kernel_object<User_irq> &irq) {
 			call(call_id_delete_irq(), (Call_arg) &irq); }
+
+
+		void print(Genode::Output &) const override {}
 };
 
 #endif /* _CORE__KERNEL__IRQ_H_ */

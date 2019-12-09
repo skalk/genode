@@ -371,7 +371,7 @@ class Kernel::Thread
 		static void syscall_destroy(Genode::Kernel_object<Thread> & t) {
 			call(call_id_delete_thread(), (Call_arg)&t); }
 
-		void print(Genode::Output &out) const;
+		void print(Genode::Output &out) const override;
 
 
 		/*************

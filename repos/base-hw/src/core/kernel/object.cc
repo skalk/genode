@@ -11,10 +11,24 @@ using namespace Kernel;
  ** Object **
  ************/
 
+Genode::List<Genode::List_element<Object>> & Kernel::kernel_objects()
+{
+	static Genode::List<Genode::List_element<Object>> list;
+	return list;
+}
+
+
+Object::Object() : le(this)
+{
+	kernel_objects().insert(&le);
+}
+
+
 Object::~Object()
 {
 	for (Object_identity * oi = first(); oi; oi = first())
 		oi->invalidate();
+	kernel_objects().remove(&le);
 }
 
 

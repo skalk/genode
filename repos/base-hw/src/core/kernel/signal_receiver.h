@@ -249,6 +249,8 @@ class Kernel::Signal_context : public Kernel::Object
 		 */
 		static void syscall_destroy(Genode::Kernel_object<Signal_context> &c) {
 			call(call_id_delete_signal_context(), (Call_arg)&c); }
+
+		void print(Genode::Output &) const override {}
 };
 
 class Kernel::Signal_receiver : public Kernel::Object
@@ -322,6 +324,8 @@ class Kernel::Signal_receiver : public Kernel::Object
 		 */
 		static void syscall_destroy(Genode::Kernel_object<Signal_receiver> &r) {
 			call(call_id_delete_signal_receiver(), (Call_arg)&r); }
+
+		void print(Genode::Output &) const override {}
 };
 
 #endif /* _CORE__KERNEL__SIGNAL_RECEIVER_H_ */

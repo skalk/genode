@@ -135,6 +135,8 @@ class Kernel::Vm : public Cpu_job,
 		void exception(Cpu & cpu) override;
 		void proceed(Cpu &  cpu)  override;
 		Cpu_job * helping_sink()  override { return this; }
+
+		void print(Genode::Output & o) const override;
 };
 
 #endif /* _CORE__KERNEL__VM_H_ */
