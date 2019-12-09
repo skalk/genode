@@ -16,7 +16,7 @@
 
 using Board::Cpu;
 
-extern "C" void * _crt0_enable_fpu;
+extern "C" void * _start;
 
 static inline void prepare_non_secure_world()
 {
@@ -154,7 +154,7 @@ unsigned Bootstrap::Platform::enable_mmu()
 	}
 
 	/* primary cpu wakes up all others */
-	if (primary && NR_OF_CPUS > 1) Cpu::wake_up_all_cpus(&_crt0_enable_fpu);
+	if (primary && NR_OF_CPUS > 1) Cpu::wake_up_all_cpus(&_start);
 
 	/* enable performance counter for user-land */
 	Cpu::Pmuserenr_el0::write(0b1111);

@@ -11,6 +11,7 @@
  * under the terms of the GNU Affero General Public License version 3.
  */
 
+#include <util/mmio.h>
 #include <platform.h>
 
 /**
@@ -30,8 +31,23 @@ Bootstrap::Platform::Board::Board()
 
 extern unsigned int _crt0_qemu_start_secondary_cpus;
 
-void Board::Cpu::wake_up_all_cpus(void *)
+struct Pic : Genode::Mmio
+{
+	template <unsigned CPU_NUM>
+		struct Core_mailbox_set : Register<0x8c+CPU_NUM*0x10, 32> {};
+
+	Pic(void * ip) : Genode::Mmio(Board::LOCAL_IRQ_CONTROLLER_BASE)
+	{
+		write<Core_mailbox_set<1>>((unsigned long)ip);
+		write<Core_mailbox_set<2>>((unsigned long)ip);
+		write<Core_mailbox_set<3>>((unsigned long)ip);
+	}
+};
+
+void Board::Cpu::wake_up_all_cpus(void * ip)
 {
 	_crt0_qemu_start_secondary_cpus = 1;
-	asm volatile("dsb #0; sev");
+
+	::Pic pic(ip);
+	asm volatile("dsb #15; sev");
 }
