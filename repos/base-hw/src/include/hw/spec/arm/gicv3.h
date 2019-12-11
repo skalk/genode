@@ -242,7 +242,7 @@ class Hw::Pic
 		void unmask(unsigned const irq_id, unsigned const /* cpu_id */)
 		{
 			if (irq_id < min_spi) {
-				_redistr_sgi.write<Redistributor_sgi_ppi::Isenabler0>(1, irq_id);
+				//_redistr_sgi.write<Redistributor_sgi_ppi::Isenabler0>(1, irq_id);
 			} else {
 				_distr.write<Distributor::Isenabler::Set_enable>(1, irq_id);
 			}
@@ -251,7 +251,7 @@ class Hw::Pic
 		void mask(unsigned const irq_id)
 		{
 			if (irq_id < min_spi) {
-				_redistr_sgi.write<Redistributor_sgi_ppi::Icenabler0>(1, irq_id);
+				//_redistr_sgi.write<Redistributor_sgi_ppi::Icenabler0>(1, irq_id);
 			} else {
 				_distr.write<Distributor::Icenabler::Clear_enable>(1, irq_id);
 			}

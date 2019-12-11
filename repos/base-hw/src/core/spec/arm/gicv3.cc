@@ -29,6 +29,6 @@ Hw::Pic::Pic()
   _redistr_sgi(redistributor_addr() + 0x10000),
   _max_irq(_distr.max_irq())
 {
-	_redistributor_init();
-	_cpui.init();
+	//_redistributor_init();
+	//_cpui.init();
 }

@@ -23,10 +23,10 @@ install_config {
 build_boot_image "core ld.lib.so init test-bogomips"
 
 # run the test
-run_genode_until {\[init -\> test-bogomips\] start bogomips.*\n} 120
+run_genode_until {start bogomips.*\n} 120
 set serial_id       [output_spawn_id]
 set t1  [clock milliseconds]
-run_genode_until "finished bogomips.*\n" 300 $serial_id
+run_genode_until {finished bogomips.*\n} 300 $serial_id
 set t2  [clock milliseconds]
 set result [expr {$t2 - $t1}]
 set bogomips [expr {2000000000 / $result}]

@@ -7,7 +7,8 @@ SRC_CC  += lib/base/arm_64/kernel/interface.cc
 SRC_CC  += spec/64bit/memory_map.cc
 SRC_S   += bootstrap/spec/arm_64/crt0.s
 
-NR_OF_CPUS = 4
+NR_OF_CPUS = 1
+CC_CXX_WARN_STRICT =
 
 vpath spec/64bit/memory_map.cc $(BASE_DIR)/../base-hw/src/lib/hw
 

@@ -157,10 +157,11 @@ unsigned Bootstrap::Platform::enable_mmu()
 	if (primary && NR_OF_CPUS > 1) Cpu::wake_up_all_cpus(&_crt0_enable_fpu);
 
 	/* enable performance counter for user-land */
-	Cpu::Pmuserenr_el0::write(0b1111);
+	//Cpu::Pmuserenr_el0::write(0b1111);
 
 	/* enable user-level access of physical/virtual counter */
 	Cpu::Cntkctl_el1::write(0b11);
+	//asm volatile("msr cntv_ctl_el0, %0" :: "r" (0));
 
 	Cpu::Vbar_el1::write(Hw::Mm::supervisor_exception_vector().base);
 
@@ -182,10 +183,12 @@ unsigned Bootstrap::Platform::enable_mmu()
 	Cpu::Tcr_el1::Irgn1::set(tcr, 1);
 	Cpu::Tcr_el1::Orgn0::set(tcr, 1);
 	Cpu::Tcr_el1::Orgn1::set(tcr, 1);
-	Cpu::Tcr_el1::Sh0::set(tcr, 0b10);
-	Cpu::Tcr_el1::Sh1::set(tcr, 0b10);
+	Cpu::Tcr_el1::Sh0::set(tcr, 0b11);
+	Cpu::Tcr_el1::Sh1::set(tcr, 0b11);
+	Cpu::Tcr_el1::Tg1::set(tcr, 0b10);
 	Cpu::Tcr_el1::Ips::set(tcr, 0b10);
 	Cpu::Tcr_el1::As::set(tcr, 1);
+	Cpu::Tcr_el1::Tbi0::set(tcr, 1);
 	Cpu::Tcr_el1::write(tcr);
 
 	Cpu::Sctlr::access_t sctlr = Cpu::Sctlr_el1::read();
@@ -196,7 +199,7 @@ unsigned Bootstrap::Platform::enable_mmu()
 	Cpu::Sctlr::Sa0::set(sctlr, 1);
 	Cpu::Sctlr::Sa::set(sctlr, 0);
 	Cpu::Sctlr::Uct::set(sctlr, 1);
-	Cpu::Sctlr_el1::write(sctlr);
+	Cpu::Sctlr_el1::write(/*sctlr*/0x34D5D91D);
 
 	return 0;
 }

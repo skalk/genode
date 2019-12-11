@@ -28,6 +28,7 @@ Bootstrap::Platform::Board::Board()
 {
 	::Board::Pic pic {};
 
+#if 0
 	static volatile unsigned long initial_values[][2] {
 		// (IOMUX Controller)
 		{ 0x30340038, 0x49409600 },
@@ -150,6 +151,13 @@ Bootstrap::Platform::Board::Board()
 		{ 0x303a01d4, 0xffff7fff },
 		{ 0x303a01dc, 0xffff7fff },
 		{ 0x303a01fc, 0x10fff9f },
+		// Oscillator settings
+		{ 0x30270000, 0x18020F0 },
+		{ 0x30270004, 0x0 },
+		{ 0x30278000, 0x18020F0 },
+		{ 0x30278004, 0x0 },
+		{ 0x30278000, 0x18020F0 },
+		{ 0x30278004, 0x0 },
 		// (Clock Controller Module)
 		{ 0x30384170, 0x0 },
 		{ 0x30384220, 0x0 },
@@ -182,6 +190,21 @@ Bootstrap::Platform::Board::Board()
 	unsigned num_values = sizeof(initial_values) / (2*sizeof(unsigned long));
 	for (unsigned i = 0; i < num_values; i++)
 		*((volatile Genode::uint32_t*)initial_values[i][0]) = (Genode::uint32_t)initial_values[i][1];
+
+	enum Function_id { CPU_FREQ = 0xC2000001, CPU_FREQ_SET = 0 };
+
+	unsigned long result = 0;
+	asm volatile("mov x0, %1  \n"
+	             "mov x1, %2  \n"
+	             "mov x2, %3  \n"
+	             "mov x3, %4  \n"
+	             "smc #0      \n"
+	             "mov %0, x0  \n"
+	             : "=r" (result) : "r" (CPU_FREQ), "r" (CPU_FREQ_SET), "r" (0), "r" (1500000000)
+	                      : "x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7",
+	                        "x8", "x9", "x10", "x11", "x12", "x13", "x14");
+	Genode::log("cpu frequency set returned ", result);
+#endif
 }
 
 

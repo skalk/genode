@@ -19,6 +19,7 @@
 #include <kernel/lock.h>
 #include <platform_pd.h>
 #include <board.h>
+#include <bogomips.h>
 #include <platform_thread.h>
 
 /* base includes */
@@ -71,6 +72,17 @@ extern "C" void kernel_init()
 
 		Genode::log("");
 		Genode::log("kernel initialized");
+		Genode::log("Cpu testsuite started");
+		unsigned long freg = Genode::Cpu::Cntfrq::read(); 
+		unsigned long t1 = Cpu::Cntpct::read();
+		Genode::log("start bogomips");
+		unsigned long t2 = Cpu::Cntpct::read();
+		bogomips();
+		unsigned long t3 = Cpu::Cntpct::read();
+		Genode::log("finished bogomips");
+		unsigned long t4 = Cpu::Cntpct::read();
+		Genode::log("t1=", t1, " t2=", t2, " t3=", t3, " t4=", t4, " dur=", (t3-t2)/(freg/1000), " all=", (t4-t1)/(freg/1000));
+		while (1) {;}
 
 		Core_thread::singleton();
 		kernel_ready = true;

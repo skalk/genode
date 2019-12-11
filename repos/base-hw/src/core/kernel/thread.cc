@@ -742,7 +742,7 @@ void Thread::print(Genode::Output &out) const
 }
 
 
-Genode::uint8_t __initial_stack_base[DEFAULT_STACK_SIZE];
+Genode::uint8_t __initial_stack_base[DEFAULT_STACK_SIZE] __attribute__((aligned(16)));
 
 
 /*****************

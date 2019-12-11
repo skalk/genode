@@ -108,6 +108,7 @@ proc run_power_on { } {
 	if {[have_spec vpb926]} { append qemu_args " -M versatilepb     -m 128 " }
 	if {[have_spec zynq_qemu]}   { append qemu_args " -M xilinx-zynq-a9 -cpu cortex-a9 -m 256 " }
 	if {[have_spec rpi3]}   { append qemu_args " -M raspi3 -m 512 " }
+	if {[have_spec virt_qemu]} { append qemu_args " -smp 4 -nographic -M virt,virtualization=true,gic-version=3 -cpu cortex-a53 -m 512 " }
 
 	# on x86, we support booting via pxe or iso/disk image
 	if {[have_spec x86]} {

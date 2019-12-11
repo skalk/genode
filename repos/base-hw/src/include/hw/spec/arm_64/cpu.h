@@ -189,6 +189,7 @@ struct Hw::Arm_64_cpu
 		struct Tg1   : Bitfield<30, 2> { };
 		struct Ips   : Bitfield<32, 3> { };
 		struct As    : Bitfield<36, 1> { };
+		struct Tbi0  : Bitfield<37, 1> { };
 	);
 
 	SYSTEM_REGISTER(64, Tcr_el2, tcr_el2,

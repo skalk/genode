@@ -27,7 +27,7 @@ unsigned long Board::Timer::_freq() { return Genode::Cpu::Cntfrq::read(); }
 Board::Timer::Timer(unsigned) : ticks_per_ms(_freq() / 1000)
 {
 	Cpu::Cntp_ctl::access_t ctl = 0;
-	Cpu::Cntp_ctl::Enable::set(ctl, 1);
+	//Cpu::Cntp_ctl::Enable::set(ctl, 1);
 	Cpu::Cntp_ctl::write(ctl);
 }
 
@@ -35,10 +35,10 @@ Board::Timer::Timer(unsigned) : ticks_per_ms(_freq() / 1000)
 void Timer::_start_one_shot(time_t const ticks)
 {
 	_device.last_time = Cpu::Cntpct::read();
-	Cpu::Cntp_tval::write(ticks);
-	Cpu::Cntp_ctl::access_t ctl = Cpu::Cntp_ctl::read();
-	Cpu::Cntp_ctl::Istatus::set(ctl, 0);
-	Cpu::Cntp_ctl::write(ctl);
+	//Cpu::Cntp_tval::write(ticks);
+	//Cpu::Cntp_ctl::access_t ctl = Cpu::Cntp_ctl::read();
+	//Cpu::Cntp_ctl::Istatus::set(ctl, 0);
+	//Cpu::Cntp_ctl::write(ctl);
 }
 
 

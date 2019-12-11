@@ -13,6 +13,17 @@
 
 .section ".text.crt0"
 
+b _start
+.long 0x0
+.quad 0x80000
+.quad 0x219000
+.quad 0xa
+.quad 0x0
+.quad 0x0
+.quad 0x0
+.long 0x644d5241
+.long 0x0
+
 	.global _start
 	_start:
 

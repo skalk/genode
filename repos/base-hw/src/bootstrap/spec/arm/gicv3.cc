@@ -20,6 +20,7 @@ Hw::Pic::Pic()
                Board::Cpu_mmio::IRQ_CONTROLLER_REDIST_SIZE / 2),
   _max_irq(_distr.max_irq())
 {
+#if 0
 	/* disable device */
 	_distr.write<Distributor::Ctlr>(0);
 	_distr.wait_for_rwp();
@@ -59,4 +60,8 @@ Hw::Pic::Pic()
 
 	_distr.write<Distributor::Ctlr>(ctlr);
 	_distr.wait_for_rwp();
+#endif
+	for (unsigned i = min_spi; i <= _max_irq; i++) {
+		_distr.write<Distributor::Icpendr::Clear_pending>(1, i);
+	}
 }

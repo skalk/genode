@@ -26,7 +26,9 @@ SRC_S += spec/arm_v8/virtualization/exception_vector.s
 
 vpath spec/64bit/memory_map.cc $(BASE_DIR)/../base-hw/src/lib/hw
 
-NR_OF_CPUS = 4
+NR_OF_CPUS = 1
+
+CC_CXX_WARN_STRICT =
 
 # include less specific configuration
 include $(REP_DIR)/lib/mk/core-hw.inc
