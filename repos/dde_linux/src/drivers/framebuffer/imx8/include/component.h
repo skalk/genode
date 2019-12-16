@@ -194,19 +194,15 @@ class Framebuffer::Session_component : public Genode::Rpc_object<Session>
 			if (x1 > x2 || y1 > y2) return;
 
 			/* copy pixels from back buffer to physical frame buffer */
+			Genode::Pixel_rgb565 * src = _ds.local_addr<Genode::Pixel_rgb565>();
+			Genode::Pixel_rgb888 * dst = (Genode::Pixel_rgb888*)_driver.fb_addr();
 
-			Surface_base::Area const area = Surface_base::Area(width, height);
-
-			char *src = _ds.local_addr<char>(),
-			     *dst = (char*)_driver.fb_addr();
-
-			typedef Genode::Pixel_rgb565 Pixel_src;
-			typedef Genode::Pixel_rgb888 Pixel_dst;
-
-			Genode::Texture<Pixel_src> texture((Pixel_src *)src, nullptr, area);
-			Genode::Surface<Pixel_dst> surface((Pixel_dst *)dst, area);
-
-			Dither_painter::paint(surface, texture, Genode::Surface_base::Point(x1, y1));
+			for (int row = y1; row <= y2; row++) {
+				for (int col = x1; col <= x2; col++) {
+					Genode::Pixel_rgb565 px = src[width * row + col];
+					dst[width * row + col] = Genode::Pixel_rgb888(px.r(), px.g(), px.b(), px.a());
+				}
+			}
 		}
 };
 
