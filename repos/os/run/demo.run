@@ -17,7 +17,7 @@ import_from_depot [depot_user]/src/[base_src] \
                   [depot_user]/src/demo \
                   [depot_user]/src/init
 
-build { app/status_bar test/nitpicker }
+build { app/status_bar test/nitpicker drivers/framebuffer/imx8 }
 
 install_config {
 <config>
@@ -42,7 +42,7 @@ install_config {
 	</start>
 
 	<start name="drivers" caps="1500">
-		<resource name="RAM" quantum="32M" constrain_phys="yes"/>
+		<resource name="RAM" quantum="150M" constrain_phys="yes"/>
 		<binary name="init"/>
 		<route>
 			<service name="ROM" label="config"> <parent label="drivers.config"/> </service>
@@ -213,7 +213,7 @@ puts $launchpad_config_fd {<config>
 </config>}
 close $launchpad_config_fd
 
-build_boot_image { status_bar testnit launchpad.config }
+build_boot_image { status_bar testnit launchpad.config imx8_fb_drv }
 
 if {[get_cmd_switch --autopilot]} {
 	run_genode_until {\[init -> scout\] png is.*\n} 40
