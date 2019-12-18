@@ -174,16 +174,6 @@ class Kernel::Thread : private Kernel::Object, public Cpu_job, private Timeout
 		void _become_inactive(State const s);
 
 		/**
-		 * Activate our CPU-share and those of our helpers
-		 */
-		void _activate_used_shares();
-
-		/**
-		 * Deactivate our CPU-share and those of our helpers
-		 */
-		void _deactivate_used_shares();
-
-		/**
 		 * Suspend unrecoverably from execution
 		 */
 		void _die();
@@ -359,6 +349,17 @@ class Kernel::Thread : private Kernel::Object, public Cpu_job, private Timeout
 			call(call_id_delete_thread(), (Call_arg)&t); }
 
 		void print(Genode::Output &out) const;
+
+		/**
+		 * Activate our CPU-share and those of our helpers
+		 */
+		void activate_used_shares();
+
+		/**
+		 * Deactivate our CPU-share and those of our helpers
+		 */
+		void deactivate_used_shares();
+
 
 		/**************
 		 ** Ipc_node **
