@@ -208,6 +208,11 @@ struct Window_layouter::Main : Operations,
 		_gen_resize_request();
 	}
 
+	void screen(Target::Name name) override
+	{
+		_gen_rules(name);
+	}
+
 	void drag(Window_id id, Window::Element element, Point clicked, Point curr) override
 	{
 		if (_drag_state == Drag_state::SETTLING)
@@ -356,7 +361,7 @@ struct Window_layouter::Main : Operations,
 	void _gen_window_layout();
 	void _gen_resize_request();
 	void _gen_focus();
-	void _gen_rules();
+	void _gen_rules(Target::Name screen_name = Target::Name());
 
 	template <typename FN>
 	void _gen_rules_assignments(Xml_generator &, FN const &);
@@ -492,14 +497,14 @@ void Window_layouter::Main::_gen_rules_assignments(Xml_generator &xml, FN const 
 }
 
 
-void Window_layouter::Main::_gen_rules()
+void Window_layouter::Main::_gen_rules(Target::Name screen_name)
 {
 	if (!_rules_reporter.constructed())
 		return;
 
 	_rules_reporter->generate([&] (Xml_generator &xml) {
 
-		_target_list.gen_screens(xml);
+		_target_list.gen_screens(xml, screen_name);
 
 		/*
 		 * Generate exact <assign> nodes for present windows.
