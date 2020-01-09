@@ -64,6 +64,7 @@ class Window_layouter::Action
 			if (string == "raise_window")      return RAISE_WINDOW;
 			if (string == "toggle_fullscreen") return TOGGLE_FULLSCREEN;
 			if (string == "screen")            return SCREEN;
+			if (string == "close_window")      return CLOSE;
 
 			Genode::warning("cannot convert \"", string, "\" to action type");
 			return NONE;
