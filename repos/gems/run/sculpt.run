@@ -671,3 +671,5 @@ exec sh -c "tar cf [run_dir]/genode/depot_users.tar -C [genode_dir] \
 append boot_modules { }
 
 build_boot_image $boot_modules
+
+run_genode_until forever
