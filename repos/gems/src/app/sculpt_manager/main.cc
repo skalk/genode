@@ -1674,7 +1674,7 @@ void Sculpt::Main::_generate_runtime_config(Xml_generator &xml) const
 		gen_parent_service<Vm_session>(xml);
 		gen_parent_service<Timer::Session>(xml);
 		gen_parent_service<Report::Session>(xml);
-		gen_parent_service<Platform::Session>(xml);
+		//gen_parent_service<Platform::Session>(xml);
 		gen_parent_service<Block::Session>(xml);
 		gen_parent_service<Usb::Session>(xml);
 		gen_parent_service<::File_system::Session>(xml);
@@ -1682,7 +1682,7 @@ void Sculpt::Main::_generate_runtime_config(Xml_generator &xml) const
 		gen_parent_service<Rtc::Session>(xml);
 		gen_parent_service<Trace::Session>(xml);
 		gen_parent_service<Io_mem_session>(xml);
-		gen_parent_service<Io_port_session>(xml);
+		//gen_parent_service<Io_port_session>(xml);
 		gen_parent_service<Irq_session>(xml);
 	});
 

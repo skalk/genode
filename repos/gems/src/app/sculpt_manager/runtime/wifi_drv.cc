@@ -13,8 +13,9 @@
 
 #include <runtime.h>
 
-void Sculpt::gen_wifi_drv_start_content(Xml_generator &xml)
+void Sculpt::gen_wifi_drv_start_content(Xml_generator &/*xml*/)
 {
+#if 0
 	gen_common_start_content(xml, "wifi_drv", Cap_quota{200}, Ram_quota{32*1024*1024});
 
 	gen_provides<Nic::Session>(xml);
@@ -82,4 +83,5 @@ void Sculpt::gen_wifi_drv_start_content(Xml_generator &xml)
 			xml.node("parent", [&] () {
 				xml.attribute("label", "config -> managed/wifi"); }); });
 	});
+#endif
 }
