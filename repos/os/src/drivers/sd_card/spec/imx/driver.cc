@@ -106,7 +106,7 @@ void Driver::_handle_irq()
 	 * Complete" and "Command Complete" must be gathered.
 	 */
 	try {
-		wait_for(Attempts(1000), Microseconds(1000), _delayer,
+		wait_for(Attempts(2000), Microseconds(1000), _delayer,
 		         Irqstat::Cc::Equal(1), Irqstat::Tc::Equal(1)); }
 	catch (Polling_timeout) {
 		error("Completion host signal timed out");
