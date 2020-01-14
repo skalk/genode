@@ -244,7 +244,7 @@ struct Depot_download_manager::Main : Import::Download_progress
 			_main._generate_init_config();
 		}
 
-		enum { PERIOD_SECONDS = 5UL };
+		enum { PERIOD_SECONDS = 10UL };
 
 		Fetchurl_watchdog(Main &main) : _main(main)
 		{
