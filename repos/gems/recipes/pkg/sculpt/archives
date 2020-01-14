@@ -1,5 +1,4 @@
-_/pkg/drivers_managed-pc
-_/pkg/wifi
+_/pkg/drivers_managed-imx8q_evk
 _/pkg/depot_download
 _/pkg/terminal
 _/src/report_rom
@@ -13,7 +12,6 @@ _/src/nitpicker
 _/src/global_keys_handler
 _/src/nit_fb
 _/src/nit_fader
-_/src/rtc_drv
 _/src/rom_filter
 _/src/terminal_log
 _/src/file_terminal
@@ -28,7 +26,6 @@ _/src/vfs
 _/src/vfs_import
 _/src/vfs_lxip
 _/src/rump
-_/src/ipxe_nic_drv
 _/src/chroot
 _/src/fetchurl
 _/src/curl
@@ -38,7 +35,6 @@ _/src/log_core
 _/src/part_block
 _/src/nic_router
 _/src/e2fsprogs-minimal
-_/src/nvme_drv
 _/src/wm
 _/src/themed_decorator
 _/src/libpng
@@ -48,3 +44,4 @@ _/src/gpt_write
 _/src/sculpt_manager
 _/src/fs_query
 _/src/fs_tool
+_/src/fec_nic_drv

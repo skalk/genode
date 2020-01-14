@@ -1,0 +1,11 @@
+_/src/usb_host_drv
+_/src/usb_hid_drv
+_/src/usb_block_drv
+_/src/imx8_fb_drv
+_/src/sd_card_drv
+_/src/report_rom
+_/src/input_filter
+_/src/init
+_/src/rom_filter
+_/src/rom_reporter
+_/raw/drivers_managed-imx8q_evk
