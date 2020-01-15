@@ -66,7 +66,7 @@ void Sculpt::gen_terminal_start(Xml_generator &xml, Rom_name const &name,
 {
 	xml.attribute("version", version.value);
 
-	gen_common_start_content(xml, name, Cap_quota{100}, Ram_quota{4*1024*1024});
+	gen_common_start_content(xml, name, Cap_quota{110}, Ram_quota{4*1024*1024});
 
 	gen_named_node(xml, "binary", "terminal");
 
