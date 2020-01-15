@@ -32,7 +32,7 @@ void Depot_download_manager::gen_fetchurl_start_content(Xml_generator &xml,
 		});
 		xml.node("report", [&] () {
 			xml.attribute("progress", "yes");
-			xml.attribute("delay_ms", 250);
+			xml.attribute("delay_ms", 1000);
 		});
 		xml.node("vfs", [&] () {
 			xml.node("dir", [&] () {
