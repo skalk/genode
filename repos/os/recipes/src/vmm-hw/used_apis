@@ -1,0 +1,6 @@
+base-hw
+base
+os
+terminal_session
+nic_session
+vm_session
