@@ -1,0 +1,27 @@
+<runtime ram="280M" caps="1000" binary="init" config="vmm.config">
+
+	<requires>
+		<file_system name="fonts" writeable="no"/>
+		<timer/>
+		<nitpicker/>
+		<report label="clipboard"/>
+		<rom    label="clipboard"/>
+		<nic/>
+		<vm/>
+	</requires>
+
+	<provides/>
+
+	<content>
+		<rom label="ld.lib.so"/>
+		<rom label="vmm.config"/>
+		<rom label="dtb"/>
+		<rom label="initrd"/>
+		<rom label="linux"/>
+		<rom label="log_terminal"/>
+		<rom label="terminal"/>
+		<rom label="nit_fb"/>
+		<rom label="vmm"/>
+	</content>
+
+</runtime>
