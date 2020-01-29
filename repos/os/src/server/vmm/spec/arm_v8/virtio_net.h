@@ -51,21 +51,18 @@ class Vmm::Virtio_net : public Virtio_device
 		void _rx()
 		{
 			/* RX */
-			bool progress = false;
 			auto recv = [&] (addr_t data, size_t size)
 			{
 				if (!_nic.rx()->packet_avail() || !_nic.rx()->ready_to_ack())
 					return 0ul;
 
-				progress = true;
-
 				Nic::Packet_descriptor const rx_packet = _nic.rx()->get_packet();
 
 				size_t sz = Genode::min(size, rx_packet.size() + NIC_HEADER_SIZE);
 
-				if (sz < rx_packet.size() + NIC_HEADER_SIZE)
-					Genode::error("[rx] trim packet from ",
-					              rx_packet.size() + NIC_HEADER_SIZE, " -> ", sz, " bytes");
+				if (_queue[RX]->verbose() && sz < rx_packet.size() + NIC_HEADER_SIZE)
+					Genode::warning("[rx] trim packet from ",
+					                 rx_packet.size() + NIC_HEADER_SIZE, " -> ", sz, " bytes");
 
 				Genode::memcpy((void *)(data + NIC_HEADER_SIZE),
 				               _nic.rx()->packet_content(rx_packet),
@@ -79,9 +76,9 @@ class Vmm::Virtio_net : public Virtio_device
 
 			if (!_queue[RX].constructed()) return;
 
-			_queue[RX]->notify(recv);
+			bool irq = _queue[RX]->notify(recv);
 
-			if (progress) _assert_irq();
+			if (irq) _assert_irq();
 		}
 
 		void _tx()
@@ -118,8 +115,8 @@ class Vmm::Virtio_net : public Virtio_device
 
 		void _notify(unsigned /* idx */) override
 		{
-			_rx();
 			_tx();
+			_rx();
 		}
 
 		Register _device_specific_features() override

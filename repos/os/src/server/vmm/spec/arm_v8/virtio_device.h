@@ -100,6 +100,8 @@ class Vmm::Virtio_avail : public Genode::Mmio
 		struct Flags : Register<0x0, 16> { };
 		struct Idx   : Register<0x2, 16> { };
 		struct Ring  : Register_array<0x4, 16, Virtio_queue_data::MAX_QUEUE_SIZE, 16> { };
+
+		bool inject_irq() { return (read<Flags>() & 1) == 0; }
 };
 
 
@@ -145,6 +147,9 @@ class Vmm::Virtio_queue
 		Virtio_queue(Virtio_queue_data &data, Ram &ram)
 		: _data(data), _ram(ram) { }
 
+
+	bool verbose() const { return _verbose; }
+
 	template <typename FUNC>
 	bool notify(FUNC func)
 	{
@@ -157,9 +162,11 @@ class Vmm::Virtio_queue
 		if (_verbose)
 			Genode::log(_length > 64 ? "net $ " : "console $ ",
 			            "[", _tx ? "tx] " : "rx] ",
-			            "idx: ", _idx, " avail_idx: ", avail_idx, " used_idx: ", used_idx);
+			            "idx: ", _idx, " avail_idx: ", avail_idx, " used_idx: ", used_idx,
+			             " queue length: ", _length, " avail flags: ", _avail.read<Virtio_avail::Flags>());
 
 		while (_idx != avail_idx && written < _length)  {
+
 			uint16_t id = _avail.read<Virtio_avail::Ring>(_idx % _length);
 
 			/* make sure id stays in ring */
@@ -182,7 +189,7 @@ class Vmm::Virtio_queue
 			Virtio_used::Elem::access_t elem = 0;
 			Virtio_used::Elem::Id::set(elem,  id);
 			Virtio_used::Elem::Length::set(elem, length);
-			_used.write<Virtio_used::Elem>(elem, id);
+			_used.write<Virtio_used::Elem>(elem, _idx % _length);
 			written++; _idx++;
 
 			if (used_idx + written == avail_idx)  break;
@@ -196,9 +203,10 @@ class Vmm::Virtio_queue
 
 		if (written && _verbose)
 			Genode::log(_length > 64 ? "net $ " : "console $ ",
-			            "[", _tx ? "tx] " : "rx] ", "updated used_idx: ", used_idx + written);
+			            "[", _tx ? "tx] " : "rx] ", "updated used_idx: ", used_idx,
+			            " written: ", written);
 
-		return written > 0;
+		return written > 0 && _avail.inject_irq();
 	}
 };
 
