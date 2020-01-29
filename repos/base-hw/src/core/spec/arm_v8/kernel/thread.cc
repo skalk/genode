@@ -52,8 +52,9 @@ void Thread::exception(Cpu & cpu)
 				Genode::raw("Unknown cpu exception EC=", Cpu::Esr::Ec::get(esr),
 				            " ISS=", Cpu::Esr::Iss::get(esr),
 				            " ip=", (void*)regs->ip);
+				Genode::raw("Faulty Thread: ", *this);
 			};
-			break;
+			return;
 		}
 	default:
 		Genode::raw("Exception vector: ", (void*)regs->exception_type,
