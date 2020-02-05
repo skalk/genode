@@ -126,7 +126,9 @@ class Kernel::Thread : private Kernel::Object, public Cpu_job, private Timeout
 			DEAD                        = 7,
 		};
 
-		void                  *_obj_id_ref_ptr[Genode::Msgbuf_base::MAX_CAPS_PER_MSG];
+		enum { MAX_RCV_CAPS = Genode::Msgbuf_base::MAX_CAPS_PER_MSG };
+
+		void                  *_obj_id_ref_ptr[MAX_RCV_CAPS] { nullptr };
 		Ipc_node               _ipc_node;
 		capid_t                _ipc_capid                { cap_id_invalid() };
 		size_t                 _ipc_rcv_caps             { 0 };
@@ -260,6 +262,7 @@ class Kernel::Thread : private Kernel::Object, public Cpu_job, private Timeout
 			kobj.destruct();
 		}
 
+		void _ipc_alloc_recv_caps(unsigned rcv_cap_count);
 		void _ipc_init(Genode::Native_utcb &utcb, Thread &callee);
 
 	public:
