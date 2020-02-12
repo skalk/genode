@@ -36,6 +36,7 @@ namespace Kernel
 	class Thread;
 	class Signal_context;
 	class Signal_receiver;
+	class Vm;
 
 	/**
 	 * Base class of all Kernel objects
@@ -85,7 +86,7 @@ class Kernel::Object : private Object_identity_list
 {
 	private:
 
-		enum Type { THREAD, PD, SIGNAL_RECEIVER, SIGNAL_CONTEXT, IRQ };
+		enum Type { THREAD, PD, SIGNAL_RECEIVER, SIGNAL_CONTEXT, IRQ, VM };
 
 		/*
 		 * Noncopyable
@@ -108,6 +109,7 @@ class Kernel::Object : private Object_identity_list
 		Object(Signal_receiver &obj);
 		Object(Signal_context &obj);
 		Object(Pd &obj);
+		Object(Vm &obj);
 
 		~Object();
 

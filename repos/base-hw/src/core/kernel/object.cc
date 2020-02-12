@@ -41,6 +41,12 @@ Object::Object(Pd &obj)
 	_obj  { (void *)&obj }
 { }
 
+Object::Object(Vm &obj)
+:
+	_type { VM },
+	_obj  { (void *)&obj }
+{ }
+
 Object::~Object()
 {
 	for (Object_identity * oi = first(); oi; oi = first())
@@ -87,6 +93,14 @@ namespace Kernel {
 			return nullptr; }
 
 		return reinterpret_cast<Thread *>(_obj);
+	}
+
+	template <> Vm *Object::obj<Vm>() const
+	{
+		if (_type != VM) {
+			return nullptr; }
+
+		return reinterpret_cast<Vm *>(_obj);
 	}
 }
 
