@@ -15,7 +15,6 @@
 #define _SRC__INCLUDE__HW__SPEC__ARM__GIC_V3_H_
 
 #include <util/mmio.h>
-#include <cpu.h>
 
 namespace Hw     { class Pic; }
 
@@ -171,7 +170,8 @@ class Hw::Pic
 				Icc_sre_el1::Sre::set(sre, 1);
 				Icc_sre_el1::write(sre);
 
-				Cpu::synchronization_barrier();
+				/* XXX: check if needed or move somewhere else */
+				asm volatile("isb sy" ::: "memory");
 
 				/* no priority grouping */
 				Icc_br1_el1::write(0);
@@ -182,7 +182,8 @@ class Hw::Pic
 				/* enable GRP1 interrupts */
 				Icc_igrpen1_el1::write(1);
 
-				Cpu::synchronization_barrier();
+				/* XXX: check if needed or move somewhere else */
+				asm volatile("isb sy" ::: "memory");
 			}
 		};
 

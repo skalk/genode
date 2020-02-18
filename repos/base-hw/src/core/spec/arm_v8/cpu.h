@@ -89,12 +89,6 @@ struct Genode::Cpu : Hw::Arm_64_cpu
 	static void clean_data_cache_by_virt_region(addr_t, size_t);
 	static void clean_invalidate_data_cache_by_virt_region(addr_t, size_t);
 	static void invalidate_instr_cache_by_virt_region(addr_t, size_t);
-
-	static inline void synchronization_barrier()
-	{
-		asm volatile("dsb sy\n"
-		             "isb sy\n" ::: "memory");
-	}
 };
 
 #endif /* _CORE__SPEC__ARM_V8__CPU_H_ */
