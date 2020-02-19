@@ -44,12 +44,26 @@ class Vmm::Cpu : public Vmm::Cpu_base
 
 	private:
 
+		struct Ccsidr : System_register
+		{
+			System_register & csselr;
+
+			Ccsidr(System_register &csselr,
+			       Genode::Avl_tree<System_register> & tree)
+			: System_register(0, 1, 0, 0, "CCSIDR", false, 0x0, tree),
+			  csselr(csselr) {}
+
+			virtual Genode::addr_t read() const override;
+		};
+
 		/******************************
 		 ** Identification registers **
 		 ******************************/
 
 		System_register _sr_midr;
 		System_register _sr_mpidr;
+		System_register _sr_csselr;
+		Ccsidr          _sr_ccsidr;
 };
 
 #endif /* _SRC__SERVER__VMM__CPU_H_ */

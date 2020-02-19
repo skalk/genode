@@ -69,6 +69,7 @@ void Cpu_base::_handle_brk()
 
 void Cpu_base::handle_exception()
 {
+	Genode::log("VM EXC ", _state.cpu_exception, " ", (void*)_state.ip, " ", _state.esr_el2);
 	/* check exception reason */
 	switch (_state.cpu_exception) {
 	case Cpu::NO_EXCEPTION:                 break;
@@ -135,6 +136,63 @@ void Cpu_base::initialize_boot(Genode::addr_t ip, Genode::addr_t dtb)
 }
 
 
+Genode::addr_t Cpu::Ccsidr::read() const
+{
+	struct Clidr : Genode::Register<32>
+	{
+		enum Cache_entry {
+			NO_CACHE,
+			INSTRUCTION_CACHE_ONLY,
+			DATA_CACHE_ONLY,
+			SEPARATE_CACHE,
+			UNIFIED_CACHE
+		};
+
+		static unsigned level(unsigned l, access_t reg) {
+			return (reg >> l*3) & 0b111; }
+	};
+
+	struct Csselr : Genode::Register<32>
+	{
+		struct Instr : Bitfield<0, 1> {};
+		struct Level : Bitfield<1, 4> {};
+	};
+
+	enum { INVALID = 0xffffffff };
+
+	unsigned level = Csselr::Level::get(csselr.read());
+	bool     instr = Csselr::Instr::get(csselr.read());
+
+	if (level > 6) {
+		Genode::warning("Invalid Csselr value!");
+		return INVALID;
+	}
+
+	// Kernel: v = 0xa200023 CLIDR
+	// Kernel: 0 = 0x700fe01a (data)  0x203fe009 (instr)
+	// Kernel: 1 = 0x707fe03a (data)
+
+
+//	unsigned ce = Clidr::level(level, state.clidr_el1);
+//
+//	if (ce == Clidr::NO_CACHE ||
+//	    (ce == Clidr::DATA_CACHE_ONLY && instr)) {
+//		Genode::warning("Invalid Csselr value!");
+//		return INVALID;
+//	}
+//
+//	if (ce == Clidr::INSTRUCTION_CACHE_ONLY ||
+//	    (ce == Clidr::SEPARATE_CACHE && instr)) {
+//		Genode::log("Return Ccsidr instr value ", state.ccsidr_inst_el1[level]);
+//		return state.ccsidr_inst_el1[level];
+//	}
+//
+//	Genode::log("Return Ccsidr value ", state.ccsidr_data_el1[level]);
+//	return state.ccsidr_data_el1[level];
+	return 0;
+}
+
+
 Cpu::Cpu(Vm                      & vm,
          Genode::Vm_connection   & vm_session,
          Mmio_bus                & bus,
@@ -143,8 +201,10 @@ Cpu::Cpu(Vm                      & vm,
          Genode::Heap            & heap,
          Genode::Entrypoint      & ep)
 : Cpu_base(vm, vm_session, bus, gic, env, heap, ep),
-  _sr_midr  (0, 0, 0, 0, "MIDR",  false, 0x410f0000,     _reg_tree),
-  _sr_mpidr (0, 0, 0, 5, "MPIDR", false, 1<<31|cpu_id(), _reg_tree)
+  _sr_midr   (0, 0, 0, 0, "MIDR",   false, 0x410f0000,     _reg_tree),
+  _sr_mpidr  (0, 0, 0, 5, "MPIDR",  false, 1<<31|cpu_id(), _reg_tree),
+  _sr_csselr (0, 2, 0, 0, "CSSELR", true, 0,               _reg_tree),
+  _sr_ccsidr (_sr_csselr, _reg_tree)
 {
 	_state.cpsr  = 0x93; /* el1 mode and IRQs disabled */
 	_state.sctrl = 0xc50078;
