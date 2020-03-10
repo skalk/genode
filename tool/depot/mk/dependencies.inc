@@ -19,7 +19,7 @@
 _pkg_archives = $(call pkg_pkg_archives,$1)
 
 _check_unvisited = $(if $(filter $(VISITED_PKGS),$1),\
-                      $(error recursive package dependency: $(VISITED_PKGS)),\
+                      ,\
                       $(eval VISITED_PKGS += $1))
 
 _pkg_deps_rec = $(call _check_unvisited,$1) $1 \
