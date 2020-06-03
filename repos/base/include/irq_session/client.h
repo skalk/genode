@@ -19,33 +19,39 @@
 #include <irq_session/capability.h>
 #include <base/rpc_client.h>
 
-namespace Genode { struct Irq_session_client; }
+namespace Genode { class Irq_session_client; }
 
 /**
  * Client-side IRQ session interface
  */
-struct Genode::Irq_session_client : Rpc_client<Irq_session>
+class Genode::Irq_session_client : public Rpc_client<Irq_session>
 {
-	/**
-	 * Constructor
-	 *
-	 * \param session  pointer to the session backend
-	 */
-	explicit Irq_session_client(Irq_session_capability const & session)
-	:
-		Rpc_client<Irq_session>(session)
-	{ }
+	private:
+
+		Signal_context_capability _sigh { };
+
+	public:
+
+		/**
+		 * Constructor
+		 *
+		 * \param session  pointer to the session backend
+		 */
+		explicit Irq_session_client(Irq_session_capability const & session)
+		:
+			Rpc_client<Irq_session>(session)
+		{ }
 
 
-	/*****************
-	 ** Irq_session **
-	 *****************/
+		/*****************
+		 ** Irq_session **
+		 *****************/
 
-	void ack_irq() override { call<Rpc_ack_irq>(); }
+		void ack_irq() override;
 
-	void sigh(Signal_context_capability sigh) override { call<Rpc_sigh>(sigh); }
+		void sigh(Signal_context_capability sigh) override;
 
-	Info info() override { return call<Rpc_info>(); }
+		Info info() override { return call<Rpc_info>(); }
 };
 
 #endif /* _INCLUDE__IRQ_SESSION__CLIENT_H_ */

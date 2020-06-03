@@ -663,3 +663,13 @@ __stack_chk_fail W
 __stack_chk_guard B 8
 dl_iterate_phdr T
 dl_unwind_find_exidx T
+_ZN6Genode18Irq_session_client4infoEv T
+_ZN6Genode18Irq_session_client4sighENS_10CapabilityINS_14Signal_contextEEE T
+_ZN6Genode18Irq_session_client7ack_irqEv T
+_ZN6Genode18Irq_session_clientD0Ev T
+_ZN6Genode18Irq_session_clientD1Ev T
+_ZN6Genode18Irq_session_clientD2Ev T
+_ZN6Genode18Irq_session_clientD5Ev T
+_ZTIN6Genode18Irq_session_clientE T
+_ZTSN6Genode18Irq_session_clientE T
+_ZTVN6Genode18Irq_session_clientE T

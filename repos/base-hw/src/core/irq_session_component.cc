@@ -32,10 +32,7 @@ unsigned Irq_session_component::_find_irq_number(const char * const args)
 }
 
 
-void Irq_session_component::ack_irq()
-{
-	if (_kobj.constructed()) Kernel::ack_irq(*_kobj);
-}
+void Irq_session_component::ack_irq() { }
 
 
 void Irq_session_component::sigh(Signal_context_capability cap)

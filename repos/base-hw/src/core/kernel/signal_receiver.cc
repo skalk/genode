@@ -136,6 +136,12 @@ void Signal_context::kill(Signal_context_killer &k)
 }
 
 
+void Signal_context::irq_enable()
+{
+	if (_irq) _irq->enable();
+}
+
+
 Signal_context::~Signal_context()
 {
 	if (_killer) { _killer->_thread.signal_context_kill_failed(); }

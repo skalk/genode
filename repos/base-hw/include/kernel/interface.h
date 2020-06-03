@@ -42,6 +42,7 @@ namespace Kernel
 	constexpr Call_arg call_id_timeout()                  { return 16; }
 	constexpr Call_arg call_id_timeout_max_us()           { return 17; }
 	constexpr Call_arg call_id_time()                     { return 18; }
+	constexpr Call_arg call_id_ack_irq()                  { return 19; }
 
 
 	/*****************************************************************
@@ -368,6 +369,16 @@ namespace Kernel
 	inline void delete_cap(capid_t const cap)
 	{
 		call(call_id_delete_cap(), cap);
+	}
+
+	/**
+	 * Acknowledge interrupt
+	 *
+	 * \param irq  pointer to interrupt kernel object
+	 */
+	inline void ack_irq(capid_t const context)
+	{
+		call(call_id_ack_irq(), context);
 	}
 }
 

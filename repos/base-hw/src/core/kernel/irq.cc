@@ -40,4 +40,5 @@ Kernel::User_irq::User_irq(unsigned const                irq,
 {
 	disable();
 	cpu_pool().executing_cpu().pic().irq_mode(_irq_nr, trigger, polarity);
+	context.register_irq(*this);
 }

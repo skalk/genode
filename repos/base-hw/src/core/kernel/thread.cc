@@ -654,8 +654,17 @@ void Thread::_call_new_irq()
 }
 
 
-void Thread::_call_ack_irq() {
-	reinterpret_cast<User_irq*>(user_arg_1())->enable(); }
+void Thread::_call_ack_irq()
+{
+	Signal_context * const c = pd().cap_tree().find<Signal_context>(user_arg_1());
+	if (!c) {
+		Genode::raw(*this, ": invalid signal context for interrupt");
+		user_arg_0(-1);
+		return;
+	}
+
+	c->irq_enable();
+}
 
 
 void Thread::_call_new_obj()
@@ -746,6 +755,7 @@ void Thread::_call()
 	case call_id_timeout():                  _call_timeout(); return;
 	case call_id_timeout_max_us():           _call_timeout_max_us(); return;
 	case call_id_time():                     _call_time(); return;
+	case call_id_ack_irq():                  _call_ack_irq(); return;
 	default:
 		/* check wether this is a core thread */
 		if (!_core) {
@@ -789,7 +799,6 @@ void Thread::_call()
 	case call_id_pause_thread():           _call_pause_thread(); return;
 	case call_id_new_irq():                _call_new_irq(); return;
 	case call_id_delete_irq():             _call_delete<User_irq>(); return;
-	case call_id_ack_irq():                _call_ack_irq(); return;
 	case call_id_new_obj():                _call_new_obj(); return;
 	case call_id_delete_obj():             _call_delete_obj(); return;
 	default:

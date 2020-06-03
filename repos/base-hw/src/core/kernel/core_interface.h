@@ -56,7 +56,6 @@ namespace Kernel
 	constexpr Call_arg call_id_delete_vm()              { return 117; }
 	constexpr Call_arg call_id_new_irq()                { return 118; }
 	constexpr Call_arg call_id_delete_irq()             { return 119; }
-	constexpr Call_arg call_id_ack_irq()                { return 120; }
 	constexpr Call_arg call_id_new_obj()                { return 121; }
 	constexpr Call_arg call_id_delete_obj()             { return 122; }
 	constexpr Call_arg call_id_cancel_thread_blocking() { return 123; }
@@ -193,16 +192,6 @@ namespace Kernel
 	inline void pause_vm(Vm & vm)
 	{
 		call(call_id_pause_vm(), (Call_arg) &vm);
-	}
-
-	/**
-	 * Acknowledge interrupt
-	 *
-	 * \param irq  pointer to interrupt kernel object
-	 */
-	inline void ack_irq(User_irq & irq)
-	{
-		call(call_id_ack_irq(), (Call_arg) &irq);
 	}
 }
 

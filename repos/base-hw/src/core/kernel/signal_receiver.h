@@ -44,6 +44,8 @@ namespace Kernel
 	 * Combines signal contexts to an entity that handlers can listen to
 	 */
 	class Signal_receiver;
+
+	class User_irq;
 }
 
 
@@ -128,6 +130,7 @@ class Kernel::Signal_context
 		unsigned                _submits       { 0       };
 		bool                    _ack           { true    };
 		bool                    _killed        { false   };
+		User_irq              * _irq           { nullptr };
 
 		/**
 		 * Tell receiver about the submits of the context if any
@@ -214,6 +217,9 @@ class Kernel::Signal_context
 			call(call_id_delete_signal_context(), (Call_arg)&c); }
 
 		Object &kernel_object() { return _kernel_object; }
+
+		void register_irq(User_irq & irq) { _irq = &irq; }
+		void irq_enable();
 };
 
 class Kernel::Signal_receiver
