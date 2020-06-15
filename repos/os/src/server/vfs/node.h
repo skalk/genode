@@ -846,8 +846,6 @@ class Vfs_server::File : public Io_node
 
 					/*
 					 * Keep executing the write operation for the remaining bytes.
-					 * The seek offset used for subsequent VFS write operations
-					 * is incremented automatically by the VFS handle.
 					 */
 					_write_pos += consumed;
 					break;
