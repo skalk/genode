@@ -17,7 +17,7 @@ HEADERS_FILTER_OUT = \
   bookmarknode.h \
   clicktoflashplugin.h \
   networkcookiejar_p.h \
-  genodeplugin.h \
+  nitpickerplugin.h \
   networkproxyfactory.h \
   opensearchenginedelegate.h \
   opensearchreader.h \
@@ -55,7 +55,7 @@ vpath % $(PRG_DIR)/locationbar
 vpath % $(PRG_DIR)/opensearch
 vpath % $(PRG_DIR)/qwebplugins
 vpath % $(PRG_DIR)/qwebplugins/clicktoflash
-vpath % $(PRG_DIR)/qwebplugins/genode
+vpath % $(PRG_DIR)/qwebplugins/nitpicker
 vpath % $(PRG_DIR)/useragent
 vpath % $(PRG_DIR)/utils
 
@@ -76,7 +76,7 @@ vpath % $(ARORA_PORT_DIR)/src/app/arora/src/locationbar
 vpath % $(ARORA_PORT_DIR)/src/app/arora/src/opensearch
 vpath % $(ARORA_PORT_DIR)/src/app/arora/src/qwebplugins
 vpath % $(ARORA_PORT_DIR)/src/app/arora/src/qwebplugins/clicktoflash
-vpath % $(ARORA_PORT_DIR)/src/app/arora/src/qwebplugins/genode
+vpath % $(ARORA_PORT_DIR)/src/app/arora/src/qwebplugins/nitpicker
 vpath % $(ARORA_PORT_DIR)/src/app/arora/src/useragent
 vpath % $(ARORA_PORT_DIR)/src/app/arora/src/utils
 
