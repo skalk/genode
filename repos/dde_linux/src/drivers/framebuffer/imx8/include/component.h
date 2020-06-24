@@ -194,10 +194,10 @@ class Framebuffer::Session_component : public Genode::Rpc_object<Session>
 			if (x1 > x2 || y1 > y2) return;
 
 			/* copy pixels from back buffer to physical frame buffer */
-			char *src = _ds.local_addr<char>()  + bpp*(width*y1 + x1),
-			     *dst = (char*)_driver.fb_addr() + pitch*y1 + bpp*x1;
+			char *src = _ds.local_addr<char>()   + bpp*(width*y1 + x1),
+			     *dst = (char*)_driver.fb_addr() + bpp*(pitch*y1 + x1);
 
-			blit(src, bpp*width, dst, pitch,
+			blit(src, bpp*width, dst, bpp*pitch,
 			     bpp*(x2 - x1 + 1), y2 - y1 + 1);
 		}
 };
