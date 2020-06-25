@@ -11,17 +11,17 @@
  * under the terms of the GNU Affero General Public License version 3.
  */
 
-#ifndef _CORE__SPEC__IMX8Q_EVK__BOARD_H_
-#define _CORE__SPEC__IMX8Q_EVK__BOARD_H_
+#ifndef _CORE__SPEC__IMX8MQ__BOARD_H_
+#define _CORE__SPEC__IMX8MQ__BOARD_H_
 
-#include <hw/spec/arm_64/imx8q_evk_board.h>
+#include <hw/spec/arm_64/imx8mq_soc.h>
 #include <spec/arm/generic_timer.h>
 #include <spec/arm/virtualization/gicv3.h>
 #include <spec/arm_64/cpu/vm_state_virtualization.h>
 #include <spec/arm/virtualization/board.h>
 
 namespace Board {
-	using namespace Hw::Imx8q_evk_board;
+	using namespace Hw::Imx8mq_soc;
 
 	enum {
 		TIMER_IRQ           = 14 + 16,
@@ -31,4 +31,4 @@ namespace Board {
 	};
 };
 
-#endif /* _CORE__SPEC__IMX8Q_EVK__BOARD_H_ */
+#endif /* _CORE__SPEC__IMX8MQ__BOARD_H_ */

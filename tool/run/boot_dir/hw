@@ -14,6 +14,7 @@ proc bootstrap_link_address { } {
 	if {[have_spec "imx53_qsb"]}       { return "0x70010000" }
 	if {[have_spec "imx7d_sabre"]}     { return "0x88000000" }
 	if {[have_spec "imx8q_evk"]}       { return "0x40010000" }
+	if {[have_spec "mnt_reform2"]}     { return "0x40010000" }
 	if {[have_spec "zynq"]}            { return "0x00100000" }
 	if {[have_spec "riscv"]}           { return "0x81000000" }
 	if {[have_spec "rpi"]}             { return "0x00800000" }
@@ -220,6 +221,7 @@ proc base_src { } {
 	if {[have_spec imx6q_sabrelite]}                     { return base-hw-imx6q_sabrelite }
 	if {[have_spec imx7d_sabre]}                         { return base-hw-imx7d_sabre }
 	if {[have_spec imx8q_evk]}                           { return base-hw-imx8q_evk }
+	if {[have_spec mnt_reform2]}                         { return base-hw-mnt_reform2 }
 	if {[have_spec nit6_solox]}                          { return base-hw-nit6_solox }
 	if {[have_spec imx53_qsb] && ![have_spec trustzone]} { return base-hw-imx53_qsb }
 	if {[have_spec imx53_qsb] &&  [have_spec trustzone]} { return base-hw-imx53_qsb_tz }

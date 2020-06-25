@@ -11,16 +11,16 @@
  * under the terms of the GNU Affero General Public License version 3.
  */
 
-#ifndef _BOOTSTRAP__SPEC__IMX8Q_EVK__BOARD_H_
-#define _BOOTSTRAP__SPEC__IMX8Q_EVK__BOARD_H_
+#ifndef _BOOTSTRAP__SPEC__IMX8MQ__BOARD_H_
+#define _BOOTSTRAP__SPEC__IMX8MQ__BOARD_H_
 
-#include <hw/spec/arm_64/imx8q_evk_board.h>
+#include <hw/spec/arm_64/imx8mq_soc.h>
 #include <hw/spec/arm_64/cpu.h>
 #include <hw/spec/arm/gicv3.h>
 #include <hw/spec/arm/lpae.h>
 
 namespace Board {
-	using namespace Hw::Imx8q_evk_board;
+	using namespace Hw::Imx8mq_soc;
 
 	struct Cpu : Hw::Arm_64_cpu
 	{
@@ -30,4 +30,4 @@ namespace Board {
 	using Hw::Pic;
 };
 
-#endif /* _BOOTSTRAP__SPEC__IMX8Q_EVK__BOARD_H_ */
+#endif /* _BOOTSTRAP__SPEC__IMX8MQ__BOARD_H_ */

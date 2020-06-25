@@ -1,5 +1,5 @@
 /*
- * \brief  Board definitions for i.MX8 Quad EVK
+ * \brief  SoC definitions for i.MX 8MQ
  * \author Stefan Kalkowski
  * \date   2019-06-12
  */
@@ -11,13 +11,13 @@
  * under the terms of the GNU Affero General Public License version 3.
  */
 
-#ifndef _SRC__INCLUDE__HW__SPEC__ARM_64__IMX8Q_EVK__BOARD_H_
-#define _SRC__INCLUDE__HW__SPEC__ARM_64__IMX8Q_EVK__BOARD_H_
+#ifndef _SRC__INCLUDE__HW__SPEC__ARM_64__IMX8MQ_SOC_H_
+#define _SRC__INCLUDE__HW__SPEC__ARM_64__IMX8MQ_SOC_H_
 
 #include <drivers/uart/imx.h>
 #include <hw/spec/arm/boot_info.h>
 
-namespace Hw::Imx8q_evk_board {
+namespace Hw::Imx8mq_soc {
 	using Serial = Genode::Imx_uart;
 
 	enum {
@@ -41,4 +41,5 @@ namespace Hw::Imx8q_evk_board {
 	};
 };
 
-#endif /* _SRC__INCLUDE__HW__SPEC__ARM_64__IMX8Q_EVK__BOARD_H_ */
+#endif /* _SRC__INCLUDE__HW__SPEC__ARM_64__IMX8MQ_SOC_H_ */
+
