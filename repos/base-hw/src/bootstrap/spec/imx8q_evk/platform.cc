@@ -129,10 +129,15 @@ Bootstrap::Platform::Board::Board()
 		{ 0x30340040, 0x49409200 }
 	};
 
-	struct Gpio_reg : Genode::Mmio
+	unsigned num_values = sizeof(iomux_values) / (2*sizeof(unsigned long));
+	for (unsigned i = 0; i < num_values; i++)
+		*((volatile Genode::uint32_t*)iomux_values[i][0]) = (Genode::uint32_t)iomux_values[i][1];
+
+	enum Mmio_base_addresses { GPIO_1_MMIO_BASE = 0x30200000 };
+
+	struct Gpio : Genode::Mmio
 	{
-		Gpio_reg(Genode::addr_t const mmio_base)
-			: Genode::Mmio(mmio_base) { }
+		Gpio() : Genode::Mmio(GPIO_1_MMIO_BASE) { }
 
 		struct Data       : Register<0x0,  32> {};
 		struct Dir        : Register<0x4,  32> {};
@@ -140,53 +145,15 @@ Bootstrap::Platform::Board::Board()
 		struct Int_conf_1 : Register<0x10, 32> {};
 		struct Int_mask   : Register<0x14, 32> {};
 		struct Int_stat   : Register<0x18, 32> {};
-	};
-
-	struct Ccm_reg : Genode::Mmio
-	{
-		Ccm_reg(Genode::addr_t const mmio_base)
-			: Genode::Mmio(mmio_base) { }
-
-		struct Target_root_0 : Register<0x8000, 32> {};
-	};
-
-	struct Pll_reg : Genode::Mmio
-	{
-		Pll_reg(Genode::addr_t const mmio_base)
-			: Genode::Mmio(mmio_base) { }
-
-		struct Pll_arm_0 : Register<0x28,  32> {};
-		struct Pll_arm_1 : Register<0x2c,  32> {};
-	};
-
-	unsigned num_values = sizeof(iomux_values) / (2*sizeof(unsigned long));
-	for (unsigned i = 0; i < num_values; i++)
-		*((volatile Genode::uint32_t*)iomux_values[i][0]) = (Genode::uint32_t)iomux_values[i][1];
-
-
-	Ccm_reg ccm(0x30380000);
-	Ccm_reg pll(0x30360000);
+	} regulator;
 
 	/* configure GPIO PIN 13 of GPIO 1 for high voltage */
-	Gpio_reg regulator(0x30200000);
-	regulator.write<Gpio_reg::Int_conf_0>(0);
-	regulator.write<Gpio_reg::Int_conf_1>(0);
-	regulator.write<Gpio_reg::Int_mask>(0x1000);
-	regulator.write<Gpio_reg::Int_stat>(0xffffffff);
-	regulator.write<Gpio_reg::Dir>(0x2328);
-	regulator.write<Gpio_reg::Data>(0x9f40);
+	regulator.write<Gpio::Int_conf_0>(0);
+	regulator.write<Gpio::Int_conf_1>(0);
+	regulator.write<Gpio::Int_mask>(0x1000);
+	regulator.write<Gpio::Int_stat>(0xffffffff);
+	regulator.write<Gpio::Dir>(0x2328);
+	regulator.write<Gpio::Data>(0x9f40);
 
-	ccm.write<Ccm_reg::Target_root_0>(0x14000000);
-	pll.write<Pll_reg::Pll_arm_1>(0x4a);
-
-	unsigned long v = pll.read<Pll_reg::Pll_arm_0>();
-	pll.write<Pll_reg::Pll_arm_0>(v & 0xffffffe0);
-	v = pll.read<Pll_reg::Pll_arm_0>();
-	pll.write<Pll_reg::Pll_arm_0>(v | (1<<12));
-
-	while (!(pll.read<Pll_reg::Pll_arm_0>() & (1<<11))) { ; }
-
-	v = pll.read<Pll_reg::Pll_arm_0>();
-	pll.write<Pll_reg::Pll_arm_0>(v ^ (1<<12));
-	ccm.write<Ccm_reg::Target_root_0>(0x11000000);
+	::Board::Cpu::set_frequency();
 }
