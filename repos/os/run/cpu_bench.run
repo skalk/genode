@@ -4,7 +4,11 @@ if { [get_cmd_switch --autopilot] } {
 		exit 0
 	}
 }
-if {[have_spec linux] || [have_spec riscv]} { exit 0 }
+
+if {[have_spec linux] || [have_spec riscv]} {
+	puts "\n Run script is not supported on this platform. \n";
+	exit 0
+}
 
 build "core init timer test/cpu_bench"
 
