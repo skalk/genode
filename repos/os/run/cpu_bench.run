@@ -47,7 +47,7 @@ proc bogomips_max_time { } {
 	if {[board] == "imx53_qsb_tz"}               { return  7520 }
 	if {[board] == "imx6q_sabrelite"}            { return  6320 }
 	if {[board] == "imx7d_sabre"}                { return  9470 }
-	if {[board] == "imx8q_evk"}                  { return  7510 }
+	if {[board] == "imx8q_evk"}                  { return  5010 }
 	if {[have_spec x86_64] && [[board] == "pc"]} { return   600 }
 	if {[have_spec x86_32] && [[board] == "pc"]} { return  3150 }
 	return 0
