@@ -1,4 +1,5 @@
 TARGET    = platform_drv
-REQUIRES  = arm
+REQUIRES  = arm_64
 
 include $(REP_DIR)/src/drivers/platform/target.inc
+
