@@ -18,6 +18,13 @@
 using Vmm::Gic;
 using Register = Vmm::Mmio_register::Register;
 
+static Genode::Mutex & big_gic_lock()
+{
+	static Genode::Mutex mutex;
+	return mutex;
+}
+
+
 bool Gic::Irq::enabled() const { return _enabled; }
 
 bool Gic::Irq::active()  const {
@@ -75,6 +82,8 @@ void Gic::Irq::assert()
 {
 	if (pending()) return;
 
+	Genode::Mutex::Guard guard(big_gic_lock());
+
 	_state = PENDING;
 	_pending_list.insert(*this);
 }
@@ -84,6 +93,8 @@ void Gic::Irq::deassert()
 {
 	if (_state == INACTIVE) return;
 
+	Genode::Mutex::Guard guard(big_gic_lock());
+
 	_state = INACTIVE;
 	_pending_list.remove(this);
 	if (_handler) _handler->eoi();
@@ -92,6 +103,7 @@ void Gic::Irq::deassert()
 
 void Gic::Irq::target(Genode::uint8_t t)
 {
+	Genode::error("SET IRQ ", _num, " TARGET ", t);
 	if (_target == t) return;
 
 	_target = t;
@@ -129,12 +141,12 @@ void Gic::Irq::List::insert(Irq & irq)
 }
 
 
-Gic::Irq * Gic::Irq::List::highest_enabled()
+Gic::Irq * Gic::Irq::List::highest_enabled(unsigned cpu_id)
 {
-	Irq * i = first();
-	while(i) {
-		if (i->enabled()) return i;
-		i = i->next();
+	for (Irq * i = first(); i; i = i->next()) {
+		if (!i->enabled() || i->active()) { continue; }
+		if (cpu_id < ~0U && (i->target() != cpu_id)) { continue; }
+		return i;
 	}
 	return nullptr;
 }
@@ -165,6 +177,8 @@ void Gic::Gicd_banked::handle_irq()
 
 bool Gic::Gicd_banked::pending_irq()
 {
+	Genode::Mutex::Guard guard(big_gic_lock());
+
 	if (_cpu.state().irqs.virtual_irq != SPURIOUS) return true;
 
 	Irq * i = _gic._pending_list.highest_enabled();
@@ -202,6 +216,8 @@ Gic::Gicd_banked::Gicd_banked(Cpu_base & cpu, Gic & gic, Mmio_bus & bus)
 
 Register Gic::Irq_reg::read(Address_range & access, Cpu & cpu)
 {
+	Genode::Mutex::Guard guard(big_gic_lock());
+
 	Register ret = 0;
 
 	Register bits_per_irq = size * 8 / irq_count;
@@ -214,6 +230,8 @@ Register Gic::Irq_reg::read(Address_range & access, Cpu & cpu)
 
 void Gic::Irq_reg::write(Address_range & access, Cpu & cpu, Register value)
 {
+	Genode::Mutex::Guard guard(big_gic_lock());
+
 	Register bits_per_irq   = size * 8 / irq_count;
 	Register irq_value_mask = (1<<bits_per_irq) - 1;
 	for (unsigned i = (access.start * 8) / bits_per_irq;
