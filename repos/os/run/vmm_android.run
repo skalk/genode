@@ -1,0 +1,162 @@
+#
+# \brief  Virtual-machine monitor demo
+# \author Stefan Kalkowski
+# \date   2015-06-25
+#
+
+assert_spec hw
+
+if { ![have_spec imx7d_sabre] && ![have_spec arndale] && ![have_spec imx8q_evk] } {
+	puts "Run script is not supported on this platform"
+	exit 0
+}
+
+set build_components {
+	core init timer
+	server/log_terminal
+	server/nic_router
+	server/vmm
+}
+build $build_components
+create_boot_directory
+
+install_config {
+<config verbose="yes" prio_levels="2">
+	<parent-provides>
+		<service name="ROM"/>
+		<service name="IRQ"/>
+		<service name="IO_MEM"/>
+		<service name="PD"/>
+		<service name="RM"/>
+		<service name="CPU"/>
+		<service name="LOG"/>
+		<service name="VM"/>
+	</parent-provides>
+	<default-route>
+		<any-service><parent/><any-child/></any-service>
+	</default-route>
+	<default caps="100"/>
+	<start name="timer">
+		<resource name="RAM" quantum="1M"/>
+		<provides><service name="Timer"/></provides>
+	</start>
+	<start name="nic_drv">
+		<binary name="nic_router" />
+		<resource name="RAM" quantum="8M"/>
+		<provides> <service name="Nic"/> </provides>
+		<config>
+			<default-policy domain="default"/>
+			<domain name="default" interface="10.0.1.1/24">
+				<dhcp-server ip_first="10.0.1.2" ip_last="10.0.1.2" />
+			</domain>
+		</config>
+	</start>
+	<start name="log_terminal">
+		<resource name="RAM" quantum="2M"/>
+		<provides> <service name="Terminal"/> </provides>
+	</start>
+	<start name="vmm" caps="800" priority="-1">
+		<resource name="RAM" quantum="64G"/>
+		<route>
+			<service name="Terminal" label="earlycon"> <child name="log_terminal"/> </service>
+			<service name="Terminal"> <child name="log_terminal"/> </service>
+			<service name="Nic"> <child name="nic_drv"/> </service>
+			<any-service><parent/><any-child/></any-service>
+		</route>
+	</start>
+</config>
+}
+
+#
+# This test uses a Linux kernel built from unmodified vanilla kernel sources
+# but using a slightly simplified kernel configuration, as well as device tree
+# for a minimal Versatile Express Cortex A15 like emulated board.
+#
+# The used sources, including the modified device tree and configuration file
+# can be found in the following git repository/branch:
+#
+#   https://github.com/skalk/linux/tree/vexpress-vt
+#
+# To compile the kernel and device tree blob used in this script, do the
+# following steps:
+#
+# ! git checkout https://github.com/skalk/linux.git
+# ! cd linux
+# ! git checkout origin/vexpress-vt
+# ! make ARCH=arm CROSS_COMPILE=<cross_compiler_prefix> vexpress_config
+# ! make ARCH=arm CROSS_COMPILE=<cross_compiler_prefix> -j8 Image
+# ! make ARCH=arm CROSS_COMPILE=<cross_compiler_prefix> vexpress-v2p-ca15-tc1.dtb
+#
+
+if { 0 } {
+
+	if {![file exists bin/linux]} {
+		puts "Download linux kernel ..."
+			exec >& /dev/null wget -c -O bin/linux http://genode.org/files/release-20.02/linux-arm64
+	}
+
+	if {![file exists bin/dtb]} {
+		puts "Download device tree blob ..."
+			exec >& /dev/null wget -c -O bin/dtb http://genode.org/files/release-20.02/dtb-arm64-virt
+	}
+
+	if {![file exists bin/initrd]} {
+		puts "Download initramfs ..."
+			exec >& /dev/null wget -c -O bin/initrd http://genode.org/files/release-20.02/initrd-arm64
+	}
+
+#
+# To obtain the linux kernel, do the following steps:
+# 
+# wget https://cdn.kernel.org/pub/linux/kernel/v4.x/linux-4.19.53.tar.xz
+# 
+# tar -xJf linux-4.19.53.tar.xz
+# cd linux-4.19.53
+# 
+# make O=../build-linux-aarch64 ARCH=arm64 CROSS_COMPILE=/usr/local/genode/tool/current/bin/genode-aarch64- defconfig
+# make O=../build-linux-aarch64 ARCH=arm64 CROSS_COMPILE=/usr/local/genode/tool/current/bin/genode-aarch64- -j32
+# 
+# copy ../build-linux-aarch64/arch/arm64/boot/Image to your build directory in 'bin/linux'
+#
+#
+# To get the dtb (device-tree-binary), you have to compile the file:
+# repos/os/src/server/vmm/spec/arm_v8/virt.dts with the dtc compiler:
+# dtc repos/os/src/server/vmm/spec/arm_v8/virt.dts > bin/dtb
+#
+#
+# To construct the initrd do the following:
+# * get and install gcc from linaro
+#      (https://releases.linaro.org/components/toolchain/binaries/latest-7/)
+# * build busybox
+#      wget https://busybox.net/downloads/busybox-1.29.3.tar.bz2
+#      tar xjf busybox-1.29.3.tar.bz2
+#      mkdir build-busybox-aarch64
+#      cd busybox-1.29.3
+#      make O=../build-busybox-aarch64 defconfig
+#      make O=../build-busybox-aarch64 menuconfig
+#
+#      [*] Setting ->  Build static binary (no shared libs)
+#
+#      cd ../build-busybox-aarch64
+#      make CROSS_COMPILE=/usr/local/gcc-linaro/bin/aarch64-linux-gnu- install -j6
+# * create ramdisk
+#      cd _install
+#      find . | cpio -H newc -o | gzip > ../initrd
+}
+
+set boot_modules {
+	core ld.lib.so init
+	timer
+	nic_router
+	log_terminal
+	vmm
+	linux
+	dtb
+}
+append_if [have_spec arm_64] boot_modules initrd
+build_boot_image $boot_modules
+
+#
+# Execute test case
+#
+run_genode_until forever
