@@ -50,7 +50,7 @@
 			dc-supply = <0x5>;
 			phandle = <0x6>;
 		};
-/*
+
 		cpu@1 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a53";
@@ -80,7 +80,7 @@
 			cpu-idle-states = <0x3>;
 			phandle = <0x9>;
 		};
-*/
+
 		l2-cache0 {
 			compatible = "cache";
 			phandle = <0x2>;
@@ -1966,7 +1966,7 @@
 
 	chosen {
 		/* bootargs = "root=/dev/block/dm-0 earlycon=pl011,0x9000000 init=/init cma=32M"; */
-		bootargs = "androidboot.boot_device_root=mmcblk1 androidboot.hardware=freescale earlycon=pl011,0x9000000 clk_ignore_unused androidboot.console=pl011 init=/init cma=32M androidboot.slot_suffix=_a androidboot.force_normal_boot=1 rootwait androidboot.verifiedbootstate=orange androidboot.flash.locked=0 androidboot.vbmeta.device_state=unlocked androidboot.vbmeta.size=3904 androidboot.vbmeta.hash_alg=sha256 androidboot.vbmeta.digest=dee55885d7cc7139193417f989245dd3dcd738107ab114cc1148217eb9dbe280 androidboot.vbmeta.invalidate_on_error=no androidboot.veritymode=disabled  androidboot.vbmeta.device=PARTUUID=$(ANDROID_VBMETA_PARTUUID) androidboot.vbmeta.avb_version=1.1 androidboot.keystore=software _class.path=/vendor/firmware androidboot.gui_resolution=1080p androidboot.fbTileSupport=enable androidboot.primary_display=imx_drm transparent_hugepage=never androidboot.lcd_density=213 loop.max_part=7 androidboot.serialno=021961d6f32ef628 buildvariant=userdebug androidboot.soc_type=imx8mq";
+		bootargs = "androidboot.boot_device_root=mmcblk1 androidboot.hardware=freescale clk_ignore_unused androidboot.console=hvc0 init=/init cma=32M androidboot.slot_suffix=_a androidboot.force_normal_boot=1 rootwait androidboot.verifiedbootstate=orange androidboot.flash.locked=0 androidboot.vbmeta.device_state=unlocked androidboot.vbmeta.size=3904 androidboot.vbmeta.hash_alg=sha256 androidboot.vbmeta.digest=dee55885d7cc7139193417f989245dd3dcd738107ab114cc1148217eb9dbe280 androidboot.vbmeta.invalidate_on_error=no androidboot.veritymode=disabled  androidboot.vbmeta.device=PARTUUID=$(ANDROID_VBMETA_PARTUUID) androidboot.vbmeta.avb_version=1.1 androidboot.keystore=software _class.path=/vendor/firmware androidboot.gui_resolution=1080p androidboot.fbTileSupport=enable androidboot.primary_display=imx_drm transparent_hugepage=never androidboot.lcd_density=213 loop.max_part=7 androidboot.serialno=021961d6f32ef628 buildvariant=userdebug androidboot.soc_type=imx8mq";
 		/* androidboot.slot_suffix=_a root=/dev/dm-0 dm='system none ro,0 1
 		 * android-verity /dev/mmcblk1p5' rootwait skip_initramfs"; */
 /*androidboot.gui_resolution=1080p androidboot.console=ttymxc0

@@ -24,7 +24,7 @@
 #include <virtio_console.h>
 #include <virtio_net.h>
 
-#include <base/attached_io_mem__dataspace.h>
+#include <base/attached_io_mem_dataspace.h>
 #include <base/attached_rom_dataspace.h>
 #include <vm_session/connection.h>
 
