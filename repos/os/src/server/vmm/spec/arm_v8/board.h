@@ -19,8 +19,8 @@ namespace Vmm {
 	enum {
 		SIZE_1_MB                 = 1024 * 1024,
 		KERNEL_OFFSET             = 0x80000,
-		INITRD_OFFSET             = 32 * SIZE_1_MB,
-		DTB_OFFSET                = 64 * SIZE_1_MB,
+		INITRD_OFFSET             = 48 * SIZE_1_MB,
+		DTB_OFFSET                = 80 * SIZE_1_MB,
 
 		GIC_VERSION               = 3,
 		GICD_MMIO_START           = 0x8000000,
@@ -41,8 +41,8 @@ namespace Vmm {
 		VIRTIO_NET_MMIO_SIZE      = 0x200,
 		VIRTIO_NET_IRQ            = 49,
 
-		RAM_START                 = 0x40000000,
-		RAM_SIZE                  = 128 * 1024 *1024,
+		RAM_START                 = 0x50000000,
+		RAM_SIZE                  = 0xb0000000,
 
 		VTIMER_IRQ                = 27,
 

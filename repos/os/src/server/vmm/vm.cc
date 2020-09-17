@@ -53,10 +53,17 @@ Vm::Vm(Genode::Env & env)
   _uart("Pl011", PL011_MMIO_START, PL011_MMIO_SIZE,
         PL011_IRQ, boot_cpu(), _bus, env),
   _virtio_console("HVC", VIRTIO_CONSOLE_MMIO_START, VIRTIO_CONSOLE_MMIO_SIZE,
-                  VIRTIO_CONSOLE_IRQ, boot_cpu(), _bus, _ram, env),
-  _virtio_net("Net", VIRTIO_NET_MMIO_START, VIRTIO_NET_MMIO_SIZE,
-              VIRTIO_NET_IRQ, boot_cpu(), _bus, _ram, env)
+                  VIRTIO_CONSOLE_IRQ, boot_cpu(), _bus, _ram, env)
 {
+
+	/* initialize pass-through hardware */
+	_construct_hw();
+
+	Genode::addr_t phys = Genode::Dataspace_client(_vm_ram.cap()).phys_addr();
+	if (phys != RAM_START)
+		Genode::error("Physical and RAM address mismatch (phys: ", Genode::Hex(phys),
+		              " ram: ", Genode::Hex(RAM_START));
+
 	_vm.attach(_vm_ram.cap(), RAM_START);
 
 	_load_kernel();
