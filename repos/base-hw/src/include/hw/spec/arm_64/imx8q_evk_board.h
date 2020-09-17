@@ -22,7 +22,7 @@ namespace Hw::Imx8q_evk_board {
 
 	enum {
 		RAM_BASE   = 0x40000000,
-		RAM_SIZE   = 0xc0000000,
+		RAM_SIZE   = 0x10000000,
 
 		UART_BASE  = 0x30860000,
 		UART_SIZE  = 0x1000,
