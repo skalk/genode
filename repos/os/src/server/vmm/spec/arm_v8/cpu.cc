@@ -240,6 +240,7 @@ Cpu::Cpu(Vm                      & vm,
   _sr_mdscr           (2, 0, 0, 2, 2, "MDSCR_EL1",        true,  0x0, _reg_tree),
   _sr_osdlr           (2, 1, 0, 3, 4, "OSDLR_EL1",        true,  0x0, _reg_tree),
   _sr_oslar           (2, 1, 0, 0, 4, "OSLAR_EL1",        true,  0x0, _reg_tree),
+  _sr_oslsr           (2, 1, 0, 1, 4, "OSLSR_EL1",        true,  0x0, _reg_tree),
   _sr_sgi1r_el1       (_reg_tree, vm)
 {
 	_state.pstate     = 0b1111000101; /* el1 mode and IRQs disabled */

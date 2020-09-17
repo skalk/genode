@@ -147,6 +147,9 @@ void Cpu_base::_handle_hyper_call()
 			});
 			_state.reg(0, Psci::SUCCESS);
 			return;
+		case Psci::CPU_SUSPEND:
+			_state.reg(0, Psci::SUCCESS);
+			return;
 		default:
 			Genode::warning("unknown hypercall! ", cpu_id());
 			dump();
