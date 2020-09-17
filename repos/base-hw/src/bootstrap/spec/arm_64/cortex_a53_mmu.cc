@@ -71,8 +71,8 @@ static inline void prepare_hypervisor(Cpu::Ttbr::access_t const ttbr,
 	/* allow physical counter/timer access without trapping */
 	Cpu::Cnthctl_el2::write(0b111);
 
-	/* forbid any 32bit access to coprocessor/sysregs */
-	Cpu::Hstr_el2::write(0xffff);
+	/* forbid any 32bit access to coprocessor/sysregs but C13 */
+	Cpu::Hstr_el2::write(0xdfff);
 
 	Cpu::Hcr_el2::access_t hcr = Cpu::Hcr_el2::read();
 	Cpu::Hcr_el2::Rw::set(hcr, 1); /* exec in aarch64 */
