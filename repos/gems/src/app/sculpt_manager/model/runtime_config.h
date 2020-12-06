@@ -327,6 +327,7 @@ class Sculpt::Runtime_config
 				_backdrop  { _r, Type::GUI,         "desktop background",             "backdrop" },
 				_lockscreen{ _r, Type::GUI,         "desktop lock screen",            "lock_screen" },
 				_nitpicker { _r, Type::GUI,         "system GUI server" },
+				_event     { _r, Type::EVENT,       "system input events" },
 				_config_fs { _r, Type::FILE_SYSTEM, "writeable system configuration", "config" },
 				_report_fs { _r, Type::FILE_SYSTEM, "read-only system reports",       "report" },
 				_capslock  { _r, Type::ROM,         "global capslock state",          "capslock" },

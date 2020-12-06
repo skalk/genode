@@ -25,7 +25,7 @@ struct Sculpt::Service
 	typedef String<32> Info;
 
 	enum class Type {
-		AUDIO_IN, AUDIO_OUT, BLOCK, FILE_SYSTEM, NIC, GUI,
+		AUDIO_IN, AUDIO_OUT, BLOCK, EVENT, FILE_SYSTEM, NIC, GUI,
 		RM, IO_MEM, IO_PORT, IRQ, REPORT, ROM, TERMINAL, TRACE,
 		USB, RTC, PLATFORM, VM, UNDEFINED };
 
@@ -46,6 +46,7 @@ struct Sculpt::Service
 		case Type::AUDIO_IN:    return "Audio_in";
 		case Type::AUDIO_OUT:   return "Audio_out";
 		case Type::BLOCK:       return "Block";
+		case Type::EVENT:       return "Event";
 		case Type::FILE_SYSTEM: return "File_system";
 		case Type::NIC:         return "Nic";
 		case Type::GUI:         return "Gui";

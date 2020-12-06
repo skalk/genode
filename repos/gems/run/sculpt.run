@@ -490,6 +490,7 @@ install_config {
 			<service name="LOG" label="unlogged"> <parent/> </service>
 			<service name="LOG"> <child name="log"/> </service>
 			<service name="ROM" label="nic_drv"> <parent label="} [nic_drv] {"/> </service>
+			<service name="Event"> <child name="nitpicker"/> </service>
 			<any-service> <parent/> </any-service>
 		</route>
 	</start>
