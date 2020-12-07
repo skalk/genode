@@ -1,0 +1,9 @@
+<RCC>
+    <qresource prefix="/">
+        <file>content/AutoScroller.qml</file>
+        <file>content/FloatingButton_Active.svg</file>
+        <file>content/FloatingButton_Available.svg</file>
+        <file>content/FloatingButton_Unavailable.svg</file>
+        <file>virtualkeyboard.qml</file>
+    </qresource>
+</RCC>
