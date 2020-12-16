@@ -1,0 +1,79 @@
+<runtime ram="256M" caps="2000" binary="init" config="wm.config">
+
+	<requires>
+		<event/>
+		<gui label="focus"/>
+		<gui/>
+		<report label="shape"/>
+		<report label="clipboard"/>
+		<rom    label="clipboard"/>
+		<timer/>
+	</requires>
+
+	<provides> <gui/> <report/> <rom/> </provides>
+
+	<content>
+		<!-- libraries -->
+		<rom label="egl.lib.so"/>
+		<rom label="expat.lib.so"/>
+		<rom label="freetype.lib.so"/>
+		<rom label="glapi.lib.so"/>
+		<rom label="jpeg.lib.so"/>
+		<rom label="libQt5Core.lib.so"/>
+		<rom label="libQt5Gui.lib.so"/>
+		<rom label="libQt5Network.lib.so"/>
+		<rom label="libQt5Qml.lib.so"/>
+		<rom label="libQt5Quick.lib.so"/>
+		<rom label="libQt5QuickControls2.lib.so"/>
+		<rom label="libQt5QuickTemplates2.lib.so"/>
+		<rom label="libQt5QuickWidgets.lib.so"/>
+		<rom label="libQt5Svg.lib.so"/>
+		<rom label="libQt5VirtualKeyboard.lib.so"/>
+		<rom label="libQt5Widgets.lib.so"/>
+		<rom label="libc.lib.so"/>
+		<rom label="libm.lib.so"/>
+		<rom label="libpng.lib.so"/>
+		<rom label="libqgenode.lib.so"/>
+		<rom label="libqmlfolderlistmodelplugin.lib.so"/>
+		<rom label="libqquicklayoutsplugin.lib.so"/>
+		<rom label="libqsvg.lib.so"/>
+		<rom label="libqtquick2plugin.lib.so"/>
+		<rom label="libqtquickcontrols2plugin.lib.so"/>
+		<rom label="libqtquicktemplates2plugin.lib.so"/>
+		<rom label="libqtquickvirtualkeyboardplugin.lib.so"/>
+		<rom label="libqtquickvirtualkeyboardsettingsplugin.lib.so"/>
+		<rom label="libqtquickvirtualkeyboardstylesplugin.lib.so"/>
+		<rom label="libqtvirtualkeyboardplugin.lib.so"/>
+		<rom label="libwindowplugin.lib.so"/>
+		<rom label="mesa.lib.so"/>
+		<rom label="qt5_component.lib.so"/>
+		<rom label="stdcxx.lib.so"/>
+		<rom label="vfs.lib.so"/>
+		<rom label="vfs_event.lib.so"/>
+		<rom label="vfs_pipe.lib.so"/>
+		<rom label="zlib.lib.so"/>
+
+		<!-- data -->
+		<rom label="no_decorator_theme.tar"/>
+		<rom label="qt5_declarative_qml.tar"/>
+		<rom label="qt5_dejavusans.tar"/>
+		<rom label="qt5_libqgenode.tar"/>
+		<rom label="qt5_libqsvg.tar"/>
+		<rom label="qt5_libqtvirtualkeyboardplugin.tar"/>
+		<rom label="qt5_quickcontrols2_qml.tar"/>
+		<rom label="qt5_virtualkeyboard_app.config"/>
+		<rom label="qt5_virtualkeyboard_qml.tar"/>
+		<rom label="wm.config"/>
+
+		<!-- binaries -->
+		<rom label="fs_rom"/>
+		<rom label="mobile_shell"/>
+		<rom label="report_rom"/>
+		<rom label="test-qt_quickcontrols_panel"/>
+		<rom label="themed_decorator"/>
+		<rom label="vfs"/>
+		<rom label="virtualkeyboard"/>
+		<rom label="wm"/>
+	</content>
+
+</runtime>

@@ -1,0 +1,7 @@
+<theme>
+	<aura  top="0"  bottom="0" left="0" right="0"/>
+	<decor top="0" bottom="0" left="0" right="0"/>
+	<title xpos="0" ypos="0" width="0" height="0"/>
+	<closer xpos="0" ypos="0"/>
+	<maximizer xpos="0" ypos="0"/>
+</theme>
