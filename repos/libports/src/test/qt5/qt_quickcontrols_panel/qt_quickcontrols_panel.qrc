@@ -1,0 +1,9 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+<qresource prefix="/">
+<file>content/input-keyboard-symbolic.svg</file>
+<file>content/video-display-symbolic.svg</file>
+<file>content/web-browser-symbolic.svg</file>
+<file>qt_quickcontrols_panel.qml</file>
+</qresource>
+</RCC>
