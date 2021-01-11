@@ -20,7 +20,7 @@ namespace Kernel
 {
 	enum {
 		DEFAULT_STACK_SIZE = 16 * 1024,
-		DEFAULT_TRANSLATION_TABLE_MAX = 128,
+		DEFAULT_TRANSLATION_TABLE_MAX = 512,
 	};
 
 	/* amount of priority bands amongst quota owners in CPU scheduling */
