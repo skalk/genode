@@ -58,7 +58,7 @@ struct Sculpt::Deploy
 	Arch _arch { };
 
 	Child_state cached_depot_rom_state {
-		_child_states, "depot_rom", Ram_quota{24*1024*1024}, Cap_quota{200} };
+		_child_states, "depot_rom", Ram_quota{256*1024*1024}, Cap_quota{200} };
 
 	Child_state uncached_depot_rom_state {
 		_child_states, "dynamic_depot_rom", Ram_quota{8*1024*1024}, Cap_quota{200} };
