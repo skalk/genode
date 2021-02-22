@@ -30,6 +30,7 @@ using Label = String<64>;
 static inline void gen_parent_provides(Xml_generator & xml)
 {
 	xml.node("parent-provides", [&] () {
+			gen_parent_service<Rm_session>(xml);
 			gen_parent_service<Rom_session>(xml);
 			gen_parent_service<Cpu_session>(xml);
 			gen_parent_service<Pd_session>(xml);
@@ -154,6 +155,7 @@ static inline void gen_publisher(Xml_generator & xml)
 		});
 
 		xml.node("route", [&] () {
+			gen_parent_route<Rm_session>(xml);
 			gen_parent_route<Rom_session>(xml);
 			gen_parent_route<Cpu_session>(xml);
 			gen_parent_route<Pd_session> (xml);
@@ -208,6 +210,7 @@ static inline void gen_subscriber(Xml_generator & xml, System_state & state)
 		});
 
 		xml.node("route", [&] () {
+			gen_parent_route<Rm_session>(xml);
 			gen_parent_route<Rom_session>(xml);
 			gen_parent_route<Cpu_session>(xml);
 			gen_parent_route<Pd_session> (xml);
