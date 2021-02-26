@@ -1,0 +1,314 @@
+#
+# \brief  Application gateway prototype - test system_manager component under Linux
+# \author Stefan Kalkowski
+# \date   2021-02-22
+#
+
+assert_spec linux
+
+set lighttpd [installed_command lighttpd]
+
+# To execute this script, first setup the necessary tap devices in Linux.
+# Please check beforehand that your local NAT ip subnet does not collide
+# with the ones used in this script:
+#
+# ! sudo ip tuntap add dev tap_green mode tap user $USER
+# ! sudo ip tuntap add dev tap_blue  mode tap user $USER
+# ! sudo ip address flush dev tap_green
+# ! sudo ip address flush dev tap_blue
+# ! sudo ip address add 10.0.128.1/24 dev tap_green
+# ! sudo ip address add 10.0.129.1/24 dev tap_blue
+# ! sudo ip link set tap_green addr 02:00:00:be:af:01
+# ! sudo ip link set tap_blue  addr 02:00:00:be:af:02
+# ! sudo ip link set tap_green up
+# ! sudo ip link set tap_blue  up
+#
+# After using the script, if you want to cleanup your virtual networks again
+# you can do:
+#
+# ! sudo ip link set tap_green down
+# ! sudo ip link set tap_blue  down
+# ! sudo ip address flush dev tap_green
+# ! sudo ip address flush dev tap_blue
+# ! sudo ip tuntap del dev tap_green mode tap
+# ! sudo ip tuntap del dev tap_blue  mode tap
+
+create_boot_directory
+import_from_depot [depot_user]/src/[base_src] \
+                  [depot_user]/pkg/[drivers_nic_pkg] \
+                  [depot_user]/src/coreutils-minimal \
+                  [depot_user]/src/curl \
+                  [depot_user]/src/fetchurl \
+                  [depot_user]/src/fs_rom \
+                  [depot_user]/src/init \
+                  [depot_user]/src/libc \
+                  [depot_user]/src/libssh \
+                  [depot_user]/src/lighttpd \
+                  [depot_user]/src/linux_rtc_drv \
+                  [depot_user]/src/nic_router \
+                  [depot_user]/src/openssl \
+                  [depot_user]/src/posix \
+                  [depot_user]/src/report_rom \
+                  [depot_user]/src/vfs \
+                  [depot_user]/src/vfs_lxip \
+                  [depot_user]/src/vfs_jitterentropy \
+                  [depot_user]/src/zlib
+
+build { app/system_manager }
+
+install_config {
+<config verbose="yes">
+	<parent-provides>
+		<service name="CPU"/>
+		<service name="IO_MEM"/>
+		<service name="IRQ"/>
+		<service name="LOG"/>
+		<service name="PD"/>
+		<service name="ROM"/>
+	</parent-provides>
+
+	<default caps="100"/>
+
+	<start name="timer">
+		<resource name="RAM" quantum="1M"/>
+		<provides><service name="Timer"/></provides>
+		<route>
+			<service name="CPU"> <parent/> </service>
+			<service name="LOG"> <parent/> </service>
+			<service name="PD">  <parent/> </service>
+			<service name="ROM"> <parent/> </service>
+		</route>
+	</start>
+
+	<start name="rtc_drv" ld="no">
+		<binary name="linux_rtc_drv"/>
+		<resource name="RAM" quantum="1M"/>
+		<provides><service name="Rtc"/></provides>
+		<config/>
+		<route>
+			<service name="CPU"> <parent/> </service>
+			<service name="LOG"> <parent/> </service>
+			<service name="PD">  <parent/> </service>
+			<service name="ROM"> <parent/> </service>
+		</route>
+	</start>
+
+	<start name="nat_green">
+		<binary name="nic_router"/>
+		<resource name="RAM" quantum="8M"/>
+		<provides>
+			<service name="Nic"/>
+			<service name="Uplink"/>
+		</provides>
+		<config>
+			<policy label_prefix="nic_drv_green" domain="uplink"/>
+			<default-policy domain="default"/>
+
+			<domain name="uplink"  interface="10.0.128.2/24" gateway="10.0.128.1">
+				<tcp-forward port="80" domain="default" to="10.0.2.2"/>
+				<nat domain="default" tcp-ports="50"/>
+			</domain>
+			<domain name="default" interface="10.0.2.1/24">
+				<dhcp-server ip_first="10.0.2.2" ip_last="10.0.2.2" />
+				<tcp dst="0.0.0.0/0"> <permit-any domain="uplink"/> </tcp>
+			</domain>
+		</config>
+		<route>
+			<service name="CPU">   <parent/> </service>
+			<service name="LOG">   <parent/> </service>
+			<service name="PD">    <parent/> </service>
+			<service name="ROM">   <parent/> </service>
+			<service name="Timer"> <child name="timer"/> </service>
+		</route>
+	</start>
+
+	<start name="nat_blue">
+		<binary name="nic_router"/>
+		<resource name="RAM" quantum="8M"/>
+		<provides>
+			<service name="Nic"/>
+			<service name="Uplink"/>
+		</provides>
+		<config>
+			<policy label_prefix="nic_drv_blue" domain="uplink"/>
+			<default-policy domain="default"/>
+
+			<domain name="uplink"  interface="10.0.129.2/24" gateway="10.0.129.1">
+				<nat domain="default" tcp-ports="50"/>
+			</domain>
+			<domain name="default" interface="10.0.2.1/24">
+				<dhcp-server ip_first="10.0.2.2" ip_last="10.0.2.2" />
+				<tcp dst="0.0.0.0/0"> <permit-any domain="uplink"/> </tcp>
+			</domain>
+		</config>
+		<route>
+			<service name="CPU">   <parent/> </service>
+			<service name="LOG">   <parent/> </service>
+			<service name="PD">    <parent/> </service>
+			<service name="ROM">   <parent/> </service>
+			<service name="Timer"> <child name="timer"/> </service>
+		</route>
+	</start>
+
+	<start name="nic_drv_green" ld="no">
+		<binary name="linux_nic_drv"/>
+		<resource name="RAM" quantum="4M"/>
+		<config mode="uplink_client"> <nic tap="tap_green"/> </config>
+		<route>
+			<service name="CPU">   <parent/> </service>
+			<service name="LOG">   <parent/> </service>
+			<service name="PD">    <parent/> </service>
+			<service name="ROM">   <parent/> </service>
+			<service name="Uplink"> <child name="nat_green"/> </service>
+		</route>
+	</start>
+
+	<start name="nic_drv_blue" ld="no">
+		<binary name="linux_nic_drv"/>
+		<resource name="RAM" quantum="4M"/>
+		<config mode="uplink_client"> <nic tap="tap_blue"/> </config>
+		<route>
+			<service name="CPU">   <parent/> </service>
+			<service name="LOG">   <parent/> </service>
+			<service name="PD">    <parent/> </service>
+			<service name="ROM">   <parent/> </service>
+			<service name="Uplink"> <child name="nat_blue"/> </service>
+		</route>
+	</start>
+
+	<start name="report_rom" caps="150">
+		<resource name="RAM" quantum="12M"/>
+		<provides>
+			<service name="Report"/>
+			<service name="ROM"/>
+		</provides>
+		<config verbose="yes">
+			<policy label="runtime -> config"
+			        report="system_manager -> runtime_config"/>
+			<policy label="system_manager -> subscriber_state"
+			        report="runtime -> subscriber -> progress"/>
+			<policy label="system_manager -> runtime_state"
+			        report="runtime -> state"/>
+		</config>
+		<route>
+			<service name="CPU"> <parent/> </service>
+			<service name="LOG"> <parent/> </service>
+			<service name="PD">  <parent/> </service>
+			<service name="ROM"> <parent/> </service>
+		</route>
+	</start>
+
+	<start name="system_manager">
+		<resource name="RAM" quantum="2M"/>
+		<config verbose="yes" interval_ms="20000">
+			<resource name="resource-1.xml"
+			          url="http://10.0.129.1:8888/resource-1.xml"/>
+			<resource name="resource-2.xml"
+			          url="http://10.0.129.1:8888/resource-2.xml"/>
+		</config>
+		<route>
+			<service name="ROM" label="subscriber_state">
+				<child name="report_rom"/> </service>
+			<service name="ROM" label="runtime_state">
+				<child name="report_rom"/> </service>
+			<service name="CPU">    <parent/> </service>
+			<service name="LOG">    <parent/> </service>
+			<service name="PD">     <parent/> </service>
+			<service name="ROM">    <parent/> </service>
+			<service name="Report"> <child name="report_rom"/> </service>
+			<service name="Timer">  <child name="timer"/>      </service>
+		</route>
+	</start>
+
+	<start name="runtime" caps="8000">
+		<binary name="init"/>
+		<resource name="RAM" quantum="2G"/>
+		<route>
+			<service name="Nic" label="green">  <child name="nat_green"/>  </service>
+			<service name="Nic" label="blue">   <child name="nat_blue"/>   </service>
+			<service name="ROM" label="config"> <child name="report_rom"/> </service>
+			<service name="Timer">              <child name="timer"/>      </service>
+			<service name="Report">             <child name="report_rom"/> </service>
+			<service name="Rtc">                <child name="rtc_drv"/>    </service>
+			<service name="CPU"> <parent/> </service>
+			<service name="LOG"> <parent/> </service>
+			<service name="PD">  <parent/> </service>
+			<service name="ROM"> <parent/> </service>
+		</route>
+	</start>
+</config>
+}
+
+#
+# Create lighttpd configuration for the publisher (green) example side
+#
+set fd [open "bin/lighttpd.conf" w]
+puts $fd {
+server.port                    = 80
+server.document-root           = "/content"
+server.event-handler           = "select"
+server.network-backend         = "write"
+server.max-keep-alive-requests = 0
+index-file.names               = ( "index", "index.html", "index.htm" )
+mimetype.assign                = (
+                                   ".png"  => "image/png",
+                                   ".jpg"  => "image/jpeg",
+                                   ".jpeg" => "image/jpeg",
+                                   ".gif"  => "image/gif",
+                                   ".css"  => "text/css",
+                                   ".html" => "text/html",
+                                   ".htm"  => "text/html",
+                                   ""      => "text/html",
+                                 ) }
+close $fd
+
+#
+#
+#
+exec mkdir -p /tmp/system_manager-run-env/content
+set fd [open "/tmp/system_manager-run-env/lighttpd.conf" w]
+puts $fd {
+server.bind                    = "10.0.129.1"
+server.port                    = 8888
+server.document-root           = "/tmp/system_manager-run-env/content"
+server.pid-file                = "/tmp/system_manager-run-env/lighttpd.pid"
+server.event-handler           = "select"
+server.network-backend         = "write"
+server.max-keep-alive-requests = 0
+index-file.names               = ( "index", "index.html", "index.htm" )
+mimetype.assign                = (
+                                   ".png"  => "image/png",
+                                   ".jpg"  => "image/jpeg",
+                                   ".jpeg" => "image/jpeg",
+                                   ".gif"  => "image/gif",
+                                   ".css"  => "text/css",
+                                   ".html" => "text/html",
+                                   ".htm"  => "text/html",
+                                   ""      => "text/html",
+                                 ) }
+close $fd
+
+set fd [open "/tmp/system_manager-run-env/content/resource-1.xml" w]
+puts $fd { <xml syntax="correct"/> }
+close $fd
+
+set fd [open "/tmp/system_manager-run-env/content/resource-2.xml" w]
+puts $fd { <xml syntax="broken" }
+close $fd
+
+spawn $lighttpd -f /tmp/system_manager-run-env/lighttpd.conf -D
+
+rename exit original_exit
+proc exit args {
+	if {[file exists /tmp/system_manager-run-env/lighttpd.pid]} {
+		exec pkill -F /tmp/system_manager-run-env/lighttpd.pid }
+	exec rm -rf /tmp/system_manager-run-env bin/lighttpd.conf
+	tailcall original_exit {*}$args
+}
+
+build_boot_image { system_manager lighttpd.conf }
+
+run_genode_until forever
+
+# You can now access the green publishing side, e.g., via:
+# ! wget 10 10.0.128.2:80/resource-1.xml
