@@ -1,0 +1,260 @@
+/**
+ * Stripped down version of the MNT Reform 2 device tree,
+ * display subsystem only
+ */
+
+/dts-v1/;
+
+/ {
+	interrupt-parent = <0x1>;
+	#address-cells = <0x2>;
+	#size-cells = <0x2>;
+	model = "MNT Reform 2";
+	compatible = "boundary,imx8mq-nitrogen8m_som", "fsl,imx8mq";
+
+	dtimer: dde-timer {
+		compatible = "dde-timer";
+	};
+
+	dirq: dde-interrupt-controller {
+		compatible = "dde-irq-control";
+		interrupt-controller;
+		#interrupt-cells = <0x3>;
+		interrupt-parent = <0x1>;
+		phandle = <0x1>;
+	};
+
+	soc@0 {
+		compatible = "simple-bus";
+		#address-cells = <0x1>;
+		#size-cells = <0x1>;
+		ranges = <0x0 0x0 0x0 0x3e000000>;
+		dma-ranges = <0x40000000 0x0 0x40000000 0xc0000000>;
+
+		bus@30000000 {
+			compatible = "fsl,aips-bus", "simple-bus";
+			reg = <0x301f0000 0x10000>;
+			#address-cells = <0x1>;
+			#size-cells = <0x1>;
+			ranges = <0x30000000 0x30000000 0x400000>;
+
+			lcd-controller@30320000 {
+				compatible = "fsl,imx8mq-lcdif", "fsl,imx28-lcdif";
+				reg = <0x30320000 0x10000>;
+				interrupts = <0x0 0x5 0x4>;
+				clocks = <0x2 0x80>;
+				clock-names = "pix";
+				assigned-clocks = <0x2 0x21 0x2 0x24 0x2 0x80 0x2 0x23>;
+				assigned-clock-parents = <0x2 0x2 0x2 0x23 0x2 0x25>;
+				assigned-clock-rates = <0x0 0x0 0x0 0x2367b880>;
+				status = "okay";
+			};
+		};
+
+		bus@30800000 {
+			compatible = "fsl,aips-bus", "simple-bus";
+			reg = <0x309f0000 0x10000>;
+			#address-cells = <0x1>;
+			#size-cells = <0x1>;
+			ranges = <0x30800000 0x30800000 0x400000 0x8000000 0x8000000 0x10000000>;
+
+			mipi_dsi@30a00000 { /* KEEP */
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				compatible = "fsl,imx8mq-nwl-dsi";
+				reg = <0x30a00000 0x300>;
+				clocks = <0x2 0xa3 0x2 0xf4 0x2 0xf5 0x2 0xa4 0x2 0x80>;
+				clock-names = "core", "rx_esc", "tx_esc", "phy_ref", "lcdif";
+				assigned-clocks = <0x2 0xf4 0x2 0xa3 0x2 0xf5>;
+				assigned-clock-parents = <0x2 0x47 0x2 0x4c>;
+				assigned-clock-rates = <0x4c4b400 0xfdad680 0x1312d00>;
+				interrupts = <0x0 0x22 0x4>;
+				power-domains = <0x24>;
+				resets = <0x25 0x15 0x25 0x17 0x25 0x18 0x25 0x19>;
+				reset-names = "byte", "dpi", "esc", "pclk";
+				mux-controls = <0x26 0x0>;
+				phys = <0x27>;
+				phy-names = "dphy";
+				status = "okay";
+
+				ports {
+					#address-cells = <0x1>;
+					#size-cells = <0x0>;
+
+					port@0 {
+						#address-cells = <0x1>;
+						#size-cells = <0x0>;
+						reg = <0x0>;
+
+						endpoint@1 {
+							reg = <0x1>;
+							remote-endpoint = <0x28>;
+							phandle = <0x41>;
+						};
+					};
+
+					port@1 {
+						reg = <0x1>;
+
+						endpoint {
+							remote-endpoint = <0x29>;
+							phandle = <0x35>;
+						};
+					};
+				};
+			};
+
+			dphy@30a00300 {
+				compatible = "fsl,imx8mq-mipi-dphy";
+				reg = <0x30a00300 0x100>;
+				clocks = <0x2 0xa4>;
+				clock-names = "phy_ref";
+				assigned-clocks = <0x2 0xa4>;
+				assigned-clock-parents = <0x2 0x25>;
+				assigned-clock-rates = <0x16e3600>;
+				#phy-cells = <0x0>;
+				power-domains = <0x24>;
+				status = "okay";
+				phandle = <0x27>;
+			};
+
+			i2c@30a50000 { /* KEEP */
+				compatible = "fsl,imx8mq-i2c", "fsl,imx21-i2c";
+				reg = <0x30a50000 0x10000>;
+				interrupts = <0x0 0x26 0x4>;
+				clocks = <0x2 0xbb>;
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				status = "okay";
+				pinctrl-names = "default";
+				pinctrl-0 = <0x34>;
+
+				sn65dsi86@2c {
+					compatible = "ti,sn65dsi86";
+					reg = <0x2c>;
+					status = "okay";
+					enable-gpios = <0x2e 0x14 0x0>;
+
+					ports {
+						#address-cells = <0x1>;
+						#size-cells = <0x0>;
+
+						port@0 {
+							reg = <0x0>;
+
+							endpoint {
+								remote-endpoint = <0x35>;
+								phandle = <0x29>;
+							};
+						};
+
+						port@1 {
+							reg = <0x1>;
+
+							endpoint {
+								remote-endpoint = <0x36>;
+								phandle = <0x54>;
+							};
+						};
+					};
+				};
+			};
+		};
+
+		bus@32c00000 {
+			compatible = "fsl,aips-bus", "simple-bus";
+			reg = <0x32df0000 0x10000>;
+			#address-cells = <0x1>;
+			#size-cells = <0x1>;
+			ranges = <0x32c00000 0x32c00000 0x400000>;
+
+			hdmi@32c00000 { /* KEEP */
+				reg = <0x32c00000 0x100000 0x32e40000 0x40000>;
+				interrupts = <0x0 0x10 0x4 0x0 0x19 0x4>;
+				interrupt-names = "plug_in", "plug_out";
+				compatible = "cdn,imx8mq-hdmi";
+				lane-mapping = <0xe4>;
+				status = "okay";
+
+				port@1 {
+
+					endpoint {
+						remote-endpoint = <0x3f>;
+						phandle = <0x42>;
+					};
+				};
+			};
+
+			interrupt-controller@32e2d000 {
+				compatible = "fsl,imx8m-irqsteer", "fsl,imx-irqsteer";
+				reg = <0x32e2d000 0x1000>;
+				interrupts = <0x0 0x12 0x4>;
+				clocks = <0x2 0xf8>;
+				clock-names = "ipg";
+				fsl,channel = <0x0>;
+				fsl,num-irqs = <0x40>;
+				interrupt-controller;
+				#interrupt-cells = <0x1>;
+				phandle = <0x40>;
+			};
+
+			display-controller@32e00000 { /* KEEP */
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				compatible = "nxp,imx8mq-dcss";
+				reg = <0x32e00000 0x2d000 0x32e2f000 0x1000>;
+				interrupts = <0x6 0x8 0x9 0x10 0x11>;
+				interrupt-names = "ctxld", "ctxld_kick", "vblank", "dtrc_ch1", "dtrc_ch2";
+				interrupt-parent = <0x40>;
+				clocks = <0x2 0xf8 0x2 0xf7 0x2 0xf9 0x2 0xfe 0x2 0x7f 0x2 0x7a 0x2 0x10a 0x2 0x122>;
+				clock-names = "apb", "axi", "rtrm", "pix", "pix2", "dtrc", "pll_src", "pll_phy_ref";
+				assigned-clocks = <0x2 0x7f 0x2 0x24 0x2 0x21 0x2 0x6b 0x2 0x6d>;
+				assigned-clock-parents = <0x2 0x25 0x2 0x23 0x2 0x2 0x2 0x4e 0x2 0x4e>;
+				assigned-clock-rates = <0x2367b880 0x0 0x0 0x2faf0800 0x17d78400>;
+				status = "okay";
+
+				port@0 {
+					reg = <0x0>;
+
+					endpoint {
+						remote-endpoint = <0x41>;
+						phandle = <0x28>;
+					};
+				};
+
+				port@1 {
+					reg = <0x1>;
+
+					endpoint {
+						remote-endpoint = <0x42>;
+						phandle = <0x3f>;
+					};
+				};
+			};
+		};
+	};
+
+	panel { /* KEEP */
+		compatible = "innolux,n125hce-gn1", "simple-panel";
+		status = "okay";
+		no-hpd;
+		power = <0x33>;
+
+		port@0 {
+
+			endpoint {
+				remote-endpoint = <0x54>;
+				phandle = <0x36>;
+			};
+		};
+	};
+
+	regulator-vref-3v3 { /* KEEP */
+		compatible = "regulator-fixed";
+		regulator-name = "vref-3v3";
+		regulator-min-microvolt = <0x325aa0>;
+		regulator-max-microvolt = <0x325aa0>;
+		regulator-always-on;
+		phandle = <0x33>;
+	};
+};

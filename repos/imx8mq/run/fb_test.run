@@ -1,0 +1,298 @@
+create_boot_directory
+import_from_depot [depot_user]/src/[base_src] \
+                  [depot_user]/src/init
+
+build {
+	drivers/platform
+	drivers/framebuffer
+	drivers/pwm
+	drivers/gpio
+	drivers/i2c
+	test/framebuffer
+}
+
+install_config {
+<config>
+	<parent-provides>
+		<service name="ROM"/>
+		<service name="IRQ"/>
+		<service name="IO_MEM"/>
+		<service name="IO_PORT"/>
+		<service name="PD"/>
+		<service name="RM"/>
+		<service name="CPU"/>
+		<service name="LOG"/>
+	</parent-provides>
+	<default-route>
+		<any-service> <parent/> <any-child/> </any-service>
+	</default-route>
+	<default caps="100"/>
+
+	<start name="timer">
+		<resource name="RAM" quantum="1M"/>
+		<provides><service name="Timer"/></provides>
+	</start>
+
+	<start name="platform_drv" caps="150">
+		<binary name="imx8mq_platform_drv"/>
+		<resource name="RAM" quantum="1M"/>
+		<provides> <service name="Platform"/> </provides>
+		<config>
+
+			<!-- GPIO banks -->
+			<device name="gpio1">
+				<io_mem address="0x30200000" size="0x10000"/>
+				<irq number="96"/>
+				<irq number="97"/>
+			</device>
+			<device name="gpio2">
+				<io_mem address="0x30210000" size="0x10000"/>
+				<irq number="98"/>
+				<irq number="99"/>
+			</device>
+			<device name="gpio3">
+				<io_mem address="0x30220000" size="0x10000"/>
+				<irq number="100"/>
+				<irq number="101"/>
+			</device>
+			<device name="gpio4">
+				<io_mem address="0x30230000" size="0x10000"/>
+				<irq number="102"/>
+				<irq number="103"/>
+			</device>
+			<device name="gpio5">
+				<io_mem address="0x30240000" size="0x10000"/>
+				<irq number="104"/>
+				<irq number="105"/>
+			</device>
+
+			<device name="lcd" type="fsl,imx28-lcdif">
+				<io_mem address="0x30320000" size="0x10000"/>
+				<irq    number="37"/>
+				<clock name="lcdif_pixel_clk_root"
+				       parent="video_pll1_clk"
+				       rate="594000000"
+				       driver_name="pix"/>
+			</device>
+
+			<device name="mipi_dsi" type="fsl,imx8mq-nwl-dsi">
+				<io_mem       address="0x30a00000" size="0x1000"/>
+				<irq          number="66"/>
+				<power-domain name="mipi"/>
+				<clock        name="mipi_dsi_phy_ref_clk_root"
+				              driver_name="phy_ref"/>
+
+				<clock        name="mipi_dsi_esc_rx_clk_root"
+				              parent="system_pll1_div10"
+				              rate="80000000"
+				              driver_name="rx_esc"/>
+
+				<clock        name="mipi_dsi_core_clk_root"
+				              parent="system_pll1_div3"
+				              rate="266000000"
+				              driver_name="core"/>
+
+				<clock        name="mipi_dsi_esc_clk_root"
+				              rate="20000000"
+				              driver_name="tx_esc"/>
+
+				<clock        name="lcdif_pixel_clk_root"
+				              driver_name="lcdif"/>
+			</device>
+
+			<device name="pclk" type="reset-pin,pclk">
+				<reset-domain name="mipi_dsi_pclk"/>
+			</device>
+
+			<device name="esc" type="reset-pin,esc">
+				<reset-domain name="mipi_dsi_esc"/>
+				<reset-domain name="mipi_dsi_byte"/>
+			</device>
+
+			<device name="dpi" type="reset-pin,dpi">
+				<reset-domain name="mipi_dsi_dpi"/>
+			</device>
+
+			<device name="mipi_dsi_phy" type="fsl,imx8mq-mipi-dphy">
+				<clock name="video_pll1_clk"
+				       parent="25m_ref_clk"
+				       rate="1200000000" />
+				<clock name="mipi_dsi_phy_ref_clk_root"
+				       parent="video_pll1_clk"
+				       rate="24000000"
+				       driver_name="phy_ref"/>
+			</device>
+
+			<device name="dcss" type="nxp,imx8mq-dcss">
+				<io_mem address="0x32e00000" size="0x2d000"/>
+				<io_mem address="0x32e2f000" size="0x1000"/>
+				<clock  name="display_apb_clk_root"
+				        driver_name="apb"/>
+				<clock  name="display_axi_clk_root"
+				        parent="system_pll1_clk"
+				        rate="800000000"
+				        driver_name="axi"/>
+				<clock  name="display_rtrm_clk_root"
+				        parent="system_pll1_clk"
+				        rate="400000000"
+				        driver_name="rtrm"/>
+				<clock  name="video_pll1_clk"
+				        parent="25m_ref_clk"
+				        rate="1200000000" />
+				<clock  name="display_dtrc_clk_root"
+				        driver_name="dtrc"/>
+				<clock  name="dc_pixel_clk_root"
+				        parent="video_pll1_clk"
+				        rate="118800000"
+				        driver_name="pix2"/>
+				<clock  name="video2_pll2_clk"
+				        parent="27m_ref_clk"
+				        driver_name="pix"/>
+				<clock  name="video2_pll2_clk"
+				        parent="27m_ref_clk"
+				        driver_name="pll_src"/>
+				<clock  name="27m_ref_clk"
+				        driver_name="pll_phy_ref"/>
+			</device>
+
+			<device name="hdmi" type="cdn,imx8mq-hdmi">
+				<io_mem address="0x32c00000" size="0x100000"/>
+				<io_mem address="0x32e40000" size="0x40000"/>
+				<irq    number="48"/>
+				<irq    number="57"/>
+			</device>
+
+			<device name="irqsteer" type="fsl,imx-irqsteer">
+				<io_mem address="0x32e2d000" size="0x1000"/>
+				<irq    number="50" />
+				<clock  name="display_apb_clk_root"
+				        driver_name="ipg"/>
+			</device>
+
+			<device name="i2c" type="fsl,imx21-i2c">
+				<io_mem address="0x30a50000" size="0x10000"/>
+				<irq    number="70" />
+				<clock  name="i2c4_clk_root" driver_name=""/>
+				<clock  name="i2c4_gate"/>
+			</device>
+
+			<device name="pwm">
+				<io_mem address="0x30670000" size="0x10000"/>
+				<irq    number="114"/>
+				<clock  name="pwm2_clk_root"/>
+				<clock  name="pwm2_gate"/>
+			</device>
+
+			<policy label="fb_drv -> " info="yes">
+				<device name="dcss"/>
+				<device name="hdmi"/>
+				<device name="mipi_dsi"/>
+				<device name="mipi_dsi_phy"/>
+				<device name="lcd"/>
+				<device name="irqsteer"/>
+				<device name="pclk"/>
+				<device name="esc"/>
+				<device name="dpi"/>
+			</policy>
+
+			<policy label="imx_pwm_drv -> ">
+				<device name="pwm"/>
+			</policy>
+			<policy label="gpio_drv -> " info="yes">
+				<device name="gpio1"/>
+				<device name="gpio2"/>
+				<device name="gpio3"/>
+				<device name="gpio4"/>
+				<device name="gpio5"/>
+			</policy>
+			<policy label="i2c_drv -> ">
+				<device name="i2c"/>
+			</policy>
+		</config>
+		<route> <any-service> <parent/> </any-service> </route>
+	</start>
+
+	<start name="gpio_drv" caps="150">
+		<binary name="imx_gpio_drv"/>
+		<resource name="RAM" quantum="2M"/>
+		<provides><service name="Gpio"/></provides>
+		<route>
+			<service name="RM">       <parent/> </service>
+			<service name="ROM">      <parent/> </service>
+			<service name="PD">       <parent/> </service>
+			<service name="CPU">      <parent/> </service>
+			<service name="LOG">      <parent/> </service>
+			<service name="Platform"> <child name="platform_drv"/> </service>
+		</route>
+		<config>
+			<gpio num="10" mode="O" value="1"/>
+			<gpio num="84" mode="O" value="1"/>
+		</config>
+	</start>
+
+	<start name="i2c_drv" caps="150">
+		<binary name="imx8q_evk_i2c_drv"/>
+		<resource name="RAM" quantum="2M"/>
+		<provides><service name="I2c"/></provides>
+		<route>
+			<service name="RM">       <parent/> </service>
+			<service name="ROM">      <parent/> </service>
+			<service name="PD">       <parent/> </service>
+			<service name="CPU">      <parent/> </service>
+			<service name="LOG">      <parent/> </service>
+			<service name="Platform"> <child name="platform_drv"/> </service>
+			<service name="Timer">    <child name="timer"/>        </service>
+		</route>
+		<config verbose="yes">
+			 <policy label_prefix="fb_drv" bus_address="0x2c"/>
+		</config>
+	</start>
+
+	<start name="imx_pwm_drv" caps="100">
+		<resource name="RAM" quantum="2M"/>
+		<route>
+			<service name="RM">       <parent/> </service>
+			<service name="ROM">      <parent/> </service>
+			<service name="PD">       <parent/> </service>
+			<service name="CPU">      <parent/> </service>
+			<service name="LOG">      <parent/> </service>
+			<service name="Platform"> <child name="platform_drv"/> </service>
+		</route>
+		<config period="248" sample="250" clock_source="ipg_highfreq"/>
+	</start>
+
+	<start name="fb_drv" caps="250">
+		<binary name="imx8mq_fb_drv"/>
+		<resource name="RAM" quantum="40M"/>
+		<route>
+			<service name="RM">       <parent/> </service>
+			<service name="ROM">      <parent/> </service>
+			<service name="PD">       <parent/> </service>
+			<service name="CPU">      <parent/> </service>
+			<service name="LOG">      <parent/> </service>
+			<service name="Timer">    <child name="timer"/>            </service>
+			<service name="Platform"> <child name="platform_drv"/>     </service>
+			<service name="Capture">  <child name="test-framebuffer"/> </service>
+			<service name="I2c">      <child name="i2c_drv"/>          </service>
+		</route>
+	</start>
+
+	<start name="test-framebuffer">
+		<resource name="RAM" quantum="10M"/>
+		<provides> <service name="Capture"/> </provides>
+		<config/>
+	</start>
+
+</config>}
+
+build_boot_image {
+	test-framebuffer
+	imx8mq_platform_drv
+	imx8mq_fb_drv
+	imx_pwm_drv
+	imx_gpio_drv
+	imx8q_evk_i2c_drv
+	dtb
+}
+
+run_genode_until forever
