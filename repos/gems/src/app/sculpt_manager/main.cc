@@ -129,6 +129,8 @@ struct Sculpt::Main : Input_event_handler,
 
 	void _update_event_filter_config()
 	{
+		bool const orig_settings_available = _settings.interactive_settings_available();
+
 		_settings.manual_event_filter_config =
 			_event_filter_config.try_generate_manually_managed();
 
@@ -137,8 +139,12 @@ struct Sculpt::Main : Input_event_handler,
 				_generate_event_filter_config(xml); });
 
 		_settings_menu_view.generate();
-		_refresh_panel_and_window_layout();
-		_handle_gui_mode();
+
+		/* visibility of the settings dialog may have changed */
+		if (orig_settings_available != _settings.interactive_settings_available()) {
+			_refresh_panel_and_window_layout();
+			_handle_gui_mode();
+		}
 	}
 
 
@@ -760,6 +766,9 @@ struct Sculpt::Main : Input_event_handler,
 	 */
 	void select_font_size(Settings::Font_size font_size) override
 	{
+		if (_settings.font_size == font_size)
+			return;
+
 		_settings.font_size = font_size;
 		_handle_gui_mode();
 	}
@@ -769,6 +778,9 @@ struct Sculpt::Main : Input_event_handler,
 	 */
 	void select_keyboard_layout(Settings::Keyboard_layout::Name const &keyboard_layout) override
 	{
+		if (_settings.keyboard_layout == keyboard_layout)
+			return;
+
 		_settings.keyboard_layout = keyboard_layout;
 
 		_update_event_filter_config();
