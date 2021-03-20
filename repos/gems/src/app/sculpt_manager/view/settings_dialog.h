@@ -75,22 +75,23 @@ struct Sculpt::Settings_dialog : Noncopyable, Dialog
 
 				using Choice = Radio_choice_dialog::Choice;
 
-				if (!_settings.manual_fonts_config)
+				if (!_settings.manual_fonts_config) {
 					_font_size_choice.generate(xml, _font_size_id(_settings.font_size),
 					                           [&] (Choice const &choice) {
 						choice.generate("Small");
 						choice.generate("Medium");
 						choice.generate("Large");
 					});
+				}
 
-				if (!_settings.manual_event_filter_config)
+				if (!_settings.manual_event_filter_config) {
 					_keyboard_layout_choice.generate(xml, _settings.keyboard_layout,
 					                                 [&] (Choice const &choice) {
-						choice.generate("French");
-						choice.generate("German");
-						choice.generate("Swiss German");
-						choice.generate("US English");
+						using Keyboard_layout = Settings::Keyboard_layout;
+						Keyboard_layout::for_each([&] (Keyboard_layout const &layout) {
+							choice.generate(layout.name); });
 					});
+				}
 			});
 		});
 	}
