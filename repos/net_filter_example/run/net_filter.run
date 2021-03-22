@@ -93,6 +93,7 @@ install_config {
 				<clock        name="usb_phy2_gate"/>
 				<property     name="compatible" value="snps,dwc3"/>
 				<property     name="dr_mode"    value="host"/>
+				<property     name="snps,dis_u2_susphy_quirk"/>
 			</device>
 
 			<policy label="nic_drv_blue -> "> <device name="fec"/>        </policy>
