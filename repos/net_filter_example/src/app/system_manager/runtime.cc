@@ -54,7 +54,8 @@ static inline void gen_vfs_node(Xml_generator & xml, Label name, Label writer)
 	xml.node("start", [&] () {
 		gen_common_start_content(xml, name.string(),
 		                         Cap_quota{200},
-		                         Ram_quota{16*1024*1024});
+		                         Ram_quota{16*1024*1024},
+		                         Priority::DEFAULT);
 		gen_named_node(xml, "binary", "vfs");
 		gen_provides<File_system::Session>(xml);
 		xml.node("config", [&] () {
@@ -133,7 +134,8 @@ static inline void gen_publisher(Xml_generator & xml)
 	xml.node("start", [&] () {
 		gen_common_start_content(xml, "publisher",
 		                         Cap_quota{300},
-		                         Ram_quota{128*1024*1024});
+		                         Ram_quota{128*1024*1024},
+		                         Priority::DEFAULT);
 		gen_named_node(xml, "binary", "lighttpd");
 
 		xml.node("config", [&] () {
@@ -185,7 +187,8 @@ static inline void gen_subscriber(Xml_generator & xml, System_state & state)
 	xml.node("start", [&] () {
 		gen_common_start_content(xml, "subscriber",
 		                         Cap_quota{300},
-		                         Ram_quota{128*1024*1024});
+		                         Ram_quota{128*1024*1024},
+		                         Priority::DEFAULT);
 		gen_named_node(xml, "binary", "fetchurl");
 
 		xml.node("config", [&] () {
@@ -241,7 +244,8 @@ static inline void gen_filter_vfs(Xml_generator & xml)
 	xml.node("start", [&] () {
 		gen_common_start_content(xml, "vfs",
 		                         Cap_quota{300},
-		                         Ram_quota{10*1024*1024});
+		                         Ram_quota{10*1024*1024},
+		                         Priority::DEFAULT);
 		gen_provides<File_system::Session>(xml);
 		xml.node("config", [&] () {
 			gen_libc_vfs(xml, false, [&] () {
@@ -294,7 +298,8 @@ static inline void gen_filter_vfs_rom(Xml_generator & xml)
 	xml.node("start", [&] () {
 		gen_common_start_content(xml, "fs_rom",
 		                         Cap_quota{100},
-		                         Ram_quota{10*1024*1024});
+		                         Ram_quota{10*1024*1024},
+		                         Priority::DEFAULT);
 
 		gen_provides<Rom_session>(xml);
 		xml.node("config", [&] () { });
@@ -328,7 +333,8 @@ static inline void gen_filter(Xml_generator & xml, System_state & state)
 	xml.node("start", [&] () {
 		gen_common_start_content(xml, "filter",
 		                         Cap_quota{100},
-		                         Ram_quota{10*1024*1024});
+		                         Ram_quota{10*1024*1024},
+		                         Priority::DEFAULT);
 		gen_named_node(xml, "binary", "/bin/cp");
 		xml.node("config", [&] () {
 			gen_libc(xml, false);
