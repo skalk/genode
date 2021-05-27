@@ -290,13 +290,9 @@ Date:   Tue May 18 12:16:44 2021 +0200
 Safeguarded arrays
 ------------------
 
-commit e93bc9b37e51de1d8ed8bf0b9273b289a0ace01e
-Author: Stefan Kalkowski <stefan.kalkowski@genode-labs.com>
-Date:   Fri May 21 15:59:15 2021 +0200
-
-    base: introduce array utility
-    
-    Fixes #4170
+To handle arrays in a more safe, and C++ like fashion a new helper class is
+available under 'repos/base/include/util/array.h'. Currently, elements can be
+added dynamically or at construction time, but never removed.
 
 
 Cosmetic changes
@@ -536,65 +532,41 @@ instead of a '<compatible>' node to uniquely identify devices.
 Changes specific to i.MX8
 -------------------------
 
-commit 3fccc7e3d6cf269ea841b731f6fd5c876ebefa74
-Author: Stefan Kalkowski <stefan.kalkowski@genode-labs.com>
-Date:   Mon May 17 15:58:53 2021 +0200
+The platform driver incarnation specific to i.MX8 got improved slightly.
+It can handle the configuration of reset-pins now. Analoque to the already
+existent power domains, one can assign reset domains per device. Whenever a
+device with a reset domain gets acquired, its reset-pins are deasserted. When the
+device gets released again, its reset-pins are asserted to put it into reset
+state. A sample configuration looks like the following:
 
-    imx8mq_platform_drv: enable root clock div setting
-    
-    Fixes #4155
+! <device name="mipi_dsi>
+!   <reset-domain name="mipi_dsi_pclk"/>
+!   ...
+! </device>
 
-commit f0d608dd26274cb6b08d445e4d175f6d34656658
-Author: Stefan Kalkowski <stefan.kalkowski@genode-labs.com>
-Date:   Tue May 25 14:19:37 2021 +0200
-
-    imx8mq_platform_drv: introduce reset domains
-    
-    A reset domain can consist of one or several reset-pins
-    denoted by name that are assigned to a device.
-    When the device gets acquired via the Platform RPC API,
-    the pins are de-asserted, and asserted again when the
-    device gets released.
-    
-    A configuration looks like the following:
-    
-      <device name="mipi_dsi>
-        <reset-domain name="mipi_dsi_pclk"/>
-        ...
-      </device>
-    
-    Fixes #4171
+Technically, those reset domains map to pin settings of the System Reset
+Controller (SRC) that is part of the i.MX8 SoC. The SRC is under control of the
+platform driver now. Currently, only the pins for the MIPI DSI Phy get exported.
+They are used by the graphical subsytem to handle panels connected via MIPI DSI.
 
 
 I2C driver for i.MX8
 ====================
 
-; @skalk
+Thanks to Jean-Adrien Domage from [https://www.gapfruit.com - gapfruit] an
+API for I2C bus transactions, and a new I2C bus driver for the i.MX8 SoC entered
+our framework.
 
-; thanks to Jean-Adrien Domage of gapfruit
+Coincidentally, the need to use the new I2C API more intensively arised
+soon after his initial contribution. As a consequence the API got extended a
+bit. The result is a nice joint venture, and looks like the following:
 
-commit 32169cd137a7762713d49232f294c3f95d39256d
-Author: Jean-Adrien DOMAGE <jean-adrien.domage@gapfruit.com>
-Date:   Mon Feb 22 14:38:31 2021 +0100
+! void transmit(Transaction & t);
 
-    add I2c driver for imx8q based platform
-    
-    This commit introduces a new i2c driver for the imx8q_evk based platform.
-    
-    Fixes #4052
-
-commit fb87cfd0167edb300bae8dce865b1b636f035083
-Author: Stefan Kalkowski <stefan.kalkowski@genode-labs.com>
-Date:   Fri May 21 16:08:17 2021 +0200
-
-    i2c: extend API to support transactions
-    
-    Introduces the notion of a transaction that consists of one or more
-    messages. Whereby a message has a read or write direction and consists
-    of one or more bytes.
-    
-    Issue #4170
-    Fixes #4169
+Hereby a 'Transaction' is a simple array of 'Message' objects, and a 'Message'
+is an array of bytes that are either read or written. For very simple use-cases,
+e.g., a client that polls single bytes from a temperature sensor, some convenience
+utilities are incorporated into the 'I2C::Connection'.
 
 
 USB
@@ -862,20 +834,24 @@ Utilities for porting Linux drivers
 Dummy-function generator
 ------------------------
 
-; @skalk
+While porting device drivers from the Linux kernel to Genode, one has to tailor
+the environment that replaces the original kernel code. Thereby, tons of
+missing function and variable implementations have to be written. Most of them
+won't even by called by the driver under normal circumstances, but nonetheless
+they are needed to make the linking process work.
 
-commit e9ef0e272663d2c3e409fff4023ec4e4635ff6cd
-Author: Stefan Kalkowski <stefan.kalkowski@genode-labs.com>
-Date:   Wed Mar 17 11:47:30 2021 +0100
+The production of these dummy functions in the first place is a tiresome and
+annoying work. To free developers from this burden, a new tool entered the
+Genode framework under 'tool/dde_linux/create_dummies'. Apart from the creation
+of missing kernel functions and variables, it can also be used to easily
+summarize all missing symbols during the porting work.
 
-    tool: simplify Linux dummy function generation
-    
-    The new tool `create_dummies` easily lists missing references,
-    while porting subsystems of the Linux kernel to Genode, e.g., device drivers.
-    Moreover it can automatically generate dummy implementations for functions
-    and global variables.
-    
-    Fixes #4156
+For a more detailed explanation of the new tool, please have a look at the
+following article.
+
+:Linux device driver ports - Breaking new ground:
+
+  [http://genodians.org/skalk/2021-04-08-dde-linux-experiments-1]
 
 
 Device-tree source processing
