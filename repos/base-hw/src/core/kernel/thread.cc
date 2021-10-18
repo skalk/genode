@@ -286,8 +286,17 @@ void Thread::_call_thread_quota()
 
 void Thread::_call_start_thread()
 {
+	/**
+	 * Defense programming here, due to generic bug in cpu affinity, issue #
+	 */
+	unsigned cpu_id = user_arg_2();
+	if (cpu_id >= _cpu_pool.nr_of_cpus()) {
+		raw("Error: invalid cpu id ", cpu_id, " for thread ", *this);
+		cpu_id = _cpu_pool.nr_of_cpus() - 1;
+	}
+
 	/* lookup CPU */
-	Cpu & cpu = _cpu_pool.cpu(user_arg_2());
+	Cpu & cpu = _cpu_pool.cpu(cpu_id);
 	user_arg_0(0);
 	Thread &thread = *(Thread*)user_arg_1();
 
