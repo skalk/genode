@@ -90,6 +90,13 @@ void Menu_view::_gen_start_node_content(Xml_generator &xml) const
 
 	gen_named_node(xml, "binary", "menu_view");
 
+	xml.node("affinity", [&] () {
+		xml.attribute("xpos",   1);
+		xml.attribute("ypos",   0);
+		xml.attribute("height", 1);
+		xml.attribute("width",  1);
+	});
+
 	xml.node("config", [&] () {
 		if (min_width)  xml.attribute("width",  min_width);
 		if (min_height) xml.attribute("height", min_height);

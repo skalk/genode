@@ -135,6 +135,13 @@ struct Sculpt::File_browser_state : Noncopyable
 			gen_named_node(xml, "resource", "RAM", [&] () {
 				xml.attribute("quantum", String<64>(22*1024*1024UL)); });
 
+			xml.node("affinity", [&] () {
+				xml.attribute("xpos",   1);
+				xml.attribute("ypos",   0);
+				xml.attribute("height", 1);
+				xml.attribute("width",  1);
+			});
+
 			gen_named_node(xml, "binary", "text_area");
 
 			xml.node("config", [&] () {
