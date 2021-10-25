@@ -1,0 +1,30 @@
+<runtime ram="300M" caps="1000" binary="init" config="vmm.config">
+
+	<requires>
+		<gui/>
+		<timer/>
+		<nic/>
+		<file_system label="fonts"     writeable="no"/>
+		<file_system label="block.vdi" writeable="yes"/>
+		<rom    label="clipboard"/>
+		<report label="clipboard"/>
+		<rm/>
+		<vm/>
+	</requires>
+
+	<content>
+		<rom label="vmm.config"/>
+		<rom label="ld.lib.so"/>
+		<rom label="vfs.lib.so"/>
+		<rom label="vfs_import.lib.so"/>
+		<rom label="init"/>
+		<rom label="terminal"/>
+		<rom label="log_terminal"/>
+		<rom label="vdi_block"/>
+		<rom label="block.vdi"/>
+		<rom label="vmm"/>
+		<rom label="linux_kernel"/>
+		<rom label="linux_dtb"/>
+	</content>
+
+</runtime>
