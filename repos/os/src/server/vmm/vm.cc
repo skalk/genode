@@ -32,9 +32,6 @@ void Vm::_load_dtb()
 
 void Vm::_load_initrd()
 {
-	Genode::memcpy((void*)(_ram.local() + INITRD_OFFSET),
-	               _initrd_rom.local_addr<void>(),
-	               _initrd_rom.size());
 }
 
 

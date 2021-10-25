@@ -42,7 +42,6 @@ class Vmm::Vm
 		Genode::Vm_connection          _vm         { _env           };
 		Genode::Attached_rom_dataspace _kernel_rom { _env, "linux"  };
 		Genode::Attached_rom_dataspace _dtb_rom    { _env, "dtb"    };
-		Genode::Attached_rom_dataspace _initrd_rom { _env, "initrd" };
 		Genode::Attached_ram_dataspace _vm_ram     { _env.ram(), _env.rm(),
 		                                             RAM_SIZE, Genode::CACHED };
 		Ram                            _ram        { RAM_START, RAM_SIZE,
