@@ -14,7 +14,7 @@
 /* local includes */
 #include "widget_factory.h"
 #include "button_widget.h"
-#include "label_widget.h"
+#include "label_widget_ab.h"
 #include "box_layout_widget.h"
 #include "root_widget.h"
 #include "float_widget.h"
