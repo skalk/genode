@@ -106,3 +106,63 @@ int suser(struct proc *p)
 	/* we always have special user powers */
 	return 0;
 };
+
+
+/*****************
+ ** sys/event.h **
+ *****************/
+
+void klist_insert_locked(struct klist *klist, struct knote *kn)
+{
+	SLIST_INSERT_HEAD(&klist->kl_list, kn, kn_selnext);
+}
+
+
+void klist_remove_locked(struct klist *klist, struct knote *kn)
+{
+	SLIST_REMOVE(&klist->kl_list, kn, knote, kn_selnext);
+}
+
+
+void klist_invalidate(struct klist * klist)
+{
+	printf("%s called (from %p) not implemented\n", __func__, __builtin_return_address(0));
+}
+
+
+/****************
+ ** sys/intr.h **
+ ****************/
+
+struct anonymous_softintr
+{
+	int ipl;
+	void (*func)(void *);
+	void * arg;
+};
+
+
+void * softintr_establish(int ipl, void (*func)(void *), void * arg)
+{
+	struct anonymous_softintr * ret = (struct anonymous_softintr *)
+		malloc(sizeof(struct anonymous_softintr), M_DEVBUF, M_NOWAIT|M_ZERO);
+	ret->ipl = ipl;
+	ret->func = func;
+	ret->arg  = arg;
+	return ret;
+}
+
+
+void softintr_disestablish(void* arg)
+{
+	free(arg, M_DEVBUF, sizeof(struct anonymous_softintr));
+}
+
+
+void softintr_schedule(void * arg)
+{
+	struct anonymous_softintr * softi = (struct anonymous_softintr*) arg;
+	mtx_enter(&audio_lock);
+	softi->func(softi->arg);
+	mtx_leave(&audio_lock);
+}

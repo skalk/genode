@@ -215,7 +215,11 @@ struct kevent
 #define NOTE_SUBMIT 0x01000000
 
 struct knote;
-SLIST_HEAD(klist, knote);
+SLIST_HEAD(knlist, knote);
+struct klist {
+	struct knlist kl_list;
+	void *kl_arg;
+};
 
 #define FILTEROP_ISFD 0x00000001  /* ident == filedescriptor */
 

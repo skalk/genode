@@ -306,6 +306,14 @@ extern "C" int msleep(const volatile void *ident, struct mutex *mtx,
 }
 
 
+extern "C" int
+msleep_nsec(const volatile void *ident, struct mutex *mtx, int priority,
+            const char *wmesg, uint64_t nsecs)
+{
+	return msleep(ident, mtx, priority, wmesg, nsecs / 1000000);
+}
+
+
 extern "C" void wakeup(const volatile void *ident)
 {
 	Bsd::Task *sleep_task = _bsd_timer->sleep_task();
