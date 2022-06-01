@@ -1,0 +1,14 @@
+<runtime ram="8M" caps="400" binary="init" config="init.config">
+
+	<requires> <nic/> </requires>
+	<provides> <rtc/> </provides>
+
+	<content>
+		<rom label="sntp_client"/>
+		<rom label="report_rom"/>
+		<rom label="dummy_rtc_drv"/>
+		<rom label="init.config"/>
+		<rom label="init"/>
+	</content>
+
+</runtime>
