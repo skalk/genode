@@ -233,7 +233,7 @@ static int usb_rpc_call(void * data)
 
 		if (usb_rpc_args.call == RELEASE_ALL) {
 			i   = 0;
-			num = udev->actconfig->desc.bNumInterfaces;
+			num = (udev->actconfig) ? udev->actconfig->desc.bNumInterfaces : 0;
 		} else {
 			i   = usb_rpc_args.iface_num;
 			num = i;
@@ -258,7 +258,11 @@ static int usb_rpc_call(void * data)
 			urbs->in_delete = 1;
 			usb_kill_anchored_urbs(&urbs->submitted);
 			urbs->in_delete = 0;
-			usb_reset_device(udev);
+
+			if (!usb_lock_device_for_reset(udev, NULL)) {
+				usb_reset_device(udev);
+				usb_unlock_device(udev);
+			}
 		}
 
 		usb_rpc_args.ret = ret;
@@ -772,7 +776,7 @@ static int raw_notify(struct notifier_block *nb, unsigned long action, void *dat
 			 * policies.
 			 */
 			unsigned long class;
-			unsigned i;
+			unsigned i, num;
 			struct usb_iface_urbs *urbs = (struct usb_iface_urbs*)
 				kmalloc(sizeof(struct usb_iface_urbs), GFP_KERNEL);
 			init_usb_anchor(&urbs->submitted);
@@ -780,8 +784,12 @@ static int raw_notify(struct notifier_block *nb, unsigned long action, void *dat
 			dev_set_drvdata(&udev->dev, urbs);
 
 
-			for (i = 0; i < udev->actconfig->desc.bNumInterfaces; i++) {
-				struct usb_interface * iface = udev->actconfig->interface[i];
+			class = 0;
+			num   = (udev->actconfig) ?
+				udev->actconfig->desc.bNumInterfaces : 0;
+			for (i = 0; i < num; i++) {
+				struct usb_interface * iface =
+					(udev->actconfig) ? udev->actconfig->interface[i] : NULL;
 				if (!iface || !iface->cur_altsetting) continue;
 				if (i == 0 ||
 				    iface->cur_altsetting->desc.bInterfaceClass ==
