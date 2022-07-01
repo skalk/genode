@@ -19,14 +19,14 @@
 
 #include <lx_emul.h>
 
-#include <lx_kit/malloc.h>
-#include <lx_kit/backend_alloc.h>
-#include <lx_kit/scheduler.h>
+#include <legacy/lx_kit/malloc.h>
+#include <legacy/lx_kit/backend_alloc.h>
+#include <legacy/lx_kit/scheduler.h>
 
-#include <lx_emul/extern_c_begin.h>
+#include <legacy/lx_emul/extern_c_begin.h>
 #include <storage/scsi.h>
 #include <drivers/usb/storage/usb.h>
-#include <lx_emul/extern_c_end.h>
+#include <legacy/lx_emul/extern_c_end.h>
 
 #include "signal.h"
 
@@ -166,8 +166,8 @@ class Storage_device : public Genode::List<Storage_device>::Element,
 
 		bool dma_enabled() { return true; }
 
-		Genode::Ram_dataspace_capability alloc_dma_buffer(Genode::size_t size) {
-			return Lx::backend_alloc(size, Genode::UNCACHED); }
+		Block::Driver::Dma_buffer alloc_dma_buffer(Genode::size_t size, Genode::Cache) {
+			return Block::Driver::Dma_buffer(); }
 
 		void free_dma_buffer(Genode::Ram_dataspace_capability cap) {
 			return Lx::backend_free(cap); }

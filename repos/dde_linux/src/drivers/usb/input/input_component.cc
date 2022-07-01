@@ -17,8 +17,9 @@
 #include <event_session/connection.h>
 #include <os/ring_buffer.h>
 
-#include <lx_emul.h>
 #include "platform.h"
+
+#include <lx_emul.h>
 
 #undef RELEASE
 

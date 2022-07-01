@@ -21,10 +21,10 @@
 
 /* Linux emulation environment includes */
 #include <lx_emul.h>
-#include <lx_emul/extern_c_begin.h>
+#include <legacy/lx_emul/extern_c_begin.h>
 #include <linux/usb.h>
 #include <linux/usb/usbnet.h>
-#include <lx_emul/extern_c_end.h>
+#include <legacy/lx_emul/extern_c_end.h>
 
 /* NIC driver includes */
 #include <drivers/nic/uplink_client_base.h>
@@ -345,60 +345,6 @@ class Genode::Uplink_client : public Usb_network_session,
 				return Transmit_result::ACCEPTED;
 			}
 			return Transmit_result::REJECTED;
-		}
-
-		void _drv_transmit_pkt_burst_prepare() override
-		{
-			_burst_skb = nullptr;
-			_burst_ptr = nullptr;
-		}
-
-		Burst_result
-		_drv_transmit_pkt_burst_step(Packet_descriptor const &packet,
-		                             char              const *packet_base,
-		                             Packet_descriptor       &save) override
-		{
-			/* alloc _burst_skb */
-			if (!_burst_skb) {
-				if (!(_burst_skb = _device.alloc_skb()))
-					return Burst_result::BURST_FAILED;
-
-				_burst_ptr           = _burst_skb->data;
-				_burst_work_skb.data = nullptr;
-			}
-
-			if (!_device.skb_fill(&_burst_work_skb, _burst_ptr, packet.size(), _burst_skb->end)) {
-
-				/* submit batch */
-				_device.tx_skb(_burst_skb);
-				_burst_skb  = nullptr;
-				save = packet;
-				return Burst_result::BURST_CONTINUE;
-			}
-
-			/* copy packet to current data pos */
-			Genode::memcpy(_burst_work_skb.data, packet_base, packet.size());
-
-			/* call fixup on dummy SKB */
-			_device.tx_fixup(&_burst_work_skb);
-
-			/* advance to next slot */
-			_burst_ptr       = _burst_work_skb.end;
-			_burst_skb->len += _burst_work_skb.truesize;
-
-			return Burst_result::BURST_SUCCEEDED;
-		}
-
-		void _drv_transmit_pkt_burst_finish() override
-		{
-			/* submit last _burst_skb */
-			if (_burst_skb)
-				_device.tx_skb(_burst_skb);
-		}
-
-		bool _drv_supports_transmit_pkt_burst() override
-		{
-			return _device.burst();
 		}
 
 	public:

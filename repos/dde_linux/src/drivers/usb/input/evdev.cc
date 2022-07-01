@@ -29,20 +29,20 @@
 #include <util/reconstructible.h>
 
 /* LX kit */
-#include <lx_kit/env.h>
-#include <lx_kit/scheduler.h>
+#include <legacy/lx_kit/env.h>
+#include <legacy/lx_kit/scheduler.h>
 
 /* local */
 #include "led_state.h"
 
 /* Linux includes */
 #include <lx_emul.h>
-#include <lx_emul/extern_c_begin.h>
+#include <legacy/lx_emul/extern_c_begin.h>
 #include <linux/hid.h>
 #include <linux/input.h>
 #include <linux/input/mt.h>
 #include <linux/usb.h>
-#include <lx_emul/extern_c_end.h>
+#include <legacy/lx_emul/extern_c_end.h>
 
 
 /* Callback function to Genode subsystem */

@@ -19,7 +19,7 @@
  ** asm/barrier.h **
  *******************/
 
-#include <lx_emul/barrier.h>
+#include <legacy/lx_emul/barrier.h>
 
 
 struct platform_device

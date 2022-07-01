@@ -95,6 +95,6 @@ vpath %.cc $(LIB_DIR)/raw
 vpath %.c  $(LIB_DIR)/raw
 vpath lib/int_sqrt.c $(LX_CONTRIB_DIR)
 vpath lib/ctype.c $(LX_CONTRIB_DIR)
-vpath %.cc $(REP_DIR)/src/lx_kit
+vpath %.cc $(REP_DIR)/src/lib/legacy/lx_kit
 
 # vi: set ft=make :
