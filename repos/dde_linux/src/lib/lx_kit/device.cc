@@ -139,9 +139,12 @@ bool Device::irq_unmask(unsigned number)
 		ret = true;
 		enable();
 
-		if (irq.session.constructed())
+		if (irq.session.constructed()) {
+		irq.session->ack();
 			return;
+			}
 
+		//error(__func__);
 		irq.session.construct(*_pdev, irq.idx);
 		irq.session->sigh_omit_initial_signal(irq.handler);
 		irq.session->ack();
@@ -159,7 +162,8 @@ void Device::irq_mask(unsigned number)
 	_for_each_irq([&] (Irq & irq) {
 		if (irq.number != number)
 			return;
-		irq.session.destruct();
+		//error(__func__);
+		//irq.session.destruct();
 	});
 
 }
