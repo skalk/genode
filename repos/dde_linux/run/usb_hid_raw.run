@@ -59,13 +59,15 @@ if { [get_cmd_switch --autopilot] &&
 
 create_boot_directory
 import_from_depot [depot_user]/src/[base_src] \
-                  [depot_user]/pkg/test_usb_host_drv-[board] \
+                  [depot_user]/raw/test_usb_host_drv-pc \
+                  [depot_user]/src/acpi_drv \
+                  [depot_user]/src/platform_drv \
                   [depot_user]/src/dynamic_rom \
                   [depot_user]/src/report_rom \
                   [depot_user]/src/usb_hid_drv \
                   [depot_user]/src/init
 
-build { server/event_dump }
+build { server/event_dump drivers/usb_host/pc }
 
 install_config {
 <config>
@@ -172,13 +174,13 @@ install_config {
 #
 set fd [open [run_dir]/genode/usb_host_drv.config w]
 puts $fd {
-<config bios_handoff="yes">
+<config bios_handoff="no">
 	<report devices="yes"/>
 	<policy label_prefix="usb_hid_drv" class="0x3"/>
 </config>}
 close $fd
 
-build_boot_image { event_dump }
+build_boot_image { event_dump pc_usb_host_drv }
 
 append qemu_args " -device nec-usb-xhci,id=xhci"
 append qemu_args " -device usb-kbd,bus=xhci.0"
