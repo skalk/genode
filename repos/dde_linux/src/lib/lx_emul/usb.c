@@ -259,10 +259,12 @@ static int usb_rpc_call(void * data)
 			usb_kill_anchored_urbs(&urbs->submitted);
 			urbs->in_delete = 0;
 
+#if 0
 			if (!usb_lock_device_for_reset(udev, NULL)) {
 				usb_reset_device(udev);
 				usb_unlock_device(udev);
 			}
+#endif
 		}
 
 		usb_rpc_args.ret = ret;
@@ -811,7 +813,6 @@ static int raw_notify(struct notifier_block *nb, unsigned long action, void *dat
 			urbs->in_delete = 1;
 			usb_kill_anchored_urbs(&urbs->submitted);
 			kfree(urbs);
-
 
 			genode_usb_discontinue_device(udev->bus->busnum, udev->devnum);
 
