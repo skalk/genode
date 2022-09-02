@@ -39,10 +39,11 @@ class Platform::Connection : public Genode::Connection<Session>,
 		friend class Device;
 		friend class Dma_buffer;
 
-		Env                                         &_env;
-		Rom_session_client                           _rom {devices_rom()};
-		Constructible<Attached_dataspace>            _ds  {};
-		Constructible<Io_signal_handler<Connection>> _handler {};
+		Env                             & _env;
+		Rom_session_client                _rom     { devices_rom() };
+		Constructible<Attached_dataspace> _ds      {};
+		Io_signal_handler<Connection>     _handler { _env.ep(), *this,
+		                                             &Connection::_handle_io };
 
 		void _try_attach()
 		{
@@ -60,21 +61,12 @@ class Platform::Connection : public Genode::Connection<Session>,
 			for (;;) {
 				/* repeatedly check for availability of device */
 				Capability<Device_interface> cap = fn();
-				if (cap.valid()) {
-					if (_handler.constructed()) {
-						sigh(Signal_context_capability());
-						_handler.destruct();
-					}
+				if (cap.valid())
 					return cap;
-				}
 
-				if (!_handler.constructed()) {
-					_handler.construct(_env.ep(), *this,
-					                   &Connection::_handle_io);
-					sigh(*_handler);
-				}
-
+				sigh(_handler);
 				_env.ep().wait_and_dispatch_one_io_signal();
+				sigh(Signal_context_capability());
 			}
 		}
 
