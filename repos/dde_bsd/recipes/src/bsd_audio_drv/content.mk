@@ -1,6 +1,6 @@
 PORT_DIR := $(call port_dir,$(REP_DIR)/ports/dde_bsd)
 
-MK_FILES := dde_bsd_audio.inc dde_bsd_audio_include.mk dde_bsd_audio_pci.mk
+MK_FILES := dde_bsd_audio.inc dde_bsd_audio_include.mk dde_bsd_audio_pci.inc
 
 LIB_MK := $(addprefix lib/mk/, $(MK_FILES)) \
           $(foreach SPEC,x86_32 x86_64,lib/mk/spec/$(SPEC)/dde_bsd_audio.mk) \
