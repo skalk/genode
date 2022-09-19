@@ -80,12 +80,7 @@ struct Depot_query::Directory_cache : Noncopyable
 			while (_files.with_any_element(destroy_fn));
 		}
 
-		bool file_exists(Name const &name) const
-		{
-			return _files.with_element(name,
-				[&] /* match */ (File const &) { return true; },
-				[&] /* no_match */             { return false; });
-		}
+		bool file_exists(Name const &name) const { return _files.exists(name); }
 	};
 
 	Listings mutable _listings { };
