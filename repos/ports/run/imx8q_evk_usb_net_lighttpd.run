@@ -6,7 +6,7 @@
 
 create_boot_directory
 import_from_depot [depot_user]/src/[base_src] \
-                  [depot_user]/pkg/[drivers_nic_pkg] \
+                  [depot_user]/raw/imx8q_evk-devices \
                   [depot_user]/src/init \
                   [depot_user]/src/nic_router \
                   [depot_user]/src/libc \
@@ -40,15 +40,61 @@ install_config {
 		<provides><service name="Timer"/></provides>
 	</start>
 
-	<start name="nic_drv" caps="1000" managing_system="yes">
-		<resource name="RAM" quantum="32M"/>
-		<binary name="init"/>
+	<start name="platform_drv" caps="300" managing_system="yes" priority="0">
+		<binary name="imx8mq_platform_drv"/>
+		<resource name="RAM" quantum="8M"/>
+		<provides>
+			<service name="Platform"/>
+		</provides>
 		<route>
-			<service name="ROM" label="config"> <parent label="drivers.config"/> </service>
-			<service name="Timer"> <child name="timer"/> </service>
-			<service name="Uplink"> <child name="nic_router"/> </service>
-			<any-service> <parent/> </any-service>
+			<any-service><parent/></any-service>
 		</route>
+		<config>
+			<policy label="usb_drv -> " info="yes">
+				<device name="usb_host_2"/>
+				<device name="usb_phy_2"/>
+			</policy>
+		</config>
+	</start>
+
+	<start name="usb_drv" caps="300" priority="0">
+		<binary name="imx8mq_usb_host_drv"/>
+		<resource name="RAM" quantum="40M"/>
+		<provides>
+		<service name="Usb"/>
+		</provides>
+		<route>
+			<service name="ROM" label="dtb">
+				<parent label="imx8mq_usb_host_drv-imx8q_evk.dtb"/>
+			</service>
+			<service name="RM"><parent/></service>
+			<service name="ROM"><parent/></service>
+			<service name="PD"><parent/></service>
+			<service name="CPU"><parent/></service>
+			<service name="LOG"><parent/></service>
+			<service name="Report"><child name="status_reporter"/></service>
+			<service name="Timer"><child name="timer"/></service>
+			<service name="Platform"><child name="platform_drv"/></service>
+		</route>
+		<config>
+			<policy label_prefix="nic_drv" vendor_id="0x0b95" product_id="0x1790"/>
+		</config>
+	</start>
+
+	<start name="nic_drv" caps="220" priority="0">
+		<binary name="usb_net_drv"/>
+		<resource name="RAM" quantum="40M"/>
+		<config mode="uplink_client" mac="02:00:00:00:01:01" />
+		<route>
+			<service name="CPU"><parent/></service>
+			<service name="LOG"><parent/></service>
+			<service name="PD"><parent/></service>
+			<service name="RM"><parent/></service>
+			<service name="ROM"><parent/></service>
+			<service name="Uplink"><child name="nic_router"/></service>
+			<service name="Timer"> <child name="timer"/></service>
+			<service name="Usb">   <child name="usb_drv"/></service>
+	    	</route>
 	</start>
 
 	<start name="nic_router" caps="200">
@@ -195,9 +241,9 @@ EpA5DBBklj8UE2CdONvN
 </config>}
 
 
-build            { }
+build            { drivers/usb_net drivers/usb_host/imx8mq drivers/platform/imx8mq }
 set dd     [installed_command dd]
 catch { exec $dd if=/dev/urandom of=bin/blob.raw bs=1M count=2 }
-build_boot_image { blob.raw }
+build_boot_image { imx8mq_usb_host_drv usb_net_drv imx8mq_usb_host_drv-imx8q_evk.dtb imx8mq_platform_drv blob.raw }
 
 run_genode_until forever
