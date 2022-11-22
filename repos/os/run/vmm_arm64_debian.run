@@ -1,0 +1,252 @@
+#
+# \brief  Virtual-machine monitor demo
+# \author Stefan Kalkowski
+# \date   2015-06-25
+#
+
+assert_spec hw
+
+if { ![have_board imx8q_evk] &&
+     ![have_board virt_qemu_arm_v8a]} {
+	puts "Run script is not supported on this platform"
+	exit 0
+}
+
+create_boot_directory
+import_from_depot [depot_user]/src/[base_src] \
+                  [depot_user]/pkg/[drivers_interactive_pkg] \
+                  [depot_user]/src/init \
+                  [depot_user]/src/libc \
+                  [depot_user]/src/log_terminal \
+                  [depot_user]/src/nic_router \
+                  [depot_user]/src/rom_filter \
+                  [depot_user]/src/report_rom \
+                  [depot_user]/src/global_keys_handler \
+                  [depot_user]/src/nitpicker \
+                  [depot_user]/src/nit_focus \
+                  [depot_user]/src/vmm
+
+build { server/vmm }
+
+install_config {
+<config verbose="yes" prio_levels="2">
+	<parent-provides>
+		<service name="ROM"/>
+		<service name="IRQ"/>
+		<service name="IO_MEM"/>
+		<service name="PD"/>
+		<service name="RM"/>
+		<service name="CPU"/>
+		<service name="LOG"/>
+		<service name="VM"/>
+	</parent-provides>
+	<default-route>
+		<any-service><parent/><any-child/></any-service>
+	</default-route>
+	<default caps="100"/>
+
+	<start name="timer">
+		<resource name="RAM" quantum="1M"/>
+		<provides><service name="Timer"/></provides>
+	</start>
+
+	<start name="drivers" caps="1500" managing_system="yes">
+		<resource name="RAM" quantum="64M"/>
+		<binary name="init"/>
+		<route>
+			<service name="ROM" label="config"> <parent label="drivers.config"/> </service>
+			<service name="Timer">   <child name="timer"/> </service>
+			<service name="Capture"> <child name="nitpicker"/> </service>
+			<service name="Event">   <child name="nitpicker"/> </service>
+			<any-service> <parent/> </any-service>
+		</route>
+	</start>
+
+	<start name="report_rom">
+		<resource name="RAM" quantum="1M"/>
+		<provides> <service name="Report"/> <service name="ROM"/> </provides>
+		<config verbose="no">
+			<policy label="status_bar -> focus"          report="nitpicker -> focus"/>
+			<policy label="nitpicker_config -> xray"     report="global_keys_handler -> xray"/>
+			<policy label="global_keys_handler -> hover" report="nitpicker -> hover"/>
+			<policy label="nit_focus -> clicked"         report="nitpicker -> clicked"/>
+			<policy label="nitpicker -> focus"           report="nit_focus -> focus"/>
+		</config>
+	</start>
+
+	<start name="nitpicker_config">
+		<binary name="rom_filter"/>
+		<resource name="RAM" quantum="1096K"/>
+		<provides> <service name="ROM"/> </provides>
+		<config>
+			<input name="xray_enabled" rom="xray" node="xray">
+				<attribute name="enabled" /> </input>
+
+			<output node="config">
+				<attribute name="focus" value="rom"/>
+				<inline>
+					<report focus="yes" xray="yes" hover="yes" keystate="yes"
+					        clicked="yes"/>
+					<capture/> <event/>
+					<domain name="pointer" layer="1" origin="pointer"
+					        content="client" label="no"/>
+					<domain name="panel" layer="2"
+					        content="client" label="no" hover="always"/>
+				</inline>
+				<if>
+					<has_value input="xray_enabled" value="no" />
+					<then>
+						<inline>
+							<domain name="launchpad" layer="3"
+							        content="client" label="no" hover="always" focus="click"
+							        ypos="18" height="-18" />
+							<domain name="" layer="3"
+							        content="client" label="no" hover="always" focus="click"
+							        ypos="18" height="-18" />
+						</inline>
+					</then>
+					<else>
+						<inline>
+							<domain name="launchpad" layer="3" color="#dd0000"
+							        content="tinted" label="yes" hover="focused" focus="click"
+							        ypos="18" height="-18" />
+							<domain name="" layer="3" color="#55dd34"
+							        content="tinted" label="yes" hover="focused" focus="click"
+							        ypos="18" height="-18" />
+						</inline>
+					</else>
+				</if>
+				<inline>
+					<policy label_prefix="pointer"    domain="pointer"/>
+					<policy label_prefix="status_bar" domain="panel"/>
+					<policy label_prefix="vmm"        domain="launchpad"/>
+					<default-policy                           domain=""/>
+
+					<global-key name="KEY_SCROLLLOCK" label="global_keys_handler -> input" />
+					<global-key name="KEY_F1"         label="global_keys_handler -> input" />
+					<global-key name="KEY_F2"         label="global_keys_handler -> input" />
+				</inline>
+			</output>
+		</config>
+		<route>
+			<service name="ROM" label="xray"> <child name="report_rom"/> </service>
+			<any-service> <parent/> </any-service>
+		</route>
+	</start>
+
+	<start name="global_keys_handler">
+		<resource name="RAM" quantum="1096K"/>
+		<config>
+			<bool name="xray" initial="no"/>
+
+			<press   name="KEY_SCROLLLOCK" bool="xray" change="toggle"/>
+			<press   name="KEY_F1"         bool="xray" change="on"/>
+			<release name="KEY_F1"         bool="xray" change="off"/>
+			<press   name="KEY_F2"         bool="xray" change="toggle"/>
+
+			<report name="xray" delay_ms="125">
+				<hovered domain="panel"/>
+				<bool name="xray"/>
+			</report>
+		</config>
+		<route>
+			<service name="Report"> <child name="report_rom"/> </service>
+			<service name="ROM" label="hover"> <child name="report_rom"/> </service>
+			<any-service> <parent/> <any-child/> </any-service>
+		</route>
+	</start>
+
+	<start name="nitpicker" caps="120">
+		<resource name="RAM" quantum="1216K"/>
+		<provides>
+			<service name="Gui"/> <service name="Capture"/> <service name="Event"/>
+		</provides>
+		<route>
+			<service name="ROM" label="config">
+				<child name="nitpicker_config"/> </service>
+			<service name="ROM" label="focus">
+				<child name="report_rom"/> </service>
+			<service name="Report">
+				<child name="report_rom"/> </service>
+			<any-service> <parent/> <any-child/> </any-service>
+		</route>
+	</start>
+
+	<start name="pointer">
+		<resource name="RAM" quantum="1096K"/>
+		<config/>
+	</start>
+
+	<start name="nit_focus">
+		<resource name="RAM" quantum="1M"/>
+		<config> <default-policy focus="yes"/> </config>
+		<route>
+			<service name="ROM" label="clicked"> <child name="report_rom"/> </service>
+			<service name="Report"> <child name="report_rom"/> </service>
+			<any-service> <parent/> </any-service>
+		</route>
+	</start>
+
+	<start name="nic_drv">
+		<binary name="nic_router" />
+		<resource name="RAM" quantum="8M"/>
+		<provides>
+			<service name="Nic"/>
+			<service name="Uplink"/>
+		</provides>
+		<config>
+			<default-policy domain="default"/>
+			<domain name="default" interface="10.0.1.1/24">
+				<dhcp-server ip_first="10.0.1.2" ip_last="10.0.1.2" />
+			</domain>
+		</config>
+	</start>
+
+	<start name="log_terminal">
+		<resource name="RAM" quantum="2M"/>
+		<provides> <service name="Terminal"/> </provides>
+	</start>
+
+	<start name="vmm" caps="200" priority="-1">
+		<resource name="RAM" quantum="1024M"/>
+		<route>
+			<service name="Terminal"> <child name="log_terminal"/> </service>
+			<service name="Nic"> <child name="nic_drv"/> </service>
+			<any-service><parent/><any-child/></any-service>
+		</route>
+		<config kernel_rom="linux" initrd_rom="initrd" ram_size="512M"
+		        cpu_count="4" cpu_type="arm,cortex-a53" gic_version="3"
+		        bootargs="install console=ttyAMA0">
+			<virtio_device name="hvc0" type="console"/>
+			<virtio_device name="eth0" type="net"/>
+			<virtio_device name="fb0"  type="gpu"/>
+		</config>
+	</start>
+</config>
+}
+
+
+if { [have_spec arm_64] } {
+
+	if {![file exists bin/linux]} {
+		puts "Download linux kernel ..."
+			exec >& /dev/null wget -c -O bin/linux http://genode.org/files/release-22.11/linux-virtio-arm64
+	}
+
+	if {![file exists bin/initrd]} {
+		puts "Download initramfs ..."
+			exec >& /dev/null wget -c -O bin/initrd https://deb.debian.org/debian/dists/bullseye/main/installer-arm64/current/images/netboot/debian-installer/arm64/initrd.gz
+	}
+}
+
+
+build_boot_image { linux initrd vmm }
+
+#
+# Execute test case
+#
+append qemu_args " -nographic "
+
+run_genode_until forever
+#run_genode_until "\[init -> vm\] .*resolv.conf.*" 220
+#exec rm bin/linux bin/initrd bin/block.img
