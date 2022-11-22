@@ -13,6 +13,10 @@
 
 #include <fdt.h>
 #include <vm.h>
+#include <virtio_console.h>
+#include <virtio_net.h>
+#include <virtio_block.h>
+#include <virtio_gpu.h>
 
 using Vmm::Vm;
 
@@ -116,6 +120,11 @@ Vm::Vm(Genode::Env & env, Heap & heap, Config & config)
 		case Config::Virtio_device::BLOCK:
 			_device_list.insert(new (_heap)
 				Virtio_block_device(dev.name.string(), (uint64_t)dev.mmio_start,
+				                    dev.mmio_size, dev.irq, boot_cpu(),
+				                    _bus, _ram, env, heap));
+		case Config::Virtio_device::GPU:
+			_device_list.insert(new (_heap)
+				Virtio_gpu_device(dev.name.string(), (uint64_t)dev.mmio_start,
 				                    dev.mmio_size, dev.irq, boot_cpu(),
 				                    _bus, _ram, env, heap));
 		default:
