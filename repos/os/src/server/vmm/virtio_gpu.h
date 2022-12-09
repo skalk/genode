@@ -272,7 +272,7 @@ class Vmm::Virtio_gpu_device : public Virtio_device<Virtio_gpu_queue, 2>
 
 		Env                                  & _env;
 		Heap                                 & _heap;
-		Gui::Connection                        _gui { _env };
+		Gui::Connection                      & _gui;
 		Cpu::Signal_handler<Virtio_gpu_device> _handler;
 		Constructible<Attached_dataspace>      _fb_ds { };
 		Framebuffer::Mode                      _fb_mode { _gui.mode() };
@@ -421,11 +421,12 @@ class Vmm::Virtio_gpu_device : public Virtio_device<Virtio_gpu_queue, 2>
 		                  Mmio_bus         & bus,
 		                  Ram              & ram,
 		                  Env              & env,
-		                  Heap             & heap)
+		                  Heap             & heap,
+		                  Gui::Connection  & gui)
 		:
 			Virtio_device<Virtio_gpu_queue, 2>(name, addr, size,
 			                                   irq, cpu, bus, ram, GPU),
-			_env(env), _heap(heap),
+			_env(env), _heap(heap), _gui(gui),
 			_handler(cpu, env.ep(), *this, &Virtio_gpu_device::_mode_change)
 		{
 			_gui.mode_sigh(_handler);
