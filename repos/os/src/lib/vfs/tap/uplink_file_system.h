@@ -49,8 +49,6 @@ class Vfs::Uplink_file_system::Uplink_vfs_handle : public Single_vfs_handle,
 		using Read_result  = File_io_service::Read_result;
 		using Write_result = File_io_service::Write_result;
 
-		Vfs::Env::User &_vfs_user;
-
 		bool _notifying = false;
 		bool _blocked   = false;
 
