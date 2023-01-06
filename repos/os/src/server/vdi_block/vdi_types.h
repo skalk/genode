@@ -1,6 +1,7 @@
 /*
  * \brief  VDI file as a Block session
  * \author Josef Soentgen
+ * \author Alexander Boettcher
  * \date   2018-11-01
  *
  * Structures are based on the information available in VDICore.h from
@@ -8,7 +9,7 @@
  */
 
 /*
- * Copyright (C) 2018 Genode Labs GmbH
+ * Copyright (C) 2018-2023 Genode Labs GmbH
  *
  * This file is part of the Genode OS framework, which is distributed
  * under the terms of the GNU General Public License version 2.

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2020 Genode Labs GmbH
+ * Copyright (C) 2020-2023 Genode Labs GmbH
  *
  * This file is part of the Genode OS framework, which is distributed
  * under the terms of the GNU General Public License version 2.
@@ -84,40 +84,50 @@ void Vdi::File::_execute_alloc_block()
 	uint64_t const bid = sector_to_block(_state_fs.block_nr);
 
 	if (_state_fs.state == ALLOC_BLOCK) {
+		auto const written_state_on_enter = _state_fs.written;
 
-		try {
-			bool const ok = _md->alloc_block(bid, [&](uint64_t const offset) {
-				do {
-					Vfs::file_size written = 0;
+		bool const allocated = _md->alloc_block(bid, [&](uint64_t const offset) {
+			do {
+				Genode::size_t written = 0;
 
-					_vdi_file->seek(offset + _state_fs.written);
-					Write_result res = _vdi_file->fs().write(_vdi_file,
-					                                         _zero_addr,
-					                                         Genode::min(_md->block_size - _state_fs.written, _zero_size),
-					                                         written);
-					if (res != Vfs::File_io_service::WRITE_OK) {
-						_state_fs.state = Write::ALLOC_BLOCK_ERROR;
-						Genode::error(__func__, " state: ", written, " ",
-						              _zero_size, " ", (int)res);
-						return;
-					}
+				_vdi_file->seek(offset + _state_fs.written);
 
-					_state_fs.written += written;
-				} while (_state_fs.written < _md->block_size);
-			});
+				auto const range = Genode::Const_byte_range_ptr(_zero_addr,
+				                                                Genode::min(_md->block_size - _state_fs.written, _zero_size));
+				Write_result res = _vdi_file->fs().write(_vdi_file, range,
+				                                         written);
+				if (res == Vfs::File_io_service::WRITE_ERR_WOULD_BLOCK) {
+					if (written != 0)
+						Genode::warning("WOULD_ERR_WOULD_BLOCK but written is not 0 -> ", written);
+					/* will be resumed later, keep state */
+					return false;
+				}
 
-			if (!ok) {
-				Genode::error(__func__, " new block allocation failed");
-				_state_fs.state = Write::ALLOC_BLOCK_ERROR;
-				return;
-			}
+				if (res != Vfs::File_io_service::WRITE_OK) {
+					_state_fs.state = Write::ALLOC_BLOCK_ERROR;
+					Genode::error(__func__, " state: ", written, " ",
+					              _zero_size, " ", (int)res);
+					return false;
+				}
 
-			_state_fs.state = Write::SYNC_HEADER;
+				_state_fs.written += written;
+			} while (_state_fs.written < _md->block_size);
 
-		} catch (Vfs::File_io_service::Insufficient_buffer) {
-			/* will be resumed later, keep state */
-			return;
+			return true;
+		}, [&]() {
+			Genode::error(__func__, " new block allocation failed");
+			_state_fs.state = Write::ALLOC_BLOCK_ERROR;
+		});
+
+		if (_state_fs.written != written_state_on_enter) {
+			/* trigger queued write operations to be processed */
+			_vfs_env.io().commit();
 		}
+
+		if (!allocated)
+			return;
+
+		_state_fs.state = Write::SYNC_HEADER;
 	}
 
 	if (_state_fs.state == Write::SYNC_HEADER   ||
@@ -137,6 +147,9 @@ void Vdi::File::_execute_alloc_block()
 		if (!_vdi_file->fs().queue_sync(_vdi_file))
 			return;
 		_state_fs.state = Write::ALLOC_BLOCK_SYNC_QUEUED;
+
+		/* trigger queued sync to be processed */
+		_vfs_env.io().commit();
 	}
 
 	if (_state_fs.state == Write::ALLOC_BLOCK_SYNC_QUEUED) {
@@ -205,116 +218,13 @@ bool Vdi::File::_cross_vdi_block(::Block::Operation const operation) const
 }
 
 Vdi::File::Response
-Vdi::File::handle(::Block::Request const & request,
-                  ::Block::Request_stream::Payload const &payload)
+Vdi::File::_vdi_read(::Block::Request const & request,
+                     ::Block::Request_stream::Payload const &payload)
 {
 	Response response {Response::REJECTED};
 
-	if (_state_fs.state      == Write::ERROR ||
-	    _state_fs_read.state == Read::UNKNOWN ||
-	    _state_fs_sync.state == Sync::FAULT)
-		return response;
-
-	switch (request.operation.type) {
-	case ::Block::Operation::Type::READ:
-		payload.with_content(request, [&] (void *addr, Vfs::file_size const dst_size) {
-			char * dst = reinterpret_cast<char *>(addr);
-			Vfs::file_size dst_offset = 0;
-
-			::Block::Operation operation = request.operation;
-
-			bool loop = false;
-
-			do {
-
-				if (_state_fs_read.dst_offset)
-				{
-					operation  = _state_fs_read.operation;
-					dst_offset = _state_fs_read.dst_offset;
-
-#if 0
-					Genode::log("read ", request.operation.block_number, "+", request.operation.count,
-					            " -> ", operation.block_number, "+", operation.count,
-					            " - dst_offset=", dst_offset);
-#endif
-				}
-
-#if 0
-				/* debug */
-				_cross_vdi_block(operation);
-#endif
-
-				Vfs::file_size const len = operation.count * _block_ops.block_size;
-
-				loop = _apply_block(operation.block_number, [&](Genode::uint32_t const max_offset_read) {
-					if (dst_size - dst_offset != len) {
-						Genode::warning("read ", dst_size, "-", dst_offset, "=", dst_size - dst_offset, " !=", len);
-						return false;
-					}
-
-					if (dst_size < dst_offset) {
-						Genode::error("read dst_size < dst_offset - ", dst_size, "<", dst_offset);
-						return false;
-					}
-
-					auto const memset_size = Genode::min(dst_size - dst_offset, max_offset_read);
-					if (memset_size > ~0UL) {
-						Genode::error("memset size too large on 32bit");
-						return false;
-					}
-
-					__builtin_memset(dst + dst_offset, 0, (unsigned long)(memset_size));
-
-					if (memset_size == dst_size - dst_offset) {
-						response = Response::ACCEPTED;
-						_state_fs_read.dst_offset = 0;
-						return false;
-					}
-
-					_state_fs_read.dst_offset += memset_size;
-
-					auto const blocks = memset_size / _block_ops.block_size;
-
-					if (operation.count < blocks) {
-						Genode::error("read - count of blocks is too small ");
-						return false;
-					}
-
-					_state_fs_read.operation = operation;
-					_state_fs_read.operation.block_number += blocks;
-					_state_fs_read.operation.count -= ::Block::block_count_t(blocks); /* size checked above */
-
-					return true; /* loop retry */
-				}, [&](uint64_t const offset, uint32_t const max_offset_read) {
-
-					if (dst_offset > dst_size || dst_size - dst_offset != len) {
-						Genode::error("partial reads, error ahead");
-						response = Response::REJECTED;
-						return false;
-					}
-
-					response = _read_split(operation, dst + dst_offset,
-					                       dst_size - dst_offset,
-					                       offset, max_offset_read);
-
-					if (response == Response::ACCEPTED &&
-					    _state_fs_read.operation.type != ::Block::Operation::Type::INVALID)
-						return true; /* loop retry */
-
-					return false;
-				});
-			} while (loop);
-		});
-		break;
-	case ::Block::Operation::Type::WRITE: {
-		if (_state_fs.state != Write::WRITE) {
-			if (_state_fs.state != Write::IDLE)
-				_execute_alloc_block();
-
-			if (_state_fs.state != Write::IDLE)
-				return Response::RETRY;
-		}
-
+	payload.with_content(request, [&] (void *addr, Vfs::file_size const dst_size) {
+		char * dst = reinterpret_cast<char *>(addr);
 		Vfs::file_size dst_offset = 0;
 
 		::Block::Operation operation = request.operation;
@@ -322,142 +232,234 @@ Vdi::File::handle(::Block::Request const & request,
 		bool loop = false;
 
 		do {
-			if (_state_fs.operation.type != ::Block::Operation::Type::INVALID) {
-				operation  = _state_fs.operation;
-				dst_offset = _state_fs.dst_offset;
+
+			if (_state_fs_read.dst_offset)
+			{
+				operation  = _state_fs_read.operation;
+				dst_offset = _state_fs_read.dst_offset;
 
 #if 0
-				Genode::log("write ", request.operation.block_number, "+", request.operation.count,
-					        " -> ", _state_fs.operation.block_number, "+", _state_fs.operation.count,
-					        " - dst_offset=", dst_offset);
+				Genode::log("read ", request.operation.block_number, "+", request.operation.count,
+				            " -> ", operation.block_number, "+", operation.count,
+				            " - dst_offset=", dst_offset);
 #endif
 			}
 
-			bool const cross_vdi_block = _cross_vdi_block(operation);
-
-			loop = _apply_block(operation.block_number, [&](Genode::uint32_t) {
-				if (_state_fs.state == Write::WRITE) {
-					Genode::error("during data write sector in vdi vanished ?");
-					_state_fs.state = Write::ERROR;
-					response = Response::REJECTED;
-					return false;
-				}
-
-				_allocate_block(operation.block_number);
-
-				if (_state_fs.state == ALLOC_BLOCK_SYNC_QUEUED ||
-				    _state_fs.state == ALLOC_BLOCK_SYNC ||
-				    _state_fs.state == SYNC_HEADER ||
-				    _state_fs.state == SYNC_HEADER_1 ||
-				    _state_fs.state == SYNC_HEADER_2 ||
-				    _state_fs.state == ALLOC_BLOCK) {
-
-					response = Response::RETRY;
-					return false;
-				}
-
-				if (_state_fs.state != Write::IDLE) {
-					Genode::error("unknown state Block::Write state_fs=",
-					              (int)_state_fs.state);
-					response = Response::REJECTED;
-					return false;
-				}
-
-				return true;
-			}, [&](uint64_t const offset, Vfs::file_size const max_offset_write) {
-
-				Vfs::file_size const len = operation.count * _block_ops.block_size;
-				bool retry = false;
-
-				payload.with_content(request, [&] (void *addr, Genode::size_t const dst_size) {
-					char * dst = reinterpret_cast<char *>(addr);
-
-					if (dst_offset > dst_size || len < dst_size - dst_offset) {
-						Genode::error("remaining size to write is bogus - stop");
-						_state_fs.state  = Write::ERROR;
-						return;
-					}
-
-					if (_state_fs.state == Write::IDLE) {
-						_state_fs.block_nr = operation.block_number;
-						_state_fs.written  = 0;
-						_state_fs.max      = Genode::min(max_offset_write, len);
-						_state_fs.state    = Write::WRITE;
-					}
-
-					if (_state_fs.max > dst_size - dst_offset) {
-						Genode::error("write larger than buffer - stop");
-						_state_fs.state  = Write::ERROR;
-						return;
-					}
-
-					if (_state_fs.state == Write::WRITE) {
-
-						_write(dst + dst_offset, dst_size - dst_offset, offset);
-
-						if (_state_fs.written >= _state_fs.max) {
-							_state_fs.state = Write::IDLE;
-
-							if (!cross_vdi_block) {
-								_state_fs.operation.type = ::Block::Operation::Type::INVALID;
-								_state_fs.dst_offset = 0;
-							} else {
-								auto const blocks = _state_fs.max / _block_ops.block_size;
-
-								if (operation.count < blocks) {
-									Genode::error("write - count of blocks is too small ", operation.count, " ", blocks);
-									response = Response::REJECTED;
-									return;
-								}
-
-								_state_fs.operation = operation;
-								_state_fs.operation.block_number += blocks;
-								_state_fs.operation.count -= ::Block::block_count_t(blocks); /* size checked above */
-
-								if (_state_fs.operation.count == 0) {
-									_state_fs.operation.type = ::Block::Operation::Type::INVALID;
-									_state_fs.dst_offset = 0;
-									/* we should ever get into !cross_vdi_block case */
-									Genode::warning("write - insane state");
-								} else {
 #if 0
-									Genode::log("partial write done ",
-									            _state_fs.written, "/", _state_fs.max, " vs ", len,
-									            " -> next"
-									            " block_number=", _state_fs.operation.block_number,
-									            " count=", _state_fs.operation.count);
+			/* debug */
+			_cross_vdi_block(operation);
 #endif
 
-									_state_fs.dst_offset += _state_fs.max;
-									dst_offset += _state_fs.max;
-									retry = true;
-								}
+			Vfs::file_size const len = operation.count * _block_ops.block_size;
+
+			loop = _apply_block(operation.block_number, [&](Genode::uint32_t const max_offset_read) {
+				if (dst_size - dst_offset != len) {
+					Genode::warning("read ", dst_size, "-", dst_offset, "=", dst_size - dst_offset, " !=", len);
+					return false;
+				}
+
+				if (dst_size < dst_offset) {
+					Genode::error("read dst_size < dst_offset - ", dst_size, "<", dst_offset);
+					return false;
+				}
+
+				auto const memset_size = Genode::min(dst_size - dst_offset, max_offset_read);
+				if (memset_size > ~0UL) {
+					Genode::error("memset size too large on 32bit");
+					return false;
+				}
+
+				__builtin_memset(dst + dst_offset, 0, (unsigned long)(memset_size));
+
+				if (memset_size == dst_size - dst_offset) {
+					response = Response::ACCEPTED;
+					_state_fs_read.dst_offset = 0;
+					return false;
+				}
+
+				_state_fs_read.dst_offset += memset_size;
+
+				auto const blocks = memset_size / _block_ops.block_size;
+
+				if (operation.count < blocks) {
+					Genode::error("read - count of blocks is too small ");
+					return false;
+				}
+
+				_state_fs_read.operation = operation;
+				_state_fs_read.operation.block_number += blocks;
+				_state_fs_read.operation.count -= ::Block::block_count_t(blocks); /* size checked above */
+
+				return true; /* loop retry */
+			}, [&](uint64_t const offset, uint32_t const max_offset_read) {
+
+				if (dst_offset > dst_size || dst_size - dst_offset != len) {
+					Genode::error("partial reads, error ahead");
+					response = Response::REJECTED;
+					return false;
+				}
+
+				response = _read_split(operation, dst + dst_offset,
+				                       dst_size - dst_offset,
+				                       offset, max_offset_read);
+
+				if (response == Response::ACCEPTED &&
+				    _state_fs_read.operation.type != ::Block::Operation::Type::INVALID)
+					return true; /* loop retry */
+
+				return false;
+			});
+		} while (loop);
+	});
+
+	return response;
+}
+
+Vdi::File::Response
+Vdi::File::_vdi_write(::Block::Request const & request,
+                      ::Block::Request_stream::Payload const &payload)
+{
+	Response response {Response::REJECTED};
+
+	if (_state_fs.state != Write::WRITE) {
+		if (_state_fs.state != Write::IDLE)
+			_execute_alloc_block();
+
+		if (_state_fs.state != Write::IDLE)
+			return Response::RETRY;
+	}
+
+	Vfs::file_size dst_offset = 0;
+
+	::Block::Operation operation = request.operation;
+
+	bool loop = false;
+
+	do {
+		if (_state_fs.operation.type != ::Block::Operation::Type::INVALID) {
+			operation  = _state_fs.operation;
+			dst_offset = _state_fs.dst_offset;
+
+#if 0
+			Genode::log("write ", request.operation.block_number, "+", request.operation.count,
+				        " -> ", _state_fs.operation.block_number, "+", _state_fs.operation.count,
+				        " - dst_offset=", dst_offset);
+#endif
+		}
+
+		bool const cross_vdi_block = _cross_vdi_block(operation);
+
+		loop = _apply_block(operation.block_number, [&](Genode::uint32_t) {
+			if (_state_fs.state == Write::WRITE) {
+				Genode::error("during data write sector in vdi vanished ?");
+				_state_fs.state = Write::ERROR;
+				response = Response::REJECTED;
+				return false;
+			}
+
+			_allocate_block(operation.block_number);
+
+			if (_state_fs.state == ALLOC_BLOCK_SYNC_QUEUED ||
+			    _state_fs.state == ALLOC_BLOCK_SYNC ||
+			    _state_fs.state == SYNC_HEADER ||
+			    _state_fs.state == SYNC_HEADER_1 ||
+			    _state_fs.state == SYNC_HEADER_2 ||
+			    _state_fs.state == ALLOC_BLOCK) {
+
+				response = Response::RETRY;
+				return false;
+			}
+
+			if (_state_fs.state != Write::IDLE) {
+				Genode::error("unknown state Block::Write state_fs=",
+				              (int)_state_fs.state);
+				response = Response::REJECTED;
+				return false;
+			}
+
+			return true;
+		}, [&](uint64_t const offset, Vfs::file_size const max_offset_write) {
+
+			Vfs::file_size const len = operation.count * _block_ops.block_size;
+			bool retry = false;
+
+			payload.with_content(request, [&] (void *addr, Genode::size_t const dst_size) {
+				char * dst = reinterpret_cast<char *>(addr);
+
+				if (dst_offset > dst_size || len < dst_size - dst_offset) {
+					Genode::error("remaining size to write is bogus - stop");
+					_state_fs.state  = Write::ERROR;
+					return;
+				}
+
+				if (_state_fs.state == Write::IDLE) {
+					_state_fs.block_nr = operation.block_number;
+					_state_fs.written  = 0;
+					_state_fs.max      = Genode::min(max_offset_write, len);
+					_state_fs.state    = Write::WRITE;
+				}
+
+				if (_state_fs.max > dst_size - dst_offset) {
+					Genode::error("write larger than buffer - stop");
+					_state_fs.state  = Write::ERROR;
+					return;
+				}
+
+				if (_state_fs.state == Write::WRITE) {
+
+					_write(dst + dst_offset, dst_size - dst_offset, offset);
+
+					if (_state_fs.written >= _state_fs.max) {
+						_state_fs.state = Write::IDLE;
+
+						if (!cross_vdi_block) {
+							_state_fs.operation.type = ::Block::Operation::Type::INVALID;
+							_state_fs.dst_offset = 0;
+						} else {
+							auto const blocks = _state_fs.max / _block_ops.block_size;
+
+							if (operation.count < blocks) {
+								Genode::error("write - count of blocks is too small ", operation.count, " ", blocks);
+								response = Response::REJECTED;
+								return;
+							}
+
+							_state_fs.operation = operation;
+							_state_fs.operation.block_number += blocks;
+							_state_fs.operation.count -= ::Block::block_count_t(blocks); /* size checked above */
+
+							if (_state_fs.operation.count == 0) {
+								_state_fs.operation.type = ::Block::Operation::Type::INVALID;
+								_state_fs.dst_offset = 0;
+								/* we should ever get into !cross_vdi_block case */
+								Genode::warning("write - insane state");
+							} else {
+#if 0
+								Genode::log("partial write done ",
+								            _state_fs.written, "/", _state_fs.max, " vs ", len,
+								            " -> next"
+								            " block_number=", _state_fs.operation.block_number,
+								            " count=", _state_fs.operation.count);
+#endif
+
+								_state_fs.dst_offset += _state_fs.max;
+								dst_offset += _state_fs.max;
+								retry = true;
 							}
 						}
-
-						if (_state_fs.state == Write::IDLE)
-							response = Response::ACCEPTED;
-						else
-							response = Response::RETRY;
 					}
-				});
 
-				return retry; /* loop */
+					if (_state_fs.state == Write::IDLE)
+						response = Response::ACCEPTED;
+					else
+						response = Response::RETRY;
+				}
 			});
 
-		} while (loop);
+			return retry; /* loop */
+		});
 
-		break;
-	}
-	case ::Block::Operation::Type::SYNC:
-		response = _sync();
-		break;
-	default:
-		Genode::warning("unsupported command ",
-		                (int)(request.operation.type), " ",
-		                request.operation.type == ::Block::Operation::Type::TRIM ? " trim" :
-		                request.operation.type == ::Block::Operation::Type::INVALID ? " invalid" : " unknown");
-	}
+	} while (loop);
 
 	return response;
 }

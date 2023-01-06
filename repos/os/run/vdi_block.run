@@ -29,9 +29,6 @@ set build_components {
 	app/block_tester
 }
 
-source ${genode_dir}/repos/base/run/platform_drv.inc
-append_platform_drv_build_components
-
 build $build_components
 
 create_boot_directory
@@ -63,11 +60,8 @@ append config {
 	<start name="timer">
 		<resource name="RAM" quantum="1M"/>
 		<provides><service name="Timer"/></provides>
-	</start>}
+	</start>
 
-append_platform_drv_config
-
-append config {
 	<start name="lx_fs" ld="no">
 		<resource name="RAM" quantum="8M"/>
 		<provides> <service name="File_system"/> </provides>
@@ -176,8 +170,6 @@ set boot_modules {
 	ld.lib.so vfs.lib.so block_tester
 	block.vdi
 }
-
-append_platform_drv_boot_modules
 
 build_boot_image $boot_modules
 

@@ -1,11 +1,12 @@
 /*
  * \brief  VDI file as a Block session
  * \author Josef Soentgen
+ * \author Alexander Boettcher
  * \date   2018-11-01
  */
 
 /*
- * Copyright (C) 2018 Genode Labs GmbH
+ * Copyright (C) 2018-2023 Genode Labs GmbH
  *
  * This file is part of the Genode OS framework, which is distributed
  * under the terms of the GNU General Public License version 2.
@@ -24,7 +25,6 @@
 #include <util/string.h>
 #include <vfs/simple_env.h>
 
-#include <base/debug.h>
 #include <vfs/print.h>
 
 /* local includes */
@@ -73,16 +73,19 @@ struct Vdi::Meta_data
 		block_size(block_size), sector_size(sector_size)
 	{ }
 
-	template <typename T>
-	bool alloc_block(uint64_t const bid, T const &fn)
+	template <typename T, typename E>
+	bool alloc_block(uint64_t const bid, T const &fn, E const &err)
 	{
-		if (bid >= max_blocks)
+		if (bid >= max_blocks) {
+			err();
 			return false;
+		}
 
 		uint64_t const offset = uint64_t(data_offset) +
 		                        uint64_t(allocated_blocks) *
 		                        uint64_t(block_size);
-		fn(offset);
+		if (!fn(offset))
+			return false;
 
 		table[bid].value = allocated_blocks;
 		allocated_blocks++;
@@ -175,7 +178,7 @@ static Genode::Xml_node vfs_config(Genode::Xml_node const &config)
 	}
 }
 
-class Vdi::File: public Vfs::Io_response_handler
+class Vdi::File: Vfs::Read_ready_response_handler, Vfs::Env::User
 {
 	private:
 
@@ -183,16 +186,18 @@ class Vdi::File: public Vfs::Io_response_handler
 		using Sync_result  = Vfs::File_io_service::Sync_result;
 		using Write_result = Vfs::File_io_service::Write_result;
 
-		/****************************************
-		 ** Vfs::Io_response_handler interface **
-		 ****************************************/
-
+		/**
+		 * Vfs::Read_ready_response_handler interface
+		 */
 		void read_ready_response() override
 		{
 			Genode::error(__LINE__, " unimplemented");
 		}
 
-		void io_progress_response() override
+		/**
+		 * Vfs::Env::User interface
+		 */
+		void wakeup_vfs_user() override
 		{
 #if 0
 			Genode::log("io response write=", (int)_state_fs.state,
@@ -390,38 +395,47 @@ class Vdi::File: public Vfs::Io_response_handler
 		void _write(char * const base, Vfs::file_size const base_size,
 		            Genode::uint64_t const fs_offset)
 		{
+			auto const written_state_on_enter = _state_fs.written;
+
 			do {
 				if (_state_fs.written > _state_fs.max ||
 				    _state_fs.written > base_size) {
 					Genode::error("size errors");
 					_state_fs.state = Write::ERROR;
-					return;
+					break;
 				}
 
 				auto rest = Genode::min(base_size - _state_fs.written,
 				                        _state_fs.max - _state_fs.written);
 				char * dst = base + _state_fs.written;
-				Vfs::file_size written = 0;
+				Genode::size_t written = 0;
 
-				try {
-					_vdi_file->seek(fs_offset + _state_fs.written);
-					Write_result res = _vdi_file->fs().write(_vdi_file,
-					                                         dst,
-					                                         rest,
-					                                         written);
-					if (res != Vfs::File_io_service::WRITE_OK)
-					{
-						_state_fs.state = Write::ERROR;
-						Genode::error(".... write error");
-						return;
-					}
-				} catch (Vfs::File_io_service::Insufficient_buffer) {
+				_vdi_file->seek(fs_offset + _state_fs.written);
+
+				auto const range = Genode::Const_byte_range_ptr(dst, rest);
+				auto const res = _vdi_file->fs().write(_vdi_file, range,
+				                                       written);
+
+				if (res == Vfs::File_io_service::WRITE_ERR_WOULD_BLOCK) {
+					if (written != 0)
+						Genode::warning("WOULD_ERR_WOULD_BLOCK but written is not 0 -> ", written);
 					/* will be resumed later, keep state on WRITE */
-					return;
+					break;
+				}
+
+				if (res != Vfs::File_io_service::WRITE_OK) {
+					_state_fs.state = Write::ERROR;
+					Genode::error(".... write error");
+					break;
 				}
 
 				_state_fs.written += written;
 			} while (_state_fs.written < _state_fs.max);
+
+			if (_state_fs.written != written_state_on_enter) {
+				/* trigger queued write operations to be processed */
+				_vfs_env.io().commit();
+			}
 		}
 
 		void _read(char * dst, Vfs::file_size const dst_size)
@@ -440,6 +454,9 @@ class Vdi::File: public Vfs::Io_response_handler
 				}
 
 				_state_fs_read.state = Read::CHECK;
+
+				/* trigger queued read to be processed */
+				_vfs_env.io().commit();
 			}
 
 			if (_state_fs_read.state == Read::CHECK) {
@@ -450,12 +467,12 @@ class Vdi::File: public Vfs::Io_response_handler
 				}
 
 				char          *p = dst + _state_fs_read.bytes_read;
-				Vfs::file_size n = 0;
+				Genode::size_t n = 0;
+
+				auto const range = Genode::Byte_range_ptr(p, _state_fs_read.remaining);
 
 				Read_result read_result =
-					handle.fs().complete_read(&handle, p,
-					                          _state_fs_read.remaining,
-					                          n);
+					handle.fs().complete_read(&handle, range, n);
 
 				switch (read_result) {
 				case Vfs::File_io_service::READ_OK:
@@ -505,6 +522,9 @@ class Vdi::File: public Vfs::Io_response_handler
 					return Response::RETRY;
 				_state_fs_sync.state = Sync::SYNC_QUEUED;
 
+				/* trigger queued sync to be processed */
+				_vfs_env.io().commit();
+
 				[[fallthrough]];
 
 			case Sync::SYNC_QUEUED: {
@@ -533,6 +553,12 @@ class Vdi::File: public Vfs::Io_response_handler
 
 		bool _cross_vdi_block(::Block::Operation const) const;
 
+		Vdi::File::Response _vdi_read(::Block::Request const &,
+		                              ::Block::Request_stream::Payload const &);
+
+		Vdi::File::Response _vdi_write(::Block::Request const &,
+		                               ::Block::Request_stream::Payload const &);
+
 	public:
 
 		struct Could_not_open_file : Genode::Exception { };
@@ -540,7 +566,7 @@ class Vdi::File: public Vfs::Io_response_handler
 		File(Genode::Env &env, Genode::Xml_node config)
 		:
 			_env(env),
-			_vfs_env(_env, _heap, vfs_config(config))
+			_vfs_env(_env, _heap, vfs_config(config), *this)
 		{
 			bool const writeable = config.attribute_value("writeable", false);
 
@@ -644,7 +670,37 @@ class Vdi::File: public Vfs::Io_response_handler
 		::Block::Session::Info info() const { return _block_ops; }
 
 		Response handle(::Block::Request const & request,
-		                ::Block::Request_stream::Payload const &payload);
+		                ::Block::Request_stream::Payload const &payload)
+		{
+			Response response { Response::REJECTED };
+
+			if (_state_fs.state      == Write::ERROR ||
+			    _state_fs_read.state == Read::UNKNOWN ||
+			    _state_fs_sync.state == Sync::FAULT)
+				return response;
+
+			switch (request.operation.type) {
+			case ::Block::Operation::Type::READ:
+				response = _vdi_read(request, payload);
+				break;
+			case ::Block::Operation::Type::WRITE:
+				response = _vdi_write(request, payload);
+				break;
+			case ::Block::Operation::Type::SYNC:
+				response = _sync();
+				break;
+			default:
+				Genode::warning("unsupported command ",
+				                (int)(request.operation.type), " ",
+				                request.operation.type == ::Block::Operation::Type::TRIM ? " trim" :
+				                request.operation.type == ::Block::Operation::Type::INVALID ? " invalid" : " unknown");
+			}
+
+			/* artifical ? */
+			_vfs_env.io().commit();
+
+			return response;
+		}
 };
 
 #endif /* _VDI_BLOCK__VDI_FILE_H_ */
