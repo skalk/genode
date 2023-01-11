@@ -1,7 +1,7 @@
 /*
  * \brief  Array defining order of Linux Kernel initcalls
  * \author Automatically generated file - do no edit
- * \date   2022-05-13
+ * \date   2023-01-11
  */
 
 #pragma once
@@ -202,6 +202,8 @@ static const char * lx_emul_initcall_order[] = {
 	"__initcall_blackhole_netdev_init6",
 	"__initcall_phy_module_init6",
 	"__initcall_fixed_mdio_bus_init6",
+	"__initcall_ath9k_init6",
+	"__initcall_ath9k_cmn_init6",
 	"__initcall_iwl_drv_init6",
 	"__initcall_iwl_init6",
 	"__initcall_iwl_mvm_init6",

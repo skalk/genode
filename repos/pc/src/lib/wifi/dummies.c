@@ -368,3 +368,37 @@ void pci_disable_device(struct pci_dev * dev)
 {
 	lx_emul_trace(__func__);
 }
+
+
+unsigned int pci_rescan_bus(struct pci_bus *bus)
+{
+	lx_emul_trace(__func__);
+	return 0;
+}
+
+
+void pcim_pin_device(struct pci_dev *pdev)
+{
+	lx_emul_trace(__func__);
+}
+
+
+void pcim_iounmap(struct pci_dev *pdev, void __iomem *addr)
+{
+	lx_emul_trace(__func__);
+}
+
+
+int pcim_iomap_regions(struct pci_dev *pdev, int mask, const char *name)
+{
+	lx_emul_trace(__func__);
+	return 0;
+}
+
+
+int pcie_capability_clear_and_set_word(struct pci_dev *dev, int pos,
+                                       u16 clear, u16 set)
+{
+	lx_emul_trace_and_stop(__func__);
+	return 0;
+}

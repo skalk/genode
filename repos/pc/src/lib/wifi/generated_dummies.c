@@ -704,14 +704,6 @@ enum reboot_mode panic_reboot_mode;
 
 #include <linux/pci.h>
 
-int pci_read_config_dword(const struct pci_dev * dev,int where,u32 * val)
-{
-	lx_emul_trace_and_stop(__func__);
-}
-
-
-#include <linux/pci.h>
-
 void pci_stop_and_remove_bus_device(struct pci_dev * dev)
 {
 	lx_emul_trace_and_stop(__func__);
