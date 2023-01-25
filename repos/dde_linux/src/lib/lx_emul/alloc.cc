@@ -84,6 +84,7 @@ extern "C" unsigned long lx_emul_mem_size(const void * ptr)
 extern "C" void lx_emul_mem_cache_clean_invalidate(const void * addr,
                                                    unsigned long size)
 {
+	Genode::error("cache_clean_invalidate_data ", addr, " ", size);
 	Genode::cache_clean_invalidate_data((Genode::addr_t)addr, size);
 }
 
@@ -91,5 +92,6 @@ extern "C" void lx_emul_mem_cache_clean_invalidate(const void * addr,
 extern "C" void lx_emul_mem_cache_invalidate(const void * addr,
                                              unsigned long size)
 {
+	Genode::error("cache_invalidate_data ", addr, " ", size);
 	Genode::cache_invalidate_data((Genode::addr_t)addr, size);
 }

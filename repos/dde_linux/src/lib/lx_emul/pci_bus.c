@@ -159,13 +159,14 @@ static void pci_add_single_device_callback(void       * data,
 static int __init pci_subsys_init(void)
 {
 	struct pci_bus *b;
-	struct pci_sysdata *sd;
 
 	/* pci_alloc_bus(NULL) */
 	b = kzalloc(sizeof (struct pci_bus), GFP_KERNEL);
 	if (!b)
 		return -ENOMEM;
 
+#ifdef CONFIG_X86
+	struct pci_sysdata *sd;
 	sd = kzalloc(sizeof (struct pci_sysdata), GFP_KERNEL);
 	if (!sd) {
 		kfree(b);
@@ -176,6 +177,7 @@ static int __init pci_subsys_init(void)
 	sd->domain = 0;
 
 	b->sysdata = sd;
+#endif /* CONFIG_X86 */
 
 	INIT_LIST_HEAD(&b->node);
 	INIT_LIST_HEAD(&b->children);
