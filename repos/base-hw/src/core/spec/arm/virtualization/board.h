@@ -14,7 +14,7 @@
 #ifndef _CORE__SPEC__ARM__VIRTUALIZATION__BOARD_H_
 #define _CORE__SPEC__ARM__VIRTUALIZATION__BOARD_H_
 
-/* base-hw Core includes */
+/* base-hw core includes */
 #include <kernel/configuration.h>
 #include <kernel/irq.h>
 
@@ -29,7 +29,7 @@ namespace Board {
 
 	struct Vcpu_context;
 
-	using Vm_state = Genode::Vm_state;
+	using Vm_state = Core::Vm_state;
 };
 
 
