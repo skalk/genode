@@ -27,6 +27,7 @@
 #include <hw/spec/riscv/page_table.h>
 
 /* base-hw core includes */
+#include <types.h>
 #include <kernel/interface.h>
 #include <spec/riscv/address_space_id_allocator.h>
 
@@ -54,7 +55,7 @@ class Core::Cpu : public Hw::Riscv_cpu
 {
 	public:
 
-		struct alignas(8) Context : Cpu_state
+		struct alignas(8) Context : Genode::Cpu_state
 		{
 			Context(bool);
 		};
@@ -69,8 +70,7 @@ class Core::Cpu : public Hw::Riscv_cpu
 
 				Satp::access_t satp = 0;
 
-				Mmu_context(addr_t                             page_table_base,
-				            Board::Address_space_id_allocator &addr_space_id_alloc);
+				Mmu_context(addr_t page_table_base, Board::Address_space_id_allocator &);
 
 				~Mmu_context();
 		};
