@@ -32,10 +32,10 @@ extern addr_t hypervisor_exception_vector;
 /*
  * Add ARM virtualization specific vm service
  */
-void platform_add_local_services(Rpc_entrypoint    &ep,
-                                 Sliced_heap       &sh,
-                                 Registry<Service> &services,
-                                 Core::Trace::Source_registry &trace_sources)
+void Core::platform_add_local_services(Rpc_entrypoint    &ep,
+                                       Sliced_heap       &sh,
+                                       Registry<Service> &services,
+                                       Core::Trace::Source_registry &trace_sources)
 {
 	map_local(Platform::core_phys_addr((addr_t)&hypervisor_exception_vector),
 	          Hw::Mm::hypervisor_exception_vector().base,
