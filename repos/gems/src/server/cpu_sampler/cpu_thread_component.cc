@@ -12,7 +12,7 @@
  */
 
 /* Genode includes */
-#include <base/snprintf.h>
+#include <util/string.h>
 
 /* local includes */
 #include "cpu_session_component.h"
@@ -32,28 +32,14 @@ Cpu_sampler::Cpu_thread_component::Cpu_thread_component(
                                 addr_t                   utcb,
                                 char              const *thread_name,
                                 unsigned int             thread_id)
-: _cpu_session_component(cpu_session_component), _env(env),
-  _md_alloc(md_alloc),
-  _parent_cpu_thread(
-      _cpu_session_component.parent_cpu_session().create_thread(pd,
-                                                                name,
-                                                                affinity,
-                                                                weight,
-                                                                utcb))
+:
+	_cpu_session_component(cpu_session_component), _env(env), _md_alloc(md_alloc),
+	_parent_cpu_thread(
+		_cpu_session_component.parent_cpu_session()
+		                      .create_thread(pd, name, affinity, weight, utcb)),
+	_label(_cpu_session_component.session_label().string(), " -> ", thread_name),
+	_log_session_label("samples -> ", _label, ".", thread_id)
 {
-	char label_buf[Session_label::size()];
-
-	snprintf(label_buf, sizeof(label_buf), "%s -> %s",
-	         _cpu_session_component.session_label().string(),
-	         thread_name);
-
-	_label = Session_label(label_buf);
-
-	snprintf(label_buf, sizeof(label_buf), "samples -> %s.%u",
-             _label.string(), thread_id);
-
-    _log_session_label = Session_label(label_buf);
-
 	_cpu_session_component.thread_ep().manage(this);
 }
 
