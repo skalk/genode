@@ -23,13 +23,27 @@ extern "C" {
 
 using namespace Genode;
 
+
 using Err_string = String<128>;
 
-static Err_string err_str;
+
+static Err_string &_err_str()
+{
+	static Err_string str { };
+	return str;
+}
+
+
+/**
+ * Set global 'dlerror' message
+ */
+template <typename... ARGS>
+static void _dlerror(ARGS &&... args) { _err_str() = { args... }; }
+
 
 char *dlerror(void)
 {
-	return (char *)err_str.string();
+	return (char *)_err_str().string();
 }
 
 
@@ -58,8 +72,8 @@ void *dlopen(const char *name, int mode)
 
 	/* error on unsupported mode values */
 	if (mode & ~supported) {
-		err_str = { "Unsupported mode ", Hex(mode & ~supported) };
-		error(__func__, ": ", err_str);
+		_dlerror("Unsupported mode ", Hex(mode & ~supported));
+		error(__func__, ": ", _err_str());
 		return nullptr;
 	}
 
@@ -82,7 +96,7 @@ void *dlopen(const char *name, int mode)
 			              name ? Genode::Path<128>(name).last_element() : nullptr, /* extract file name */
 			              bind, keep);
 	} catch (...) {
-		err_str = { "Unable to open file ", name };
+		_dlerror("Unable to open file ", name);
 	}
 	return nullptr;
 }
@@ -91,7 +105,7 @@ void *dlopen(const char *name, int mode)
 void *dlsym(void *handle, const char *name)
 {
 	if (handle == nullptr || handle == RTLD_NEXT || handle == RTLD_SELF) {
-		err_str = { "Unsupported handle ", handle };
+		_dlerror("Unsupported handle ", handle);
 		return nullptr;
 	}
 
@@ -106,7 +120,7 @@ void *dlsym(void *handle, const char *name)
 
 		return to_object(handle)->lookup(name);
 	} catch (...) {
-		err_str = { "Symbol '", name, "' not found" };
+		_dlerror("Symbol '", name, "' not found");
 	}
 
 	return nullptr;
@@ -122,7 +136,7 @@ int dladdr(const void *addr, Dl_info *dlip)
 		dlip->dli_sname = info.name;
 		dlip->dli_saddr = (void *)info.addr;
 	} catch (...) {
-		err_str = { "Symbol at ", addr, " not found" };
+		_dlerror("Symbol at ", addr, " not found");
 		return 0;
 	}
 
