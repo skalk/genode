@@ -82,7 +82,7 @@ class Vfs::Rtc_file_system : public Single_file_system
 					                                 Padded { 2, ts.day    }, " ",
 					                                 Padded { 2, ts.hour   }, ":",
 					                                 Padded { 2, ts.minute }, ":",
-					                                 Padded { 2, ts.second } };
+					                                 Padded { 2, ts.second }, "\n" };
 					char const *b = string.string();
 					size_t      n = string.length();
 
