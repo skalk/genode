@@ -53,8 +53,6 @@ struct Main
 	void parse_pci_config_spaces(Xml_node & xml, Xml_generator & generator);
 	void parse_acpi_device_info(Xml_node const &xml, Xml_generator & generator);
 
-	void _io_dummy() {};
-
 	template <typename FN>
 	void for_bridge(Pci::bus_t bus, FN const & fn)
 	{
@@ -384,7 +382,8 @@ Main::Main(Env & env) : env(env)
 	 * Wait until the system ROM is available
 	 */
 	if (!sys_rom.valid()) {
-		Io_signal_handler<Main> handler(env.ep(), *this, &Main::_io_dummy);
+		struct Io_dummy { void fn() {}; } io_dummy;
+		Io_signal_handler<Io_dummy> handler(env.ep(), io_dummy, &Io_dummy::fn);
 		sys_rom.sigh(handler);
 		while (!sys_rom.valid()) {
 			env.ep().wait_and_dispatch_one_io_signal();
