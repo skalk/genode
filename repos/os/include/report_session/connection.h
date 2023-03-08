@@ -24,7 +24,7 @@ struct Report::Connection : Genode::Connection<Session>, Session_client
 {
 	Connection(Genode::Env &env, Label const &label, size_t buffer_size = 4096)
 	:
-		Genode::Connection<Session>(env, label, Ram_quota { 10*1024 },
+		Genode::Connection<Session>(env, label, Ram_quota { 10*1024 + buffer_size },
 		                            Args("buffer_size=", buffer_size)),
 		Session_client(cap())
 	{ }
