@@ -107,21 +107,13 @@ void Cpu_sampler::Cpu_thread_component::flush()
 		_log.construct(_env, _log_session_label);
 
 	/* number of hex characters + newline + '\0' */
-	enum { SAMPLE_STRING_SIZE = 2 * sizeof(addr_t) + 1 + 1 };
-
-	char sample_string[SAMPLE_STRING_SIZE];
-
-	char const *format_string;
-
-	if (sizeof(addr_t) == 8)
-		format_string = "%16lX\n";
-	else
-		format_string = "%8X\n";
+	using Sample = String<2 * sizeof(addr_t) + 1 + 1>;
 
 	for (unsigned int i = 0; i < _sample_buf_index; i++) {
-		snprintf(sample_string, SAMPLE_STRING_SIZE, format_string,
-		         _sample_buf[i]);
-		_log->write(sample_string);
+
+		Sample const sample(Hex(_sample_buf[i], Hex::OMIT_PREFIX, Hex::PAD), "\n");
+
+		_log->write(sample.string());
 	}
 
 	_sample_buf_index = 0;
