@@ -1198,6 +1198,12 @@ class Nvme::Controller : Platform::Device,
 		if (units > max_units)
 			units = max_units;
 
+		if (units < _info.hmpre)
+			warning("HMB size of ",
+			         Number_of_bytes(units * Nvme::MPS),
+			         " is less than preferred amount of ",
+			         Number_of_bytes(_info.hmpre * Nvme::MPS));
+
 		return units;
 	}
 
