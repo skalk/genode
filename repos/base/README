@@ -1,4 +1,4 @@
-This is generic part of the Genode base system. It consists of two parts:
+This is the generic Genode base system, which consists of two parts:
 
 :_Core_: is the root of the Genode component tree. It provides abstractions for
   the lowest-level hardware resources such as RAM, ROM, CPU, and device access.
