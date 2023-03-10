@@ -438,7 +438,7 @@ struct Nvme::Set_hmb : Nvme::Sqe_set_feature
 		struct Hmdlec : Bitfield<0, 32> { }; /* host memory descriptor list entry count */
 	};
 
-	Set_hmb(addr_t const base, addr_t const hmdl,
+	Set_hmb(addr_t const base, uint64_t const hmdl,
 	        size_t const units, uint32_t const entries)
 	:
 		Sqe_set_feature(base)
