@@ -24,7 +24,7 @@ extern addr_t __initial_r0;
 /**
  * Obtain seL4 boot info structure
  */
-seL4_BootInfo const &sel4_boot_info()
+seL4_BootInfo const &Core::sel4_boot_info()
 {
 	return *(seL4_BootInfo const *)__initial_r0;
 }
