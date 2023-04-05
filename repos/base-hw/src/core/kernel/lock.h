@@ -15,7 +15,10 @@
 #ifndef _CORE__SPEC__SMP__KERNEL__LOCK_H_
 #define _CORE__SPEC__SMP__KERNEL__LOCK_H_
 
-namespace Kernel { class Lock; }
+namespace Kernel {
+	class Lock;
+	class Cpu_pool;
+}
 
 
 class Kernel::Lock
@@ -28,8 +31,11 @@ class Kernel::Lock
 
 		int volatile      _locked      { UNLOCKED };
 		unsigned volatile _current_cpu { INVALID  };
+		Cpu_pool         &_cpu_pool;
 
 	public:
+
+		Lock(Cpu_pool &pool) : _cpu_pool(pool) {}
 
 		void lock();
 		void unlock();

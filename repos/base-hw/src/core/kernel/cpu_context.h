@@ -85,6 +85,8 @@ class Kernel::Cpu_job : private Cpu_share
 		 */
 		virtual void proceed(Cpu & cpu) = 0;
 
+		virtual void panic() = 0;
+
 		/**
 		 * Return which job currently uses our CPU-share
 		 */

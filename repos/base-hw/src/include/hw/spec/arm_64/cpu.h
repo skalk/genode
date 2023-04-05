@@ -107,6 +107,7 @@ struct Hw::Arm_64_cpu
 		};
 	};
 
+	SYSTEM_REGISTER(64, Elr_el1, elr_el1);
 	SYSTEM_REGISTER(64, Esr_el1, esr_el1);
 	SYSTEM_REGISTER(64, Far_el1, far_el1);
 	SYSTEM_REGISTER(32, Fpcr, fpcr);
@@ -187,6 +188,7 @@ struct Hw::Arm_64_cpu
 		struct D  : Bitfield<9, 1> {};
 	};
 
+	SYSTEM_REGISTER(64, Spsr_el1, spsr_el1);
 	SYSTEM_REGISTER(64, Spsr_el2, spsr_el2);
 	SYSTEM_REGISTER(64, Spsr_el3, spsr_el3);
 

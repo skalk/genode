@@ -162,6 +162,12 @@ Cpu_job & Cpu::schedule()
 }
 
 
+void Cpu::panic()
+{
+	scheduled_job().panic();
+}
+
+
 Genode::size_t  kernel_stack_size = Cpu::KERNEL_STACK_SIZE;
 Genode::uint8_t kernel_stack[Board::NR_OF_CPUS][Cpu::KERNEL_STACK_SIZE]
 __attribute__((aligned(Genode::get_page_size())));

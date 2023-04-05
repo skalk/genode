@@ -51,3 +51,46 @@ void Thread::exception(Cpu & cpu)
 
 	_die();
 }
+
+
+void Thread::panic()
+{
+	using namespace Genode;
+	using Genode::Cpu_state;
+
+	log("");
+	switch (regs->trapno) {
+
+	case Cpu_state::PAGE_FAULT:
+		log("Exception reason: page-fault (address=", Hex(Cpu::Cr2::read()), ")");
+		break;
+
+	case Cpu_state::UNDEFINED_INSTRUCTION:
+		log("Exception reason: undefined instruction ");
+		break;
+
+	case Cpu_state::SUPERVISOR_CALL:
+		log("Exception reason: syscall (number=", regs->rax, ")");
+		break;
+	}
+
+	if (regs->trapno >= Cpu_state::INTERRUPTS_START &&
+	    regs->trapno <= Cpu_state::INTERRUPTS_END)
+		log("Exception reason: interrupt");
+
+	log("");
+	log("Register dump");
+	log("-------------");
+	log("ip     = ", Hex(regs->ip));
+	log("sp     = ", Hex(regs->sp));
+	log("cs     = ", Hex(regs->cs));
+	log("ss     = ", Hex(regs->ss));
+	log("eflags = ", Hex(regs->eflags));
+	log("rax    = ", Hex(regs->rax));
+	log("rbx    = ", Hex(regs->rbx));
+	log("rcx    = ", Hex(regs->rcx));
+	log("rdx    = ", Hex(regs->rdx));
+	log("rdi    = ", Hex(regs->rdi));
+	log("rsi    = ", Hex(regs->rsi));
+	log("rbp    = ", Hex(regs->rbp));
+}

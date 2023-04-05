@@ -59,6 +59,9 @@ void Thread::exception(Cpu & cpu)
 }
 
 
+void Thread::panic() { }
+
+
 /**
  * on ARM with multiprocessing extensions, maintainance operations on TLB,
  * and caches typically work coherently across CPUs when using the correct

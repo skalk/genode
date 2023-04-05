@@ -23,7 +23,6 @@ extern "C" void kernel_to_user_context_switch(void *, void *);
 
 using namespace Kernel;
 
-
 void Thread::_call_suspend() { }
 
 
@@ -76,6 +75,62 @@ void Thread::exception(Cpu & cpu)
 	};
 
 	while (1) { ; }
+}
+
+
+void Thread::panic()
+{
+	using namespace Genode;
+
+	Cpu::Esr::access_t esr = Cpu::Esr_el1::read();
+
+	log("");
+	switch (regs->exception_type) {
+	case Cpu::RESET:
+		log("Exception reason: reset");
+		break;
+	case Cpu::IRQ_LEVEL_EL0: [[fallthrough]];
+	case Cpu::IRQ_LEVEL_EL1: [[fallthrough]];
+	case Cpu::FIQ_LEVEL_EL0: [[fallthrough]];
+	case Cpu::FIQ_LEVEL_EL1:
+		log("Exception reason: interrupt");
+		break;
+	case Cpu::SYNC_LEVEL_EL0: [[fallthrough]];
+	case Cpu::SYNC_LEVEL_EL1:
+		{
+			switch (Cpu::Esr::Ec::get(esr)) {
+			case Cpu::Esr::Ec::SVC:
+				log("Exception reason: syscall (number=", regs->r[0], ")");
+				break;
+			case Cpu::Esr::Ec::INST_ABORT_SAME_LEVEL: [[fallthrough]];
+			case Cpu::Esr::Ec::DATA_ABORT_SAME_LEVEL:
+			case Cpu::Esr::Ec::INST_ABORT_LOW_LEVEL:  [[fallthrough]];
+			case Cpu::Esr::Ec::DATA_ABORT_LOW_LEVEL:
+				{
+					Cpu::Far_el1::access_t fault = Cpu::Far_el1::read();
+					log("Exception reason: page-fault ", Hex(fault));
+					break;
+				}
+			default:
+				log("Exception reason: unknown");
+				break;
+			};
+			break;
+		}
+	default:
+		log("Exception vector: ", (void*)regs->exception_type,
+		    " not implemented!");
+	};
+
+	log("");
+	log("Register dump");
+	log("-------------");
+	log("ELR_EL1  = ", Hex(Cpu::Elr_el1::read()), " (exception ip)");
+	log("SPSR_EL1 = ", Hex(Cpu::Spsr_el1::read()));
+	log("ESR      = ", Hex(esr),
+	    " (EC=",  Cpu::Esr::Ec::get(esr),
+	    " ISS=",  Cpu::Esr::Iss::get(esr), ")");
+	for (unsigned i = 0; i < 31; i++) log("r", i, " = ", Hex(regs->r[i]));
 }
 
 

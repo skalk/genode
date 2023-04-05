@@ -144,6 +144,7 @@ class Kernel::Vm : private Kernel::Object, public Cpu_job
 
 		void exception(Cpu & cpu)       override;
 		void proceed(Cpu &  cpu)        override;
+		void panic()                    override {};
 		Cpu_job * helping_destination() override { return this; }
 };
 

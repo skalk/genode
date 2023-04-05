@@ -27,6 +27,7 @@ void Kernel::Lock::lock()
 		/* at least print an error message */
 		Genode::raw("Cpu ", _current_cpu,
 		            " error: re-entered lock. Kernel exception?!");
+		_cpu_pool.executing_cpu().panic();
 	}
 
 	while (!Genode::cmpxchg((volatile int*)&_locked, UNLOCKED, LOCKED)) { ; }

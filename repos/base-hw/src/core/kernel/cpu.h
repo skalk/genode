@@ -115,7 +115,7 @@ class Kernel::Cpu : public Core::Cpu, private Irq::Pool, private Timeout
 			Halt_job() : Job (0, 0) { }
 
 			void exception(Kernel::Cpu &) override { }
-
+			void panic() override { }
 			void proceed(Kernel::Cpu &) override;
 
 			Kernel::Cpu_job* helping_destination() override { return this; }
@@ -211,6 +211,8 @@ class Kernel::Cpu : public Core::Cpu, private Irq::Pool, private Timeout
 			_arch_init();
 			_state = RUN;
 		}
+
+		void panic();
 };
 
 

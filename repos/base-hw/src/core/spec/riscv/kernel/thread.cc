@@ -95,6 +95,9 @@ void Thread::exception(Cpu & cpu)
 }
 
 
+void Thread::panic() {}
+
+
 void Thread::_call_suspend() { }
 
 

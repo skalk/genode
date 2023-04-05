@@ -449,6 +449,7 @@ class Kernel::Thread : private Kernel::Object, public Cpu_job, private Timeout
 
 		void exception(Cpu & cpu)       override;
 		void proceed(Cpu & cpu)         override;
+		void panic()                    override;
 		Cpu_job * helping_destination() override;
 
 
