@@ -942,6 +942,8 @@ Genode::uint8_t __initial_stack_base[DEFAULT_STACK_SIZE];
  ** Core_main_thread **
  **********************/
 
+extern bool hw_debug_kernel_trace_syscalls;
+
 Core_main_thread::
 Core_main_thread(Board::Address_space_id_allocator &addr_space_id_alloc,
                  Irq::Pool                         &user_irq_pool,
@@ -952,6 +954,8 @@ Core_main_thread(Board::Address_space_id_allocator &addr_space_id_alloc,
 		core_pd, addr_space_id_alloc, user_irq_pool, cpu_pool, core_pd, "core")
 {
 	using namespace Core;
+
+	hw_debug_kernel_trace_syscalls = false;
 
 	map_local(Platform::core_phys_addr((addr_t)&_utcb_instance),
 	          (addr_t)utcb_main_thread(),

@@ -86,6 +86,8 @@ Platform_thread::Platform_thread(Label const &label, Native_utcb &utcb)
 }
 
 
+extern bool hw_debug_kernel_trace_syscalls;
+
 Platform_thread::Platform_thread(size_t             const  quota,
                                  Label              const &label,
                                  unsigned           const  virt_prio,
@@ -102,6 +104,8 @@ Platform_thread::Platform_thread(size_t             const  quota,
 	_location(location),
 	_kobj(_kobj.CALLED_FROM_CORE, _priority, _quota, _label.string())
 {
+	hw_debug_kernel_trace_syscalls = true;
+
 	try {
 		_utcb = core_env().pd_session()->alloc(sizeof(Native_utcb), CACHED);
 	} catch (...) {
