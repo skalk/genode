@@ -119,9 +119,6 @@ int lx_emul_init_task_function(void * dtb)
 	static struct pt_regs regs;
 	set_irq_regs(&regs);
 
-	/* Run emulation library self-tests before starting kernel */
-	lx_emul_associate_page_selftest();
-
 	/**
 	 * Here we do the minimum normally done start_kernel() of init/main.c
 	 */
