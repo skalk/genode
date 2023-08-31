@@ -1440,9 +1440,7 @@ class Igd::Mmio : public Platform::Device::Mmio
 			 * Set RC0 state -- does not matter at this point b/c
 			 * we disable RC states entirely.
 			 */
-/*
 			write_post<RC_CTRL1::Rc_state>(0);
-*/
 
 			write<RC_CTRL0>(0);
 			write<RP_FREQ_NORMAL::Turbo_disable>(1);
