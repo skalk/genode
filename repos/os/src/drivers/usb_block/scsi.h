@@ -105,7 +105,8 @@ struct Scsi::Inquiry_response : Genode::Mmio
 	struct Pid : Register_array<0x10, 8, 16, 8> { }; /* product identification */
 	struct Rev : Register_array<0x20, 8, 4, 8> { }; /* product revision level */
 
-	Inquiry_response(addr_t addr) : Mmio(addr) { }
+	Inquiry_response(addr_t addr, bool verbose)
+	: Mmio(addr) { if (verbose) dump(); }
 
 	bool       sbc() const { return read<Dt>() == 0x00; }
 	bool removable() const { return read<Rm::Rmb>();    }
@@ -153,7 +154,8 @@ struct Scsi::Request_sense_response : Genode::Mmio
 	struct Fru : Register<0xe,  8> { }; /* field replaceable unit code */
 	struct Sks : Register<0xf, 32> { }; /* sense key specific (3 byte) */
 
-	Request_sense_response(addr_t addr) : Mmio(addr) { }
+	Request_sense_response(addr_t addr, bool verbose)
+	: Mmio(addr) { if (verbose) dump(); }
 
 	void dump()
 	{
@@ -174,7 +176,8 @@ struct Scsi::Capacity_response_10 : Genode::Mmio
 	struct Lba : Register<0x0, 32> { };
 	struct Bs  : Register<0x4, 32> { };
 
-	Capacity_response_10(addr_t addr) : Mmio(addr) { }
+	Capacity_response_10(addr_t addr, bool verbose)
+	: Mmio(addr) { if (verbose) dump(); }
 
 	uint32_t last_block() const { return be(read<Lba>()); }
 	uint32_t block_size() const { return be(read<Bs>()); }
@@ -195,7 +198,8 @@ struct Scsi::Capacity_response_16 : Genode::Mmio
 	struct Lba : Register<0x0, 64> { };
 	struct Bs  : Register<0x8, 32> { };
 
-	Capacity_response_16(addr_t addr) : Mmio(addr) { }
+	Capacity_response_16(addr_t addr, bool verbose)
+	: Mmio(addr) { if (verbose) dump(); }
 
 	uint64_t last_block() const { return be(read<Lba>()); }
 	uint32_t block_size() const { return be(read<Bs>()); }
