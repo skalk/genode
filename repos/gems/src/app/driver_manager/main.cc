@@ -735,7 +735,9 @@ void Driver_manager::Main::_generate_usb_drv_config(Reporter &usb_drv_config,
 		/* usb hid drv gets all hid devices */
 		xml.node("policy", [&] () {
 			xml.attribute("label_prefix", "usb_hid_drv");
-			xml.attribute("class", "0x3");
+			xml.node("device", [&] () {
+				xml.attribute("class", "0x3");
+			});
 		});
 
 		devices.for_each_sub_node("device", [&] (Xml_node device) {

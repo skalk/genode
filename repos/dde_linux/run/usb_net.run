@@ -10,13 +10,13 @@
 create_boot_directory
 import_from_depot [depot_user]/src/[base_src] \
                   [depot_user]/pkg/test_usb_host_drv-[board] \
-                  [depot_user]/src/usb_net_drv \
                   [depot_user]/src/nic_router \
                   [depot_user]/src/libc \
                   [depot_user]/src/vfs \
                   [depot_user]/src/vfs_lwip \
                   [depot_user]/src/init
-build { test/lwip/http_srv }
+
+build { drivers/usb_net test/lwip/http_srv }
 
 install_config {
 <config>
@@ -111,9 +111,11 @@ install_config {
 #
 set config {<config bios_handoff="yes">}
 append_if [have_board rpi] config {
-	<policy label_prefix="usb_net_drv" vendor_id="0x0424" product_id="0xec00"/> }
+	<policy label_prefix="usb_net_drv">
+		<device vendor_id="0x0424" product_id="0xec00"/> </policy>}
 append_if [have_spec x86] config {
-	<policy label_prefix="usb_net_drv" vendor_id="0x0b95" product_id="0x1790"/> }
+	<policy label_prefix="usb_net_drv">
+		<device vendor_id="0x0b95" product_id="0x1790"/> </policy> }
 append config {</config>}
 set fd [open [run_dir]/genode/usb_host_drv.config w]
 puts $fd $config

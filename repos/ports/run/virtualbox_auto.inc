@@ -343,7 +343,7 @@ append_if [expr $use_usb] config {
 					<inline name="usb_drv.config">
 <config>
 	<report devices="yes"/>
-	<policy label_prefix="usb_hid_drv" class="0x3"/>
+	<policy label_prefix="usb_hid_drv"><device class="0x3"/></policy>
 </config>
 					</inline>
 					<inline name="usb_report_filter.config">
@@ -424,7 +424,6 @@ append_if [expr $use_usb] config {
 
 	<start name="usb_hid_drv" priority="-1" caps="140">
 		<resource name="RAM" quantum="11M"/>
-		<config use_report="yes"/>
 		<route>
 			<service name="Report"> <child name="report_rom"/> </service>
 			<service name="Event"> <child name="event_filter" label="usb_hid"/> </service>
