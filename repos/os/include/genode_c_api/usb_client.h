@@ -15,7 +15,7 @@
 #define __GENODE_C_API__USB_CLIENT_H_
 
 #include <base/fixed_stdint.h>
-#include <genode_c_api/usb.h>
+#include <genode_c_api/base.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -111,7 +111,7 @@ typedef struct genode_usb_request_packet genode_request_packet_t;
 struct genode_usb_client_request_packet
 {
 	genode_request_packet_t  request;
-	struct genode_usb_buffer buffer;
+	genode_buffer_t          buffer;
 	int                      actual_length;
 	int                      error;
 	void (*complete_callback)(struct genode_usb_client_request_packet *);
