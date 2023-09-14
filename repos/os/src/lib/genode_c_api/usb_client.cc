@@ -1,6 +1,7 @@
 /*
  * \brief  Genode USB client provider C-API
  * \author Sebastian Sumpf
+ * \author Stefan Kalkowski
  * \date   2023-06-29
  */
 
@@ -12,329 +13,569 @@
  */
 
 #include <base/id_space.h>
-#include <usb_session/connection.h>
 #include <base/heap.h>
-#include <genode_c_api/usb_client.h>
 #include <util/bit_allocator.h>
+#include <util/reconstructible.h>
+#include <util/list_model.h>
+
+#include <usb_session/device.h>
+#include <genode_c_api/usb_client.h>
 
 using namespace Genode;
 
-struct Usb_client;
-struct Usb_completion;
+struct Device;
 
-using Usb_id_space = Id_space<Usb_client>;
-
-
-struct Usb_completion : Usb::Completion
+struct Endpoint : List_model<Endpoint>::Element
 {
-	Usb::Packet_descriptor packet { };
+	uint8_t const address;
+	uint8_t const attributes;
+	uint8_t const max_packet_size;
 
-	genode_usb_client_request_packet *request = nullptr;
+	Endpoint(Xml_node const &n)
+	:
+		address(n.attribute_value<uint8_t>("address", 0xff)),
+		attributes(n.attribute_value<uint8_t>("attributes", 0xff)),
+		max_packet_size(n.attribute_value<uint8_t>("max_packet_size", 0)) {}
 
-	void complete(Usb::Packet_descriptor &p) override
-	{
-		packet = p;
-		request->actual_length = (packet.type == Usb::Packet_descriptor::CTRL) ?
-		                         packet.control.actual_size : packet.transfer.actual_size;
+	bool matches(Xml_node const &node) const {
+		return address == node.attribute_value<uint8_t>("address", 0xff); }
 
-		request->error = NO_ERROR;
-
-		if (!packet.succeded) {
-			switch (packet.error) {
-			case Usb::Packet_descriptor::NO_ERROR:
-				request->error = NO_ERROR; break;
-			case Usb::Packet_descriptor::INTERFACE_OR_ENDPOINT_ERROR:
-				request->error = INTERFACE_OR_ENDPOINT_ERROR; break;
-			case Usb::Packet_descriptor::MEMORY_ERROR:
-				request->error = MEMORY_ERROR; break;
-			case Usb::Packet_descriptor::NO_DEVICE_ERROR:
-				request->error = NO_DEVICE_ERROR; break;
-			case Usb::Packet_descriptor::PACKET_INVALID_ERROR:
-				request->error = PACKET_INVALID_ERROR; break;
-			case Usb::Packet_descriptor::PROTOCOL_ERROR:
-				request->error = PROTOCOL_ERROR; break;
-			case Usb::Packet_descriptor::STALL_ERROR:
-				request->error = STALL_ERROR; break;
-			case Usb::Packet_descriptor::TIMEOUT_ERROR:
-				request->error = TIMEOUT_ERROR; break;
-			case Usb::Packet_descriptor::UNKNOWN_ERROR:
-				request->error = UNKNOWN_ERROR; break;
-			}
-		}
-
-		if (request->complete_callback)
-			request->complete_callback(request);
-	}
-
-	void free()
-	{
-		request->error = NO_DEVICE_ERROR;
-		if (request->free_callback) request->free_callback(request);
-	}
+	static bool type_matches(Xml_node const &node) {
+		return node.has_type("endpoint"); }
 };
 
 
-struct Usb_client : Usb::Connection
+class Interface : public List_model<::Interface>::Element
 {
-	enum { PACKET_SLOTS = Usb::Session::TX_QUEUE_SIZE };
+	private:
 
-	Usb_completion              completions[PACKET_SLOTS];
-	Bit_allocator<PACKET_SLOTS> slots { };
-	Usb_id_space::Element const elem;
+		Device                       &_device;
+		Constructible<Usb::Interface> _iface {};
+		List_model<Endpoint>          _endpoints {};
+		uint8_t const                 _number;
+		uint8_t const                 _alt_setting;
+		bool                          _active;
+		size_t                        _buf_size { 4096 * 8 }; /* FIXME: read from elsewhere */
 
-	Usb_client(Env &env, Usb_id_space &space, char const *label,
-	           Range_allocator *alloc,
-	           Signal_context_capability state_changed)
-	: Usb::Connection(env, alloc, label, 512*1024, state_changed),
-	  elem(*this, space)
-	{ }
+		Usb::Interface &_session();
 
-	genode_usb_client_handle_t handle() const { return elem.id().value; }
+	public:
 
-	void free_completion(Usb_completion *completion)
-	{
-		unsigned long slot_idx = (unsigned long)(completion - completions);
-		slots.free(slot_idx);
-	}
+		class Urb : Usb::Endpoint, public Usb::Interface::Urb
+		{
+			private:
 
-	Usb_completion *alloc(size_t size)
-	{
-		/*
-		 * We don't need to check for 'ready_to_submit' because we have as many
-		 * compltions as packet slots
+				friend class ::Interface;
+				using Pdesc = Usb::Interface::Packet_descriptor;
+
+				static Pdesc::Type _type(genode_usb_client_iface_type_t t)
+				{
+					switch(t) {
+						case ::BULK:  return Pdesc::BULK;
+						case ::IRQ:   return Pdesc::IRQ;
+						case ::ISOC:  return Pdesc::ISOC;
+						case ::FLUSH: return Pdesc::FLUSH;
+					};
+					return Pdesc::FLUSH;
+				}
+
+				struct Driver_data { void * const data; } _driver_data;
+
+			public:
+
+				Urb(::Interface                   &iface,
+				    ::Endpoint                    &endp,
+				    genode_usb_client_iface_type_t type,
+				    size_t                         size,
+				    void                          *opaque_data)
+				:
+					Usb::Endpoint(endp.address, endp.attributes),
+					Usb::Interface::Urb(iface._session(), *this, _type(type), size),
+					_driver_data{opaque_data} {}
+		};
+
+		Interface(Device &device, Xml_node const &n)
+		:
+			_device(device),
+			_number(n.attribute_value<uint8_t>("number", 0xff)),
+			_alt_setting(n.attribute_value<uint8_t>("alt_setting", 0xff)),
+			_active(n.attribute_value("active", false)) {}
+
+		~Interface()
+		{
+			if (_iface.constructed())
+				_iface->dissolve_all_urbs<Urb>([] (Urb&) {});
+		}
+
+		uint8_t number()      const { return _number; };
+		uint8_t alt_setting() const { return _alt_setting; };
+		bool    active()      const { return _active; }
+
+		bool matches(Xml_node const &n) const
+		{
+			uint8_t nr  = n.attribute_value<uint8_t>("number", 0xff);
+			uint8_t alt = n.attribute_value<uint8_t>("alt_setting", 0xff);
+			return _number == nr && _alt_setting == alt;
+		}
+
+		static bool type_matches(Xml_node const &node) {
+			return node.has_type("interface"); }
+
+		void update(Allocator &alloc, Xml_node const &node)
+		{
+			_active = node.attribute_value("active", false);
+			_endpoints.update_from_xml(node,
+
+				/* create */
+				[&] (Xml_node const &node) -> Endpoint & {
+					return *new (alloc) Endpoint(node); },
+
+				/* destroy */
+				[&] (Endpoint &endp) {
+					destroy(alloc, &endp); },
+
+				/* update */
+				[&] (Endpoint &, Xml_node const &) { }
+			);
+		}
+
+		void update(genode_usb_client_produce_out_t out,
+		            genode_usb_client_consume_in_t  in,
+		            genode_usb_client_complete_t    complete)
+		{
+			if (!_iface.constructed())
+				return;
+
+			_iface->update_urbs<Urb>(
+
+				/* produce out content */
+				[&] (Urb &urb, void *dst, size_t length) {
+					out(urb._driver_data.data, { (void*)dst, length }); },
+
+				/* consume in results */
+				[&] (Urb &urb, void const *src, size_t length) {
+					in(urb._driver_data.data, { (void*)src, length }); },
+
+				/* complete USB request */
+				[&] (Urb &urb,
+				     Usb::Interface::Packet_descriptor::Return_value v) {
+					using Retval = Usb::Interface::Packet_descriptor::Return_value;
+					genode_usb_client_ret_val_t ret;
+
+					switch (v) {
+					case Retval::NO_DEVICE: ret = NO_DEVICE; break;
+					case Retval::INVALID:   ret = INVALID;   break;
+					case Retval::OK:        ret = OK;        break;
+					default:
+						error("unhandled packet should not happen!");
+						ret = INVALID;
+					};
+					complete(urb._driver_data.data, ret);
+				});
+		}
+
+		template <typename FN>
+		void with_endpoint(uint8_t index, FN const &fn)
+		{
+			_endpoints.for_each([&] (Endpoint &endp) {
+				if (endp.address == index) fn(endp);
+			});
+		}
+
+		template <typename FN>
+		void for_each_endpoint(FN const &fn) {
+			_endpoints.for_each([&] (Endpoint &endp) { fn(endp); }); }
+};
+
+
+class Device : public List_model<Device>::Element
+{
+	public:
+
+		using Name  = String<64>;
+		using Speed = String<32>;
+
+	private:
+
+		Name                      const _name;
+		Speed                     const _speed;
+		Id_space<Device>::Element const _elem;
+		Usb::Device                     _device;
+		Signal_context_capability       _sigh_cap;
+		void                           *_driver_data { nullptr };
+		List_model<::Interface>         _ifaces {};
+
+		/**
+		 * Noncopyable
 		 */
-		Usb_completion *completion = nullptr;
-		try {
-			completion = &completions[slots.alloc()];
-			Usb::Packet_descriptor packet = Usb::Session_client::alloc_packet(size);
-			packet.completion  = completion;
-			completion->packet = packet;
-		} catch (Tx::Source::Packet_alloc_failed) {
-			free_completion(completion);
-			return nullptr;
-		} catch (Bit_allocator<PACKET_SLOTS>::Out_of_indices) {
-			return nullptr;
+		Device(Device const &);
+		Device &operator = (Device const &);
+
+	public:
+
+		struct Urb : Usb::Device::Urb
+		{
+			using Request_type =
+				Usb::Device::Packet_descriptor::Request_type::access_t;
+
+			struct Driver_data { void * const data; } _driver_data;
+
+			Urb(Device & device,
+			    uint8_t  request,
+			    uint8_t  request_type,
+			    uint16_t value,
+			    uint16_t index,
+			    size_t   size,
+			    void    *opaque_data)
+			:
+				Usb::Device::Urb(device._device, request,
+				                 (Request_type)request_type,
+				                 value, index, size),
+				_driver_data{opaque_data} {}
+		};
+
+		Device(Name                     &name,
+		       Speed                    &speed,
+		       Usb::Connection          &usb,
+		       Allocator                &alloc,
+		       Region_map               &rm,
+		       Id_space<Device>         &space,
+		       Signal_context_capability cap)
+		:
+			_name(name),
+			_speed(speed),
+			_elem(*this, space),
+			_device(usb, alloc, rm, name),
+			_sigh_cap(cap)
+		{
+			_device.sigh(_sigh_cap);
 		}
 
-		return completion;
-	}
+		~Device() {
+			_device.dissolve_all_urbs<Urb>([] (Urb&) {}); }
 
-	void release(Usb_completion *completion)
+		Usb::Device &session() { return _device; }
+
+		Name name() { return _name; }
+
+		Usb_speed speed()
+		{
+			if (_speed == "low")        return GENODE_USB_SPEED_LOW;
+			if (_speed == "full")       return GENODE_USB_SPEED_FULL;
+			if (_speed == "high")       return GENODE_USB_SPEED_HIGH;
+			if (_speed == "super")      return GENODE_USB_SPEED_SUPER;
+			if (_speed == "super_plus") return GENODE_USB_SPEED_SUPER_PLUS;
+			if (_speed == "super_plus_2x2")
+				return GENODE_USB_SPEED_SUPER_PLUS_2X2;
+			return GENODE_USB_SPEED_FULL;
+		}
+
+		Signal_context_capability sigh_cap() { return _sigh_cap; }
+
+		genode_usb_client_dev_handle_t handle() const {
+			return _elem.id().value; }
+
+		void  driver_data(void *data) { _driver_data = data; }
+		void* driver_data()           { return _driver_data; }
+
+		bool matches(Xml_node const &node) const {
+			return _name == node.attribute_value("name", Name()); }
+
+		static bool type_matches(Xml_node const &node) {
+			return node.has_type("device"); }
+
+		void update(Allocator &alloc, Xml_node const &node)
+		{
+			Xml_node active_config = node;
+
+			node.for_each_sub_node("config", [&] (Xml_node const &node) {
+				if (node.attribute_value("active", false))
+					active_config = node;
+			});
+
+			_ifaces.update_from_xml(active_config,
+
+				/* create */
+				[&] (Xml_node const &node) -> ::Interface & {
+					return *new (alloc) ::Interface(*this, node); },
+
+				/* destroy */
+				[&] (::Interface &iface) {
+					iface.update(alloc, Xml_node("<empty/>"));
+					destroy(alloc, &iface); },
+
+				/* update */
+				[&] (::Interface &iface, Xml_node const &node) {
+					iface.update(alloc, node); }
+			);
+		}
+
+		void update(genode_usb_client_produce_out_t out,
+		            genode_usb_client_consume_in_t  in,
+		            genode_usb_client_complete_t    complete)
+		{
+			_device.update_urbs<Urb>(
+
+				/* produce out content */
+				[&] (Urb &urb, void *dst, size_t length) {
+					out(urb._driver_data.data, { (void*)dst, length }); },
+
+				/* consume in results */
+				[&] (Urb &urb, void const *src, size_t length) {
+					in(urb._driver_data.data, { (void*)src, length }); },
+
+				/* complete USB request */
+				[&] (Urb &urb,
+				     Usb::Device::Packet_descriptor::Return_value v)
+				{
+					using Retval = Usb::Device::Packet_descriptor::Return_value;
+					genode_usb_client_ret_val_t ret;
+
+					switch (v) {
+					case Retval::NO_DEVICE: ret = NO_DEVICE; break;
+					case Retval::INVALID:   ret = INVALID;   break;
+					case Retval::TIMEOUT:   ret = TIMEOUT;   break;
+					case Retval::OK:        ret = OK;        break;
+					default:
+						error("unhandled packet should not happen!");
+						ret = INVALID;
+					};
+					complete(urb._driver_data.data, ret);
+				});
+
+			_ifaces.for_each([&] (::Interface &iface) {
+				iface.update(out, in, complete); });
+		}
+
+		template <typename FN>
+		void with_active_interfaces(FN const &fn)
+		{
+			_ifaces.for_each([&] (::Interface &iface) {
+				if (iface.active()) fn(iface); });
+		}
+};
+
+
+struct Session
+{
+	Env                      &_env;
+	Allocator                &_alloc;
+	Signal_context_capability _handler_cap;
+	Usb::Connection           _usb { _env };
+	List_model<Device>        _model {};
+	Id_space<Device>          _space {};
+
+	Session(Env &env, Allocator &alloc, Signal_context_capability cap)
+	:
+		_env(env), _alloc(alloc), _handler_cap(cap)
 	{
-		source()->release_packet(completion->packet);
-		free_completion(completion);
+		_usb.sigh(cap);
+	}
+
+	~Session() {
+		_model.for_each([&] (Device &dev) { destroy(_alloc, &dev); }); }
+
+	void update(genode_usb_client_dev_add_t add,
+	            genode_usb_client_dev_del_t del)
+	{
+		_usb.with_xml([&] (Xml_node node) {
+			_model.update_from_xml(node,
+
+				/* create */
+				[&] (Xml_node const &node) -> Device &
+				{
+					Device::Name name =
+						node.attribute_value("name", Device::Name());
+						Device::Speed speed =
+						node.attribute_value("speed", Device::Speed());
+					Device &dev = *new (_alloc)
+						Device(name, speed, _usb, _alloc, _env.rm(),
+						       _space, _handler_cap);
+					return dev;
+				},
+
+				/* destroy */
+				[&] (Device &dev)
+				{
+					if (dev.driver_data()) del(dev.handle(), dev.driver_data());
+					dev.update(_alloc, Xml_node("<empty/>"));
+					destroy(_alloc, &dev);
+				},
+
+				/* update */
+				[&] (Device &dev, Xml_node const &node)
+				{
+					dev.update(_alloc, node);
+				}
+			);
+		});
+
+		/* add new devices for C-API client after it got successfully added */
+		_model.for_each([&] (Device &dev) {
+			if (!dev.driver_data())
+				dev.driver_data(add(dev.handle(), dev.name().string(),
+				                    dev.speed()));
+		});
 	}
 };
 
 
-static Usb_id_space & usb_space()
+Usb::Interface &::Interface::_session()
 {
-	static Usb_id_space instance { };
+	if (!_iface.constructed()) {
+		_iface.construct(_device.session(),
+		                 Usb::Interface::Index{_number, _alt_setting},
+		                 _buf_size);
+		_iface->sigh(_device.sigh_cap());
+	}
+	return *_iface;
+};
 
-	return instance;
+
+static ::Session * _usb_session = nullptr;
+
+
+void Genode_c_api::initialize_usb_client(Env                      &env,
+                                         Allocator                &alloc,
+                                         Signal_context_capability handler)
+{
+	static ::Session session(env, alloc, handler);
+	_usb_session = &session;
+};
+
+
+extern "C"
+void genode_usb_client_update(genode_usb_client_dev_add_t add,
+                              genode_usb_client_dev_del_t del)
+{
+	if (_usb_session) _usb_session->update(add, del);
 }
 
 
-template <typename FUNC>
-int usb_client_apply(genode_usb_client_handle_t handle, FUNC const &fn)
+extern "C"
+genode_usb_client_ret_val_t
+genode_usb_client_device_ifaces(genode_usb_client_dev_handle_t handle,
+                                genode_usb_client_dev_iface_t  iface_fn,
+                                void * opaque_data)
 {
-	Usb_id_space::Id id { .value = handle };
 	try {
-		usb_space().apply<Usb_client>(id, fn);
-	} catch (Usb_id_space::Id_space::Unknown_id) {
-		error("Invalid handle: ", handle);
-		return -1;
+		if (!_usb_session)
+			return NO_DEVICE;
+
+		return _usb_session->_space.apply<Device>({ handle },
+		                                            [&] (Device & device) {
+			device.with_active_interfaces([&] (::Interface &iface) {
+				iface_fn(iface.number(), iface.alt_setting(), opaque_data); });
+			return OK;
+		});
+	} catch(Id_space<Device>::Unknown_id&) {
+		return NO_DEVICE;
 	}
-	return 0;
 }
 
 
-genode_usb_client_handle_t
-genode_usb_client_create(struct genode_env             *env,
-                         struct genode_allocator       *md_alloc,
-                         struct genode_range_allocator *alloc,
-                         char const                    *label,
-                         struct genode_signal_handler  *handler)
+extern "C"
+genode_usb_client_ret_val_t
+genode_usb_client_device_endpoints(genode_usb_client_dev_handle_t   handle,
+                                   genode_uint8_t                   iface_nr,
+                                   genode_uint8_t                   iface_alt,
+                                   genode_usb_client_dev_endpoint_t endp_fn,
+                                   void * opaque_data)
 {
-	Env             &_env      = *static_cast<Env *>(env);
-	Range_allocator *_alloc    = static_cast<Range_allocator*>(alloc);
-	Allocator       *_md_alloc = static_cast<Allocator *>(md_alloc);
+	try {
+		if (!_usb_session)
+			return NO_DEVICE;
 
-	Usb_client *client = new (_md_alloc) Usb_client(_env, usb_space(), label,
-	                                                _alloc, cap(handler));
-	return client->handle();
+		return _usb_session->_space.apply<Device>({ handle },
+		                                            [&] (Device & device) {
+			device.with_active_interfaces([&] (::Interface &iface) {
+				if (iface_nr  == iface.number() &&
+				    iface_alt == iface.alt_setting())
+					iface.for_each_endpoint([&] (Endpoint &endp) {
+						endp_fn(endp.address, endp.attributes,
+						        endp.max_packet_size, opaque_data); });
+			});
+			return OK;
+		});
+	} catch(Id_space<Device>::Unknown_id&) {
+		return NO_DEVICE;
+	}
 }
 
 
-void genode_usb_client_destroy(genode_usb_client_handle_t handle,
-                               struct genode_allocator *md_alloc)
+extern "C"
+genode_usb_client_ret_val_t
+genode_usb_client_device_control(genode_usb_client_dev_handle_t handle,
+                                 genode_uint8_t                 request,
+                                 genode_uint8_t                 request_type,
+                                 genode_uint16_t                value,
+                                 genode_uint16_t                index,
+                                 unsigned long                  size,
+                                 void                          *opaque_data)
 {
-	usb_client_apply(handle, [&] (Usb_client &usb) {
-		while(usb.source()->ack_avail()) {
-			Usb::Packet_descriptor p = usb.source()->get_acked_packet();
-			if (p.completion) static_cast<Usb_completion *>(p.completion)->free();
-			usb.source()->release_packet(p);
-		}
-		destroy(md_alloc, &usb);
-	});
-};
+	try {
+		if (!_usb_session)
+			return NO_DEVICE;
 
-
-void genode_usb_client_sigh_ack_avail(genode_usb_client_handle_t handle,
-                                      struct genode_signal_handler *handler)
-{
-	usb_client_apply(handle, [&] (Usb_client &usb) {
-		usb.tx_channel()->sigh_ack_avail(cap(handler)); });
+		return _usb_session->_space.apply<Device>({ handle },
+		                                          [&] (Device & device) {
+			new (_usb_session->_alloc)
+				Device::Urb(device, request, request_type,
+				            value, index, size, opaque_data);
+			return OK;
+		});
+	} catch(Id_space<Device>::Unknown_id&) {
+		return NO_DEVICE;
+	} catch(...) {
+		return NO_MEMORY;
+	}
 }
 
 
-int genode_usb_client_config_descriptor(genode_usb_client_handle_t handle,
-                                        genode_usb_device_descriptor *device_descr,
-                                        genode_usb_config_descriptor *config_descr)
+extern "C"
+void genode_usb_client_device_update(genode_usb_client_produce_out_t out,
+                                     genode_usb_client_consume_in_t  in,
+                                     genode_usb_client_complete_t    complete)
 {
-	auto lambda = [&] (Usb_client &usb) {
-		Usb::Device_descriptor dev_descr;
-		Usb::Config_descriptor conf_descr;
-		usb.config_descriptor(&dev_descr, &conf_descr);
+	try {
+		if (!_usb_session)
+			return;
+		_usb_session->_model.for_each([&] (Device & device) {
+			device.update(out, in, complete); });
 
-		memcpy(device_descr, &dev_descr,    sizeof(*device_descr));
-		memcpy(config_descr, &config_descr, sizeof(*config_descr));
-	};
-
-	return usb_client_apply(handle, lambda);
+	} catch(...) { }
 }
 
 
-bool genode_usb_client_plugged(genode_usb_client_handle_t handle)
+extern "C"
+genode_usb_client_ret_val_t
+genode_usb_client_iface_transfer(genode_usb_client_dev_handle_t handle,
+                                 genode_usb_client_iface_type_t type,
+                                 genode_uint8_t                 index,
+                                 unsigned long                  size,
+                                 void                          *opaque_data)
 {
-	bool plugged = false;
-	usb_client_apply(handle, [&] (Usb_client &usb) {
-		plugged = usb.plugged(); });
-	
-	return plugged;
-}
+	try {
+		if (!_usb_session)
+			return NO_DEVICE;
 
-void genode_usb_client_claim_interface(genode_usb_client_handle_t handle,
-                                       unsigned interface_num)
-{
-	usb_client_apply(handle, [&] (Usb_client &usb) {
-		usb.claim_interface(interface_num);
-	});
-}
+		genode_usb_client_ret_val_t ret = NO_DEVICE;
 
+		_usb_session->_space.apply<Device>({ handle },
+		                                   [&] (Device & device) {
+			device.with_active_interfaces([&] (::Interface &iface) {
+				iface.with_endpoint(index, [&] (Endpoint &endp) {
+					new (_usb_session->_alloc)
+						::Interface::Urb(iface, endp, type, size, opaque_data);
+					ret = OK;
+				});
+			});
+		});
 
-void genode_usb_client_release_interface(genode_usb_client_handle_t handle,
-                                         unsigned interface_num)
-{
-	usb_client_apply(handle, [&] (Usb_client &usb) {
-		usb.release_interface(interface_num);
-	});
-}
-
-
-bool genode_usb_client_request(genode_usb_client_handle_t        handle,
-                               genode_usb_client_request_packet *request)
-{
-	Usb_completion *completion = nullptr;
-
-	usb_client_apply(handle, [&] (Usb_client &usb) {
-		completion = usb.alloc(request->buffer.size);
-
-		if (completion)
-			request->buffer.addr = usb.source()->packet_content(completion->packet);
-	});
-
-	if (!completion) return false;
-
-	completion->request  = request;
-	request->completion  = completion;
-
-	/* setup packet */
-	genode_request_packet_t *req    = &request->request;
-	Usb::Packet_descriptor  *packet = &completion->packet;
-
-	switch(req->type) {
-	case IRQ:
-		{
-			packet->type = Usb::Packet_descriptor::IRQ;
-
-			genode_usb_request_transfer *transfer = (genode_usb_request_transfer *)req->req;
-			packet->transfer.polling_interval = transfer->polling_interval;
-			packet->transfer.ep               = transfer->ep;
-			break;
-		}
-	case CTRL:
-		{
-			packet->type = Usb::Packet_descriptor::CTRL;
-
-			genode_usb_request_control *ctrl = (genode_usb_request_control *)req->req;
-			packet->control.request      = ctrl->request;
-			packet->control.request_type = ctrl->request_type;
-			packet->control.value        = ctrl->value;
-			packet->control.index        = ctrl->index;
-			packet->control.timeout      = ctrl->timeout;
-			break;
-		}
-	case BULK:
-		{
-			packet->type = Usb::Packet_descriptor::BULK;
-
-			genode_usb_request_transfer *transfer = (genode_usb_request_transfer *)req->req;
-			packet->transfer.ep = transfer->ep;
-			break;
-		}
-	case ALT_SETTING:
-		{
-			genode_usb_altsetting *alt_setting = (genode_usb_altsetting*)req->req;
-
-			packet->type = Usb::Packet_descriptor::ALT_SETTING;
-
-			packet->interface.number      = alt_setting->interface_number;
-			packet->interface.alt_setting = alt_setting->alt_setting;
-			break;
-		}
-
-	case CONFIG:
-		{
-			genode_usb_config *config = (genode_usb_config *)req->req;
-
-			packet->type   = Usb::Packet_descriptor::CONFIG;
-			packet->number = config->value;
-			break;
-		}
-
-	default:
-		error("unknown USB client requested");
-	};
-
-	return true;
-}
-
-
-void genode_usb_client_request_submit(genode_usb_client_handle_t        handle,
-                                      genode_usb_client_request_packet *request)
-{
-	Usb_completion *completion = static_cast<Usb_completion *>(request->completion);
-	usb_client_apply(handle, [&] (Usb_client &usb) {
-		usb.source()->submit_packet(completion->packet); });
-}
-
-
-void genode_usb_client_request_finish(genode_usb_client_handle_t               handle,
-                                      struct genode_usb_client_request_packet *request)
-{
-	Usb_completion *completion = static_cast<Usb_completion *>(request->completion);
-	usb_client_apply(handle, [&] (Usb_client &usb) {
-		usb.release(completion); });
-}
-
-
-void genode_usb_client_execute_completions(genode_usb_client_handle_t handle)
-{
-	usb_client_apply(handle, [&] (Usb_client &usb) {
-		while(usb.source()->ack_avail()) {
-			Usb::Packet_descriptor p = usb.source()->get_acked_packet();
-			if (p.completion) p.completion->complete(p);
-		}
-	});
+		return ret;
+	} catch(Id_space<Device>::Unknown_id&) {
+		return NO_DEVICE;
+	} catch(...) {
+		return NO_MEMORY;
+	}
 }
