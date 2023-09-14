@@ -19,6 +19,7 @@
 namespace Usb {
 	struct Cbw;
 	struct Csw;
+	enum { ENDPOINT_IN = 0x80, ENDPOINT_OUT = 0 };
 }
 
 
@@ -72,12 +73,12 @@ struct Usb::Cbw : Genode::Mmio
 struct Test_unit_ready : Usb::Cbw,
                          Scsi::Test_unit_ready
 {
-	Test_unit_ready(addr_t addr, uint32_t tag, uint8_t lun)
+	Test_unit_ready(addr_t addr, uint32_t tag, uint8_t lun, bool verbose)
 	:
 		Cbw(addr, tag, 0, Usb::ENDPOINT_IN, lun,
 		    Scsi::Test_unit_ready::LENGTH),
 		Scsi::Test_unit_ready(addr+15)
-	{ if (verbose_scsi) dump(); }
+	{ if (verbose) dump(); }
 
 	void dump()
 	{
@@ -90,12 +91,12 @@ struct Test_unit_ready : Usb::Cbw,
 
 struct Request_sense : Usb::Cbw, Scsi::Request_sense
 {
-	Request_sense(addr_t addr, uint32_t tag, uint8_t lun)
+	Request_sense(addr_t addr, uint32_t tag, uint8_t lun, bool verbose)
 	:
 		Cbw(addr, tag, Scsi::Request_sense_response::LENGTH,
 		    Usb::ENDPOINT_IN, lun, Scsi::Request_sense::LENGTH),
 		Scsi::Request_sense(addr+15)
-	{ if (verbose_scsi) dump(); }
+	{ if (verbose) dump(); }
 
 	void dump()
 	{
@@ -108,11 +109,11 @@ struct Request_sense : Usb::Cbw, Scsi::Request_sense
 
 struct Start_stop : Usb::Cbw, Scsi::Start_stop
 {
-	Start_stop(addr_t addr, uint32_t tag, uint8_t lun)
+	Start_stop(addr_t addr, uint32_t tag, uint8_t lun, bool verbose)
 	:
 		Cbw(addr, tag, 0, Usb::ENDPOINT_IN, lun, Scsi::Start_stop::LENGTH),
 		Scsi::Start_stop(addr+15)
-	{ if (verbose_scsi) dump(); }
+	{ if (verbose) dump(); }
 
 	void dump()
 	{
@@ -125,12 +126,12 @@ struct Start_stop : Usb::Cbw, Scsi::Start_stop
 
 struct Inquiry : Usb::Cbw, Scsi::Inquiry
 {
-	Inquiry(addr_t addr, uint32_t tag, uint8_t lun)
+	Inquiry(addr_t addr, uint32_t tag, uint8_t lun, bool verbose)
 	:
 		Cbw(addr, tag, Scsi::Inquiry_response::LENGTH,
 		    Usb::ENDPOINT_IN, lun, Scsi::Inquiry::LENGTH),
 		Scsi::Inquiry(addr+15)
-	{ if (verbose_scsi) dump(); }
+	{ if (verbose) dump(); }
 
 	void dump()
 	{
@@ -143,12 +144,12 @@ struct Inquiry : Usb::Cbw, Scsi::Inquiry
 
 struct Read_capacity_10 : Usb::Cbw, Scsi::Read_capacity_10
 {
-	Read_capacity_10(addr_t addr, uint32_t tag, uint8_t lun)
+	Read_capacity_10(addr_t addr, uint32_t tag, uint8_t lun, bool verbose)
 	:
 		Cbw(addr, tag, Scsi::Capacity_response_10::LENGTH,
 		    Usb::ENDPOINT_IN, lun, Scsi::Read_capacity_10::LENGTH),
 		Scsi::Read_capacity_10(addr+15)
-	{ if (verbose_scsi) dump(); }
+	{ if (verbose) dump(); }
 
 	void dump()
 	{
@@ -162,12 +163,12 @@ struct Read_capacity_10 : Usb::Cbw, Scsi::Read_capacity_10
 struct Read_10 : Usb::Cbw, Scsi::Read_10
 {
 	Read_10(addr_t addr, uint32_t tag, uint8_t lun,
-	        uint32_t lba, uint16_t len, uint32_t block_size)
+	        uint32_t lba, uint16_t len, uint32_t block_size, bool verbose)
 	:
 		Cbw(addr, tag, len * block_size,
 		    Usb::ENDPOINT_IN, lun, Scsi::Read_10::LENGTH),
 		Scsi::Read_10(addr+15, lba, len)
-	{ if (verbose_scsi) dump(); }
+	{ if (verbose) dump(); }
 
 	void dump()
 	{
@@ -181,12 +182,12 @@ struct Read_10 : Usb::Cbw, Scsi::Read_10
 struct Write_10 : Usb::Cbw, Scsi::Write_10
 {
 	Write_10(addr_t addr, uint32_t tag, uint8_t lun,
-             uint32_t lba, uint16_t len, uint32_t block_size)
+             uint32_t lba, uint16_t len, uint32_t block_size, bool verbose)
 	:
 		Cbw(addr, tag, len * block_size,
 		    Usb::ENDPOINT_OUT, lun, Scsi::Write_10::LENGTH),
 		Scsi::Write_10(addr+15, lba, len)
-	{ if (verbose_scsi) dump(); }
+	{ if (verbose) dump(); }
 
 	void dump()
 	{
@@ -199,12 +200,12 @@ struct Write_10 : Usb::Cbw, Scsi::Write_10
 
 struct Read_capacity_16 : Usb::Cbw, Scsi::Read_capacity_16
 {
-	Read_capacity_16(addr_t addr, uint32_t tag, uint8_t lun)
+	Read_capacity_16(addr_t addr, uint32_t tag, uint8_t lun, bool verbose)
 	:
 		Cbw(addr, tag, Scsi::Capacity_response_16::LENGTH,
 		    Usb::ENDPOINT_IN, lun, Scsi::Read_capacity_16::LENGTH),
 		Scsi::Read_capacity_16(addr+15)
-	{ if (verbose_scsi) dump(); }
+	{ if (verbose) dump(); }
 
 	void dump()
 	{
@@ -218,12 +219,12 @@ struct Read_capacity_16 : Usb::Cbw, Scsi::Read_capacity_16
 struct Read_16 : Usb::Cbw, Scsi::Read_16
 {
 	Read_16(addr_t addr, uint32_t tag, uint8_t lun,
-	        uint64_t lba, uint32_t len, uint32_t block_size)
+	        uint64_t lba, uint32_t len, uint32_t block_size, bool verbose)
 	:
 		Cbw(addr, tag, len * block_size,
 		    Usb::ENDPOINT_IN, lun, Scsi::Read_16::LENGTH),
 		Scsi::Read_16(addr+15, lba, len)
-	{ if (verbose_scsi) dump(); }
+	{ if (verbose) dump(); }
 
 	void dump()
 	{
@@ -237,12 +238,12 @@ struct Read_16 : Usb::Cbw, Scsi::Read_16
 struct Write_16 : Usb::Cbw, Scsi::Write_16
 {
 	Write_16(addr_t addr, uint32_t tag, uint8_t lun,
-             uint64_t lba, uint32_t len, uint32_t block_size)
+             uint64_t lba, uint32_t len, uint32_t block_size, bool verbose)
 	:
 		Cbw(addr, tag, len * block_size,
 		    Usb::ENDPOINT_OUT, lun, Scsi::Write_16::LENGTH),
 		Scsi::Write_16(addr+15, lba, len)
-	{ if (verbose_scsi) dump(); }
+	{ if (verbose) dump(); }
 
 	void dump()
 	{
