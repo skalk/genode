@@ -302,3 +302,9 @@ void skb_init()
 {
 	lx_emul_trace(__func__);
 }
+
+
+void cdev_init(struct cdev * cdev, const struct file_operations * fops)
+{
+	lx_emul_trace(__func__);
+}
