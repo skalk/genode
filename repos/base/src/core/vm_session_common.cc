@@ -180,3 +180,9 @@ void Vm_session_component::unmap_region(addr_t base, size_t size)
 {
 	error(__func__, " unimplemented ", base, " ", size);
 }
+
+
+void Vm_session_component::reserve_and_flush(Region_map::Local_addr)
+{
+	error(__func__, " unimplemented");
+}

@@ -390,41 +390,19 @@ Region_map_component::attach_dma(Dataspace_capability ds_cap, addr_t at)
 }
 
 
-void Region_map_component::detach(Local_addr local_addr)
+void Region_map_component::_reserve_and_flush_unsynchronized(Rm_region &region)
 {
-	/* serialize access */
-	Mutex::Guard lock_guard(_mutex);
+	/*
+	 * We mark the region as reserved prior unmapping the pages to
+	 * make sure that page faults occurring immediately after the unmap
+	 * do not refer to the dataspace, which we just removed.
+	 */
+	region.mark_as_reserved();
 
-	/* read meta data for address */
-	Rm_region *region_ptr = _map.metadata(local_addr);
-
-	if (!region_ptr) {
-		if (_diag.enabled)
-			warning("detach: no attachment at ", (void *)local_addr);
-		return;
-	}
-
-	if ((region_ptr->base() != static_cast<addr_t>(local_addr)) && _diag.enabled)
-		warning("detach: ", static_cast<void *>(local_addr), " is not "
-		        "the beginning of the region ", Hex(region_ptr->base()));
-
-	Dataspace_component &dsc = region_ptr->dataspace();
+	Dataspace_component &dsc = region.dataspace();
 
 	/* inform dataspace about detachment */
-	dsc.detached_from(*region_ptr);
-
-	/*
-	 * Create local copy of region data because the '_map.metadata' of the
-	 * region will become unavailable as soon as we call '_map.free' below.
-	 */
-	Rm_region region = *region_ptr;
-
-	/*
-	 * We unregister the region from region map prior unmapping the pages to
-	 * make sure that page faults occurring immediately after the unmap
-	 * refer to an empty region not to the dataspace, which we just removed.
-	 */
-	_map.free(reinterpret_cast<void *>(region.base()));
+	dsc.detached_from(region);
 
 	if (!platform().supports_direct_unmap()) {
 
@@ -447,6 +425,34 @@ void Region_map_component::detach(Local_addr local_addr)
 		 */
 		unmap_region(region.base(), region.size());
 	}
+}
+
+
+/*
+ * Flush the region, but keep it reserved until 'detach()' is called.
+ */
+void Region_map_component::reserve_and_flush(Local_addr local_addr)
+{
+	/* serialize access */
+	Mutex::Guard lock_guard(_mutex);
+
+	_with_region(local_addr, [&] (Rm_region &region) {
+		_reserve_and_flush_unsynchronized(region);
+	});
+}
+
+
+void Region_map_component::detach(Local_addr local_addr)
+{
+	/* serialize access */
+	Mutex::Guard lock_guard(_mutex);
+
+	_with_region(local_addr, [&] (Rm_region &region) {
+		if (!region.reserved())
+			_reserve_and_flush_unsynchronized(region);
+		/* free the reserved region */
+		_map.free(reinterpret_cast<void *>(region.base()));
+	});
 }
 
 

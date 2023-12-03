@@ -58,6 +58,7 @@ class Core::Region_map_detach : Interface
 
 		virtual void detach(Region_map::Local_addr) = 0;
 		virtual void unmap_region(addr_t base, size_t size) = 0;
+		virtual void reserve_and_flush(Region_map::Local_addr) = 0;
 };
 
 
@@ -98,6 +99,8 @@ class Core::Rm_region : public List<Rm_region>::Element
 
 		Attr const _attr;
 
+		bool _reserved                { false };
+
 	public:
 
 		Rm_region(Dataspace_component &dsc, Region_map_detach &rm, Attr attr)
@@ -113,6 +116,9 @@ class Core::Rm_region : public List<Rm_region>::Element
 		bool                       dma() const { return _attr.dma;   }
 		Dataspace_component &dataspace() const { return _dsc; }
 		Region_map_detach          &rm() const { return _rm;  }
+
+		void mark_as_reserved() { _reserved = true; }
+		bool reserved() const   { return _reserved; }
 
 		Addr_range range() const { return { .start = _attr.base,
 		                                    .end   = _attr.base + _attr.size - 1 }; }
@@ -422,7 +428,7 @@ class Core::Region_map_component : private Weak_object<Region_map_component>,
 				return Result::REFLECTED;  /* omit diagnostics */
 			};
 
-			if (!region_ptr)
+			if (!region_ptr || region_ptr->reserved())
 				return reflect_fault(Result::NO_REGION);
 
 			Rm_region const &region = *region_ptr;
@@ -484,6 +490,27 @@ class Core::Region_map_component : private Weak_object<Region_map_component>,
 
 		Local_addr _attach(Dataspace_capability, Attach_attr);
 
+		template <typename FUNC>
+		void _with_region(Local_addr local_addr, FUNC const &fn)
+		{
+			/* read meta data for address */
+			Rm_region *region_ptr = _map.metadata(local_addr);
+
+			if (!region_ptr) {
+				if (_diag.enabled)
+					warning("_with_region: no attachment at ", (void *)local_addr);
+				return;
+			}
+
+			if ((region_ptr->base() != static_cast<addr_t>(local_addr)) && _diag.enabled)
+				warning("_with_region: ", static_cast<void *>(local_addr), " is not "
+				        "the beginning of the region ", Hex(region_ptr->base()));
+
+			fn(*region_ptr);
+		}
+
+		void _reserve_and_flush_unsynchronized(Rm_region &);
+
 	public:
 
 		/*
@@ -493,6 +520,8 @@ class Core::Region_map_component : private Weak_object<Region_map_component>,
 		 * \param size size of region to unmap
 		 */
 		void unmap_region(addr_t base, size_t size) override;
+
+		void reserve_and_flush(Local_addr) override;
 
 		/**
 		 * Constructor
