@@ -99,7 +99,7 @@ class Core::Rm_region : public List<Rm_region>::Element
 
 		Attr const _attr;
 
-		bool _reserved                { false };
+		bool _reserved { false };
 
 	public:
 
@@ -490,8 +490,7 @@ class Core::Region_map_component : private Weak_object<Region_map_component>,
 
 		Local_addr _attach(Dataspace_capability, Attach_attr);
 
-		template <typename FUNC>
-		void _with_region(Local_addr local_addr, FUNC const &fn)
+		void _with_region(Local_addr local_addr, auto const &fn)
 		{
 			/* read meta data for address */
 			Rm_region *region_ptr = _map.metadata(local_addr);
