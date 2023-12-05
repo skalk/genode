@@ -473,11 +473,8 @@ handle_altsetting_request(unsigned                    iface,
 	int ret = -ENODEV;
 	struct usb_device * udev = (struct usb_device *) data;
 
-	if (udev) {
-		usb_lock_device(udev);
+	if (udev)
 		ret = usb_set_interface(udev, iface, alt_setting);
-		usb_unlock_device(udev);
-	}
 
 	if (ret)
 		printk("Alt setting request (iface=%u alt_setting=%u) failed\n",
@@ -503,9 +500,7 @@ handle_config_request(unsigned                    cfg_idx,
 	 */
 	if (udev && !(udev->actconfig &&
 	      udev->actconfig->desc.bConfigurationValue == cfg_idx)) {
-		usb_lock_device(udev);
 		ret = usb_set_configuration(udev, cfg_idx);
-		usb_unlock_device(udev);
 	}
 
 	genode_usb_ack_request(session, request, handle_return_code, &ret);
@@ -523,12 +518,10 @@ handle_flush_request(unsigned char               ep,
 	struct usb_host_endpoint * endpoint;
 
 	if (udev) {
-		usb_lock_device(udev);
 		endpoint = ep & USB_DIR_IN ? udev->ep_in[ep & 0xf]
 		              : udev->ep_out[ep & 0xf];
 		if (endpoint)
 			usb_hcd_flush_endpoint(udev, endpoint);
-		usb_unlock_device(udev);
 	}
 
 	genode_usb_ack_request(session, request, handle_return_code, &ret);
