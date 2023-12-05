@@ -308,7 +308,7 @@ addr_t Region_map_component::_core_local_addr(Rm_region & region)
 			 */
 			Rm_region * r = rmc ? rmc->_map.metadata((void*)region.offset())
 			                    : nullptr;;
-			return r ? rmc->_core_local_addr(*r) : 0;
+			return (r && !r->reserved()) ? rmc->_core_local_addr(*r) : 0;
 		};
 		return _session_ep.apply(region.dataspace().sub_rm(), lambda);
 	}
