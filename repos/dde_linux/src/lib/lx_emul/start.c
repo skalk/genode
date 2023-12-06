@@ -50,6 +50,9 @@ static int kernel_init(void * args)
 	struct task_struct *tsk = current;
 	set_task_comm(tsk, "init");
 
+	/* setup page struct for zero page in BSS */
+	lx_emul_add_page_range(empty_zero_page, PAGE_SIZE);
+
 	wait_for_completion(&kthreadd_done);
 
 	workqueue_init();
