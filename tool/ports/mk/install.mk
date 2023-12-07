@@ -185,7 +185,8 @@ _git_dir = $(call _assert,$(DIR($1)),Missing declaration of DIR($*))
 			git clone --depth 1 --filter=blob:none --sparse $(URL($*)) $$tmp &> >(sed 's/^/$(MSG_GIT)/'); \
 			$(GIT) -C $$tmp sparse-checkout set $$sparse_sane && \
 			$(GIT) -C $$tmp checkout -q $(REV($*)); \
-			mv $$tmp/$$sparse_sane $$dir; rm -rf $$tmp; )
+			mkdir -p $$dir; \
+			mv $$tmp/$$sparse_sane/* $$dir; rm -rf $$tmp; )
 
 
 ##
