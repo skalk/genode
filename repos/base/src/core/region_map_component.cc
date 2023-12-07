@@ -295,26 +295,33 @@ Region_map_component::_attach(Dataspace_capability ds_cap, Attach_attr const att
 
 addr_t Region_map_component::_core_local_addr(Rm_region & region)
 {
-	/**
-	 * If this region references a managed dataspace,
-	 * we have to recursively request the core-local address
-	 */
-	if (region.dataspace().sub_rm().valid()) {
-		auto lambda = [&] (Region_map_component * rmc) -> addr_t
-		{
-			/**
-			 * It is possible that there is no dataspace attached
-			 * inside the managed dataspace, in that case return zero.
-			 */
-			Rm_region * r = rmc ? rmc->_map.metadata((void*)region.offset())
-			                    : nullptr;;
-			return (r && !r->reserved()) ? rmc->_core_local_addr(*r) : 0;
-		};
-		return _session_ep.apply(region.dataspace().sub_rm(), lambda);
-	}
+	addr_t result = 0;
 
-	/* return core-local address of dataspace + region offset */
-	return region.dataspace().core_local_addr() + region.offset();
+	region.with_dataspace([&] (Dataspace_component &dataspace) {
+		/**
+		 * If this region references a managed dataspace,
+		 * we have to recursively request the core-local address
+		 */
+		if (dataspace.sub_rm().valid()) {
+			auto lambda = [&] (Region_map_component * rmc) -> addr_t
+			{
+				/**
+				 * It is possible that there is no dataspace attached
+				 * inside the managed dataspace, in that case return zero.
+				 */
+				Rm_region * r = rmc ? rmc->_map.metadata((void*)region.offset())
+				                    : nullptr;;
+				return (r && !r->reserved()) ? rmc->_core_local_addr(*r) : 0;
+			};
+			result = _session_ep.apply(dataspace.sub_rm(), lambda);
+			return;
+		}
+
+		/* return core-local address of dataspace + region offset */
+		result = dataspace.core_local_addr() + region.offset();
+	});
+
+	return result;
 }
 
 
@@ -392,17 +399,10 @@ Region_map_component::attach_dma(Dataspace_capability ds_cap, addr_t at)
 
 void Region_map_component::_reserve_and_flush_unsynchronized(Rm_region &region)
 {
-	/*
-	 * We mark the region as reserved prior unmapping the pages to
-	 * make sure that page faults occurring immediately after the unmap
-	 * do not refer to the dataspace, which we just removed.
-	 */
-	region.mark_as_reserved();
-
-	Dataspace_component &dsc = region.dataspace();
-
 	/* inform dataspace about detachment */
-	dsc.detached_from(region);
+	region.with_dataspace([&] (Dataspace_component &dsc) {
+		dsc.detached_from(region);
+	});
 
 	if (!platform().supports_direct_unmap()) {
 
@@ -416,9 +416,26 @@ void Region_map_component::_reserve_and_flush_unsynchronized(Rm_region &region)
 		 * of core memory (reference issue #3082)
 		 */
 		Address_space::Core_local_addr core_local { _core_local_addr(region) };
+
+		/*
+		 * We mark the region as reserved prior unmapping the pages to
+		 * make sure that page faults occurring immediately after the unmap
+		 * do not refer to the dataspace, which we just removed. Since
+		 * 'mark_as_reserved()' invalidates the dataspace pointer, it
+		 * must be called after '_core_local_addr()'.
+		 */
+		region.mark_as_reserved();
+
 		if (core_local.value)
 			platform_specific().core_pd().flush(0, region.size(), core_local);
 	} else {
+
+		/*
+		 * We mark the region as reserved prior unmapping the pages to
+		 * make sure that page faults occurring immediately after the unmap
+		 * do not refer to the dataspace, which we just removed.
+		 */
+		region.mark_as_reserved();
 
 		/*
 		 * Unmap this memory region from all region maps referencing it.
