@@ -130,6 +130,8 @@ static void _free_file(struct file *file)
 	if (mapping) {
 		private_data = mapping->private_data;
 
+		lx_emul_shared_dma_buffer_free(private_data->dataspace);
+
 		kfree(private_data);
 		kfree(mapping);
 	}
