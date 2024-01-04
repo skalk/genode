@@ -59,6 +59,9 @@ class Usb::Endpoint
 
 		struct Endpoint_not_avail : Exception {};
 
+		Endpoint(Address::access_t addr, Attributes::access_t attr)
+		: _address(addr), _attributes(attr) {}
+
 		Endpoint(Interface &iface, Direction d, Type t);
 
 		uint8_t address() { return _address; }
@@ -243,6 +246,9 @@ class Usb::Urb_handler
 			auto discard_tag_and_apply_fn = [&] (URB &urb) {
 				urb._tag.destruct();
 				fn(urb);
+				Packet_descriptor const p { urb._payload.offset,
+				                            urb._payload.bytes };
+				_tx.source()->release_packet(p);
 			};
 
 			while (_tags.template apply_any<URB>(discard_tag_and_apply_fn));
@@ -334,6 +340,10 @@ class Usb::Interface
 		template <typename POLICY>
 		bool update_urbs(POLICY &policy) {
 			return _urb_handler.update_urbs(policy); }
+
+		template <typename FN>
+		void dissolve_all_urbs(FN const &fn) {
+			_urb_handler.dissolve_all_urbs(fn); }
 };
 
 
@@ -380,8 +390,8 @@ class Usb::Device
 				    uint16_t value, uint16_t index, size_t size = 0)
 				:
 					Base(device._urb_handler,
-					     Type::D::get(request_type) ? Endpoint::Direction::OUT
-					                                : Endpoint::Direction::IN,
+					     Type::D::get(request_type) ? Endpoint::Direction::IN
+					                                : Endpoint::Direction::OUT,
 					     size),
 					_request(request), _request_type(request_type),
 					_value(value), _index(index) {}
@@ -426,6 +436,10 @@ class Usb::Device
 		template <typename POLICY>
 		bool update_urbs(POLICY &policy) {
 			return _urb_handler.update_urbs(policy); }
+
+		template <typename FN>
+		void dissolve_all_urbs(FN const &fn) {
+			_urb_handler.dissolve_all_urbs(fn); }
 };
 
 

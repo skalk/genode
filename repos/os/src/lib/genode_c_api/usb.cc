@@ -189,6 +189,7 @@ class Packet_handler
 		using Tx = typename SESSION::Tx;
 		static constexpr size_t MAX_PACKETS = SESSION::TX_QUEUE_SIZE;
 
+		Env                             &_env;
 		Dma_allocator                   &_alloc;
 		State                            _state { INITIALIZED };
 		size_t                           _buf_size;
@@ -196,6 +197,8 @@ class Packet_handler
 		Packet_stream_tx::Rpc_object<Tx> _tx;
 
 		Constructible<Packet_descriptor> _packets[MAX_PACKETS] { };
+
+		Capability<SESSION> _cap;
 
 		enum  Index_error  { OUT_OF_BOUNDS };
 		using Index_result = Attempt<size_t, Index_error>;
@@ -235,7 +238,10 @@ class Packet_handler
 				if (idx > MAX_PACKETS || !_packet_avail())
 					break;
 
-				Packet_descriptor p = _tx.sink()->get_packet();
+				Packet_descriptor p = _tx.sink()->try_get_packet();
+				if (!_tx.sink()->packet_valid(p))
+					break;
+
 				_packets[idx].construct(p);
 				fn(_packets[idx]);
 			}
@@ -264,13 +270,10 @@ class Packet_handler
 		          size_t                          actual_size,
                   Packet_descriptor               p)
 		{
-			try {
-				p.return_value        = v;
-				p.payload_return_size = actual_size;
-				_tx.sink()->acknowledge_packet(p);
-			} catch(...) {
+			p.return_value        = v;
+			p.payload_return_size = actual_size;
+			if (!_tx.sink()->try_ack_packet(p))
 				error("USB client's ack queue run full, looses packet ack!");
-			}
 		}
 
 		virtual void
@@ -288,11 +291,13 @@ class Packet_handler
 		               Signal_context_capability  sigh_cap)
 		:
 			Reg_list<T>::Element(registry, object),
+			_env(env),
 			_alloc(alloc),
 			_buf_size(buf_size),
 			_ds(*alloc.alloc_dma_dataspace(buf_size)),
 			_tx(genode_shared_dataspace_capability(&_ds), env.rm(),
-			    env.ep().rpc_ep())
+			    env.ep().rpc_ep()),
+			_cap(env.ep().rpc_ep().manage(this))
 		{
 			_tx.sigh_packet_avail(sigh_cap);
 			_tx.sigh_ready_to_ack(sigh_cap);
@@ -301,13 +306,18 @@ class Packet_handler
 
 		~Packet_handler()
 		{
+			_env.ep().rpc_ep().dissolve(this);
+
 			if (_tx.dataspace().valid())
 				_alloc.free_dma_dataspace(&_ds, _buf_size);
 		}
 
+		Capability<SESSION> session_cap() { return _cap; }
 		Capability<Tx> tx_cap() { return _tx.cap(); }
 
 		virtual void disconnect() { _state = DISCONNECTED; }
+
+		virtual void wakeup() { _tx.sink()->wakeup(); }
 
 		virtual bool request(genode_usb_req_callback_t const callback,
                              void                           *opaque_data)
@@ -331,8 +341,9 @@ class Packet_handler
 				return;
 
 			while (_packet_avail()) {
-				Packet_descriptor p = _tx.sink()->get_packet();
-				_ack(Packet_descriptor::NO_DEVICE, 0, p);
+				Packet_descriptor p = _tx.sink()->try_get_packet();
+				if (_tx.sink()->packet_valid(p))
+					_ack(Packet_descriptor::NO_DEVICE, 0, p);
 			}
 		}
 };
@@ -417,6 +428,7 @@ class Device_component
 		                     genode_usb_request_ret_t    return_value,
 		                     uint32_t                   *actual_sizes);
 		void disconnect() override;
+		void wakeup() override;
 		void handle_disconnected() override;
 
 
@@ -496,6 +508,7 @@ class Session_component
 		                     genode_usb_request_ret_t    return_value,
 		                     uint32_t                   *actual_sizes);
 		void handle_disconnected();
+		void wakeup();
 
 		bool matches(genode_usb_device::Label label, uint8_t iface_idx);
 
@@ -629,6 +642,8 @@ class Root : Sliced_heap, public Root_component<Session_component>
 		 * Acknowledge requests from sessions with disconnected devices
 		 */
 		void handle_disconnected_sessions();
+
+		void wakeup();
 };
 
 
@@ -826,7 +841,7 @@ Interface_capability Device_component::acquire_interface(uint8_t index, size_t b
 	Interface_component * ic = new (_heap)
 		Interface_component(_env, _interfaces, _session, _device_label,
 		                    buf_size, _sigh_cap, index);
-	return _env.ep().rpc_ep().manage(ic);
+	return ic->session_cap();
 }
 
 
@@ -899,6 +914,15 @@ void Device_component::handle_disconnected()
 
 	_interfaces.for_each([&] (Interface_component & ic) {
 		ic.handle_disconnected(); });
+}
+
+
+void Device_component::wakeup()
+{
+	Base::wakeup();
+
+	_interfaces.for_each([&] (Interface_component & ic) {
+		ic.wakeup(); });
 }
 
 
@@ -978,7 +1002,7 @@ Device_capability Session_component::_acquire(genode_usb_device const & device)
 	Device_component * dc = new (_heap)
 		Device_component(_env, _heap, _device_sessions, *this,
 		                 _controls(device), device, _sigh_cap);
-	return _env.ep().rpc_ep().manage(dc);
+	return dc->session_cap();
 }
 
 
@@ -1144,6 +1168,12 @@ void Session_component::produce_xml(Xml_generator &xml)
 {
 	_devices.for_each([&] (genode_usb_device const & device) {
 		if (_matches(device)) device.generate(xml); });
+}
+
+
+void Session_component::wakeup()
+{
+	_device_sessions.for_each([&] (Device_component & dc) { dc.wakeup(); });
 }
 
 
@@ -1393,6 +1423,12 @@ void ::Root::handle_disconnected_sessions()
 }
 
 
+void ::Root::wakeup()
+{
+	_sessions.for_each([&] (Session_component & sc) { sc.wakeup(); });
+}
+
+
 ::Root::Root(Env                                   &env,
              Signal_context_capability              cap,
              genode_shared_dataspace_alloc_attach_t alloc_fn,
@@ -1501,7 +1537,10 @@ genode_usb_ack_request(genode_usb_request_handle_t request_id,
 }
 
 
-extern "C" void genode_usb_notify_peers() { }
+extern "C" void genode_usb_notify_peers()
+{
+	if (_usb_root) _usb_root->wakeup();
+}
 
 
 extern "C" void genode_usb_handle_disconnected_sessions()

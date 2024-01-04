@@ -122,7 +122,7 @@ struct Usb::Device_session : Interface
 
 		enum Recipient { DEVICE, IFACE, ENDP, OTHER };
 		enum Type      { STANDARD, CLASS, VENDOR, RESERVED };
-		enum Direction { IN, OUT };
+		enum Direction { OUT, IN };
 
 		struct Request_type : Register<8>
 		{
