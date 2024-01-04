@@ -132,19 +132,19 @@ handle_control_request(genode_usb_request_handle_t handle,
 	switch (ctrl_request) {
 	case USB_REQ_SET_INTERFACE:
 		{
-			struct usb_interface *iface = usb_ifnum_to_if(udev, ctrl_value);
+			struct usb_interface *iface = usb_ifnum_to_if(udev, ctrl_index);
 			struct usb_host_interface *alt =
-				iface ? usb_altnum_to_altsetting(iface, ctrl_index) : NULL;
+				iface ? usb_altnum_to_altsetting(iface, ctrl_value) : NULL;
 
 			if (iface && iface->cur_altsetting != alt)
-				ret = usb_set_interface(udev, ctrl_value, ctrl_index);
+				ret = usb_set_interface(udev, ctrl_index, ctrl_value);
 			break;
 		}
 	case USB_REQ_SET_CONFIGURATION:
 		{
 			if (!(udev->actconfig &&
-			      udev->actconfig->desc.bConfigurationValue == ctrl_index))
-				ret = usb_set_configuration(udev, ctrl_index);
+			      udev->actconfig->desc.bConfigurationValue == ctrl_value))
+				ret = usb_set_configuration(udev, ctrl_value);
 			break;
 		}
 	default:
@@ -280,8 +280,8 @@ handle_isoc_request(genode_usb_request_handle_t        handle,
 {
 	struct usb_device        *udev = (struct usb_device *) opaque_callback_data;
 	struct usb_per_dev_data  *data = dev_get_drvdata(&udev->dev);
-	int pipe = (ep_addr & USB_DIR_IN) ? usb_rcvisocpipe(udev, ep_addr)
-	                                  : usb_sndisocpipe(udev, ep_addr);
+	int pipe = (ep_addr & USB_DIR_IN) ? usb_rcvisocpipe(udev, ep_addr & 0x7f)
+	                                  : usb_sndisocpipe(udev, ep_addr & 0x7f);
 	struct usb_host_endpoint *ep = usb_pipe_endpoint(udev, pipe);
 	struct urb *urb;
 	unsigned int i;
@@ -379,9 +379,11 @@ static int poll_usb_device(void * args)
 		if (data->dev) usb_unlock_device(data->dev);
 
 		/* check if device got removed */
+		if (!data->dev)
+			genode_usb_discontinue_device(bus, dev);
+
 		if (data->kill_task) {
 			exit_usb_task(data);
-			genode_usb_discontinue_device(bus, dev);
 			do_exit(0);
 		}
 		lx_emul_task_schedule(true);
@@ -493,8 +495,24 @@ static int raw_notify(struct notifier_block *nb, unsigned long action,
 		{
 			struct genode_usb_device_descriptor *desc =
 				(struct genode_usb_device_descriptor*) &udev->descriptor;
-			genode_usb_announce_device(udev->bus->busnum, udev->devnum, *desc,
-			                           add_configuration_callback, udev);
+			genode_usb_speed_t speed;
+			switch (udev->speed) {
+			case USB_SPEED_LOW:      speed = GENODE_USB_SPEED_LOW; break;
+			case USB_SPEED_UNKNOWN:
+			case USB_SPEED_FULL:     speed = GENODE_USB_SPEED_FULL; break;
+			case USB_SPEED_HIGH:
+			case USB_SPEED_WIRELESS: speed = GENODE_USB_SPEED_HIGH; break;
+			case USB_SPEED_SUPER:    speed = GENODE_USB_SPEED_SUPER; break;
+			case USB_SPEED_SUPER_PLUS:
+				if (udev->ssp_rate == USB_SSP_GEN_2x2)
+					speed = GENODE_USB_SPEED_SUPER_PLUS_2X2;
+				else
+					speed = GENODE_USB_SPEED_SUPER_PLUS;
+				break;
+			default: speed = GENODE_USB_SPEED_FULL;
+			}
+			genode_usb_announce_device(udev->bus->busnum, udev->devnum, speed,
+			                           *desc, add_configuration_callback, udev);
 			break;
 		}
 
