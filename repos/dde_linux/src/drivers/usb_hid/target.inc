@@ -9,10 +9,10 @@ SRC_C += dummies.c \
          lx_emul.c \
          lx_user.c
 
-SRC_C += lx_emul/shadow/drivers/input/evdev.c \
-         lx_emul/virt/shadow/drivers/usb/core/message.c \
-         lx_emul/virt/shadow/drivers/usb/core/urb.c \
-         lx_emul/virt/usb_client.c
+SRC_C += lx_emul/shadow/drivers/input/evdev.c
+SRC_C += lx_emul/virt/shadow/drivers/usb/core/buffer.c
+SRC_C += lx_emul/virt/shadow/drivers/usb/core/hcd.c
+SRC_C += lx_emul/virt/usb_client.c
 
 SRC_CC = main.cc
 

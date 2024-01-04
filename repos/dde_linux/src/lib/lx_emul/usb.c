@@ -131,19 +131,19 @@ handle_control_request(genode_usb_request_handle_t handle,
 	switch (ctrl_request) {
 	case USB_REQ_SET_INTERFACE:
 		{
-			struct usb_interface *iface = usb_ifnum_to_if(udev, ctrl_value);
+			struct usb_interface *iface = usb_ifnum_to_if(udev, ctrl_index);
 			struct usb_host_interface *alt =
-				iface ? usb_altnum_to_altsetting(iface, ctrl_index) : NULL;
+				iface ? usb_altnum_to_altsetting(iface, ctrl_value) : NULL;
 
 			if (iface && iface->cur_altsetting != alt)
-				ret = usb_set_interface(udev, ctrl_value, ctrl_index);
+				ret = usb_set_interface(udev, ctrl_index, ctrl_value);
 			break;
 		}
 	case USB_REQ_SET_CONFIGURATION:
 		{
 			if (!(udev->actconfig &&
-			      udev->actconfig->desc.bConfigurationValue == ctrl_index))
-				ret = usb_set_configuration(udev, ctrl_index);
+			      udev->actconfig->desc.bConfigurationValue == ctrl_value))
+				ret = usb_set_configuration(udev, ctrl_value);
 			break;
 		}
 	default:
@@ -278,8 +278,8 @@ handle_isoc_request(genode_usb_request_handle_t        handle,
 {
 	struct usb_device        *udev = (struct usb_device *) opaque_callback_data;
 	struct usb_per_dev_data  *data = dev_get_drvdata(&udev->dev);
-	int pipe = (ep_addr & USB_DIR_IN) ? usb_rcvisocpipe(udev, ep_addr)
-	                                  : usb_sndisocpipe(udev, ep_addr);
+	int pipe = (ep_addr & USB_DIR_IN) ? usb_rcvisocpipe(udev, ep_addr & 0x7f)
+	                                  : usb_sndisocpipe(udev, ep_addr & 0x7f);
 	struct usb_host_endpoint *ep = usb_pipe_endpoint(udev, pipe);
 	struct urb *urb;
 	unsigned int i;
@@ -377,9 +377,11 @@ static int poll_usb_device(void * args)
 		if (data->dev) usb_unlock_device(data->dev);
 
 		/* check if device got removed */
+		if (!data->dev)
+			genode_usb_discontinue_device(bus, dev);
+
 		if (data->kill_task) {
 			exit_usb_task(data);
-			genode_usb_discontinue_device(bus, dev);
 			do_exit(0);
 		}
 		lx_emul_task_schedule(true);

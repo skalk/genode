@@ -174,7 +174,9 @@ set fd [open [run_dir]/genode/usb_host_drv.config w]
 puts $fd {
 <config bios_handoff="no">
 	<report devices="yes"/>
-	<policy label_prefix="usb_hid_drv" class="0x3"/>
+	<policy label_prefix="usb_hid_drv">
+		<device vendor_id="0x3eb" product_id="0x204d"/>
+	</policy>
 </config>}
 close $fd
 
