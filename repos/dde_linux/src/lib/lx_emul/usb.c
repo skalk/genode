@@ -131,19 +131,19 @@ handle_control_request(genode_usb_request_handle_t handle,
 	switch (ctrl_request) {
 	case USB_REQ_SET_INTERFACE:
 		{
-			struct usb_interface *iface = usb_ifnum_to_if(udev, ctrl_value);
+			struct usb_interface *iface = usb_ifnum_to_if(udev, ctrl_index);
 			struct usb_host_interface *alt =
-				iface ? usb_altnum_to_altsetting(iface, ctrl_index) : NULL;
+				iface ? usb_altnum_to_altsetting(iface, ctrl_value) : NULL;
 
 			if (iface && iface->cur_altsetting != alt)
-				ret = usb_set_interface(udev, ctrl_value, ctrl_index);
+				ret = usb_set_interface(udev, ctrl_index, ctrl_value);
 			break;
 		}
 	case USB_REQ_SET_CONFIGURATION:
 		{
 			if (!(udev->actconfig &&
-			      udev->actconfig->desc.bConfigurationValue == ctrl_index))
-				ret = usb_set_configuration(udev, ctrl_index);
+			      udev->actconfig->desc.bConfigurationValue == ctrl_value))
+				ret = usb_set_configuration(udev, ctrl_value);
 			break;
 		}
 	default:
