@@ -59,12 +59,21 @@ class Usb::Endpoint
 
 		struct Endpoint_not_avail : Exception {};
 
+		Endpoint() : Endpoint(0xff, 0xff) {}
+
 		Endpoint(Address::access_t addr, Attributes::access_t attr)
 		: _address(addr), _attributes(attr) {}
 
 		Endpoint(Interface &iface, Direction d, Type t);
 
+		bool valid() { return _address != 0xff || _attributes != 0xff; }
+
 		uint8_t address() { return _address; }
+
+		uint8_t number() { return Address::Number::get(_address); }
+
+		Type type() {
+			return (Type) Attributes::Type::get(_attributes); }
 
 		Direction direction() {
 			return Address::Direction::get(_address) ? IN : OUT; }
@@ -319,9 +328,12 @@ class Usb::Interface
 		friend class Endpoint;
 		friend class Urb;
 
+		enum { MAX_EPS = 16 };
+
 		Device                             &_device;
 		Index                               _idx;
 		Urb_handler<Interface_session, Urb> _urb_handler;
+		Endpoint                            _eps[2][MAX_EPS] { };
 
 	public:
 
@@ -344,6 +356,14 @@ class Usb::Interface
 		template <typename FN>
 		void dissolve_all_urbs(FN const &fn) {
 			_urb_handler.dissolve_all_urbs(fn); }
+
+		template <typename FN>
+		void for_each_endpoint(FN const &fn)
+		{
+			for (unsigned d = Endpoint::OUT; d <= Endpoint::IN; d++)
+				for (unsigned n = 0; n < MAX_EPS; n++)
+					if (_eps[d][n].valid()) fn(_eps[d][n]);
+		}
 };
 
 
@@ -544,27 +564,14 @@ bool Usb::Urb_handler<SESSION, URB>::_try_submit_pending_urb(POLICY &policy,
 
 Usb::Endpoint::Endpoint(Interface &iface, Direction d, Type t)
 {
-	static constexpr uint16_t INVALID = 256;
-
 	bool found = false;
 
-	auto endp_compare = [&] (Xml_node node)
-	{
-		uint8_t addr = node.attribute_value<uint8_t>("address",    0xff);
-		uint8_t attr = node.attribute_value<uint8_t>("attributes", 0xff);
-		if (Address::Direction::get(addr) != d ||
-		    Attributes::Type::get(attr)   != t)
-			return;
-		_attributes = attr;
-		_address    = addr;
-		found = true;
-	};
-
-	iface._device._for_each_iface([&] (Xml_node node) {
-		uint16_t n = node.attribute_value<uint16_t>("number",      INVALID);
-		uint16_t a = node.attribute_value<uint16_t>("alt_setting", INVALID);
-		if (n == iface.index().number && a == iface.index().alt_setting)
-			node.for_each_sub_node("endpoint", endp_compare);
+	iface.for_each_endpoint([&] (Endpoint ep) {
+		if (ep.type() == t && ep.direction() == d) {
+			_attributes = ep._attributes;
+			_address    = ep._address;
+			found       = true;
+		}
 	});
 
 	if (!found)
@@ -576,7 +583,21 @@ Usb::Interface::Interface(Device &device, Index idx, size_t buffer_size)
 :
 	Interface_capability(device._interface_cap(idx.number, buffer_size)),
 	_device(device), _idx(idx),
-	_urb_handler(call<Rpc_tx_cap>(), device._rm, device._md_alloc) {}
+	_urb_handler(call<Rpc_tx_cap>(), device._rm, device._md_alloc)
+{
+	static constexpr uint16_t INVALID = 256;
+
+	device._for_each_iface([&] (Xml_node node) {
+		if (node.attribute_value<uint16_t>("number", INVALID) != idx.number)
+			return;
+		node.for_each_sub_node("endpoint", [&] (Xml_node node) {
+			Endpoint ep { node.attribute_value<uint8_t>("address", 0),
+			              node.attribute_value<uint8_t>("attributes", 0) };
+			if (!_eps[ep.direction()][ep.number()].valid())
+				_eps[ep.direction()][ep.number()] = ep;
+		});
+	});
+}
 
 
 Usb::Interface::Interface(Device &device, Type type, size_t buffer_size)
