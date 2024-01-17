@@ -1,8 +1,11 @@
 assert_spec x86
 
+proc libuvc_vendor_id {}  { return "0x041e" }
+proc libuvc_product_id {} { return "0x4095" }
+
 # fuji4
-proc libuvc_vendor_id {}  { return "0x04f2" }
-proc libuvc_product_id {} { return "0xb564" }
+#proc libuvc_vendor_id {}  { return "0x04f2" }
+#proc libuvc_product_id {} { return "0xb564" }
 
 # c270
 #proc libuvc_vendor_id {}  { return "0x046d" }
@@ -33,6 +36,11 @@ import_from_depot [depot_user]/src/[base_src] \
                   [depot_user]/src/vesa_drv
 
 import_from_depot $test_imports
+
+build {
+	lib/libc lib/libm lib/vfs lib/posix lib/libusb lib/vfs_libusb lib/vfs_pipe
+	app/usb_webcam
+}
 
 append config {
 <config verbose="no" prio_levels="2">
@@ -87,7 +95,7 @@ append config {
 	</start>
 
 	<start name="platform_drv" caps="100" managing_system="yes">
-		<resource name="RAM" quantum="1M"/>
+		<resource name="RAM" quantum="2M"/>
 		<provides>
 			<service name="Platform"/>
 		</provides>
@@ -108,8 +116,9 @@ append config {
 		<!-- <resource name="CPU" quantum="10"/> -->
 		<provides><service name="Usb"/></provides>
 		<config bios_handoff="no">
-			<policy label_suffix="usb_webcam -> usb_device"
-			        vendor_id="} [libuvc_vendor_id] {" product_id="} [libuvc_product_id] {"/>
+			<policy label_suffix="usb_webcam -> ">
+				<device vendor_id="} [libuvc_vendor_id] {" product_id="} [libuvc_product_id] {"/>
+			</policy>
 		</config>
 		<route>
 			<any-service> <parent/> <any-child/> </any-service>
@@ -161,7 +170,7 @@ append config {
 							<service name="Capture"/>
 						</parent-provides>
 						<start name="} $test_binary {" caps="100">
-							<resource name="RAM" quantum="8M"/>
+							<resource name="RAM" quantum="15M"/>
 							<config period_ms="20" width="640" height="480"> }
 append config $test_vfs_config
 append config {
@@ -173,7 +182,7 @@ append config {
 						</start>
 					</config>
 				</inline>
-				<sleep milliseconds="7000"/>
+				<sleep milliseconds="70000"/>
 				<inline/>
 				<sleep milliseconds="3000"/>
 			</rom>
@@ -213,7 +222,7 @@ append config {
 
 install_config $config
 
-build_boot_image { }
+build_boot_image [build_artifacts]
 
 append qemu_args { -usb -device usb-host,vendorid=[libuvc_vendor_id],productid=[libuvc_product_id] }
 
