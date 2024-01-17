@@ -377,9 +377,11 @@ static int poll_usb_device(void * args)
 		if (data->dev) usb_unlock_device(data->dev);
 
 		/* check if device got removed */
+		if (!data->dev)
+			genode_usb_discontinue_device(bus, dev);
+
 		if (data->kill_task) {
 			exit_usb_task(data);
-			genode_usb_discontinue_device(bus, dev);
 			do_exit(0);
 		}
 		lx_emul_task_schedule(true);
