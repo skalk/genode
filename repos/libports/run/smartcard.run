@@ -29,7 +29,7 @@ import_from_depot [depot_user]/src/[base_src] \
                   [depot_user]/src/init
 build {
 	lib/libc lib/libm lib/vfs lib/posix lib/libusb lib/vfs_libusb lib/vfs_pipe
-	test/smartcard
+	test/smartcard drivers/usb_host/pc
 }
 
 install_config {
@@ -106,7 +106,7 @@ install_config {
 append usb_config {
 <config bios_handoff="yes">
 	<report devices="yes"/>
-	<policy label="test-smartcard -> usb_device" vendor_id="} [smartcard_vendor_id] {" product_id="} [smartcard_product_id] {"/>
+	<policy label="test-smartcard -> "><device vendor_id="} [smartcard_vendor_id] {" product_id="} [smartcard_product_id] {"/></policy>
 </config>}
 set fd [open [run_dir]/genode/usb_host_drv.config w]
 puts $fd $usb_config
