@@ -39,7 +39,7 @@ import_from_depot $test_imports
 
 build {
 	lib/libc lib/libm lib/vfs lib/posix lib/libusb lib/vfs_libusb lib/vfs_pipe
-	app/usb_webcam
+	app/usb_webcam drivers/usb_host/pc
 }
 
 append config {
@@ -71,7 +71,7 @@ append config {
 	<start name="report_rom">
 		<resource name="RAM" quantum="2M"/>
 		<provides> <service name="Report"/> <service name="ROM"/> </provides>
-		<config>
+		<config verbose="no">
 			<policy label="pci_decode -> system"    report="acpi_drv -> acpi"/>
 			<policy label="platform_drv -> devices" report="pci_decode -> devices"/>
 		</config>
@@ -116,11 +116,13 @@ append config {
 		<!-- <resource name="CPU" quantum="10"/> -->
 		<provides><service name="Usb"/></provides>
 		<config bios_handoff="no">
+			<report devices="yes"/>
 			<policy label_suffix="usb_webcam -> ">
 				<device vendor_id="} [libuvc_vendor_id] {" product_id="} [libuvc_product_id] {"/>
 			</policy>
 		</config>
 		<route>
+			<service name="Report"> <child name="report_rom"/> </service>
 			<any-service> <parent/> <any-child/> </any-service>
 		</route>
 	</start>

@@ -66,16 +66,16 @@ class Usb::Endpoint
 
 		Endpoint(Interface &iface, Direction d, Type t);
 
-		bool valid() { return _address != 0xff || _attributes != 0xff; }
+		bool valid() const { return _address != 0xff || _attributes != 0xff; }
 
-		uint8_t address() { return _address; }
+		uint8_t address() const { return _address; }
 
-		uint8_t number() { return Address::Number::get(_address); }
+		uint8_t number() const { return Address::Number::get(_address); }
 
-		Type type() {
+		Type type() const {
 			return (Type) Attributes::Type::get(_attributes); }
 
-		Direction direction() {
+		Direction direction() const {
 			return Address::Direction::get(_address) ? IN : OUT; }
 };
 
@@ -85,7 +85,6 @@ class Usb::Urb_handler
 {
 	protected:
 
-		using Direction         = Endpoint::Direction;
 		using Tx                = typename SESSION::Tx;
 		using Packet_descriptor = typename SESSION::Packet_descriptor;
 		using Payload           = typename Packet_descriptor::Payload;
@@ -97,6 +96,8 @@ class Usb::Urb_handler
 			protected:
 
 				friend class Urb_handler;
+
+				enum Direction { ANY, IN, OUT };
 
 				Urb_handler    &_urb_handler;
 				Direction const _direction;
@@ -123,13 +124,11 @@ class Usb::Urb_handler
 
 					Packet_descriptor const p = _create();
 
-					if (_size && _direction == Direction::OUT)
+					if (_size && _direction != Direction::IN)
 						policy.produce_out_content(urb, tx.packet_content(p),
 						                           _size);
 					tx.try_submit_packet(p);
 				}
-
-			public:
 
 				Urb(Urb_handler &handler,
 				    Direction    direction,
@@ -142,6 +141,8 @@ class Usb::Urb_handler
 					_urb_handler._pending.enqueue(_pending_elem);
 				}
 
+			public:
+
 				virtual ~Urb()
 				{
 					if (pending())
@@ -153,7 +154,6 @@ class Usb::Urb_handler
 				bool in_progress() const { return _tag.constructed(); }
 				bool completed() const { return _completed; }
 				bool pending() const { return !in_progress() && !_completed; }
-				Direction direction() const { return _direction; }
 		};
 
 	protected:
@@ -294,12 +294,13 @@ class Usb::Interface
 
 		class Urb : public Urb_handler<Interface_session, Urb>::Urb
 		{
-			private:
+			protected:
 
 				using Base = Urb_handler<Interface_session, Urb>::Urb;
 
 				Packet_descriptor::Type _type;
-				Endpoint &_ep;
+				Endpoint                _ep;
+				uint32_t const          _isoc_frames;
 
 				Packet_descriptor _create() const override
 				{
@@ -309,14 +310,62 @@ class Usb::Interface
 					return p;
 				}
 
+				static Direction _dir(Endpoint &ep, uint32_t isoc_frames)
+				{
+					if (ep.direction() == Endpoint::OUT)
+						return OUT;
+					return isoc_frames ? ANY : IN;
+				}
+
+				static size_t _offset(uint32_t isoc_frames)
+				{
+					return isoc_frames
+						? sizeof(genode_usb_isoc_transfer_header) +
+						  isoc_frames*sizeof(genode_usb_isoc_descriptor)
+						: 0;
+				}
+
 			public:
 
 				Urb(Interface &iface, Endpoint &ep,
-				    Packet_descriptor::Type type,
-				    size_t size = 0)
+				    Packet_descriptor::Type     type,
+				    size_t                      size = 0,
+				    uint32_t                    isoc_frames = 0)
 				:
-					Base(iface._urb_handler, ep.direction(), size),
-					_type(type), _ep(ep) {}
+					Base(iface._urb_handler, _dir(ep, isoc_frames),
+					     size + _offset(isoc_frames)),
+					_type(type), _ep(ep), _isoc_frames(isoc_frames)
+				{ }
+
+				template <typename FN>
+				void setup_each_frame(char *payload, size_t size, FN const &fn)
+				{
+					genode_usb_isoc_transfer_header &hdr =
+						*reinterpret_cast<genode_usb_isoc_transfer_header*>(payload);
+					hdr.number_of_packets = _isoc_frames;
+					size_t offset = _offset(_isoc_frames);
+
+					for (unsigned i = 0; i < _isoc_frames; i++) {
+						hdr.packets[i].actual_size = 0;
+						fn(i, hdr.packets[i], payload+offset, size-offset);
+						offset += hdr.packets[i].size;
+					}
+				};
+
+				template <typename FN>
+				void for_each_frame(char const *payload, size_t size, FN const &fn)
+				{
+					genode_usb_isoc_transfer_header const &hdr =
+						*reinterpret_cast<genode_usb_isoc_transfer_header const*>(payload);
+					size_t offset = _offset(_isoc_frames);
+
+					for (unsigned i = 0; i < _isoc_frames; i++) {
+						fn(i, hdr.packets[i], payload+offset, hdr.packets[i].size);
+						offset += hdr.packets[i].size;
+					}
+				};
+
+				size_t frames_offset() { return _offset(_isoc_frames); }
 		};
 
 		using Policy = Urb_handler<Interface_session, Urb>::Update_urbs_policy;
@@ -410,8 +459,7 @@ class Usb::Device
 				    uint16_t value, uint16_t index, size_t size = 0)
 				:
 					Base(device._urb_handler,
-					     Type::D::get(request_type) ? Endpoint::Direction::IN
-					                                : Endpoint::Direction::OUT,
+					     Type::D::get(request_type) ? IN : OUT,
 					     size),
 					_request(request), _request_type(request_type),
 					_value(value), _index(index) {}
@@ -493,7 +541,7 @@ bool Usb::Urb_handler<SESSION, URB>::_try_process_ack(POLICY &policy,
 	try {
 		_tags.template apply<URB>(id, [&] (URB &urb) {
 
-			if (urb._direction == Direction::IN &&
+			if (urb._direction != Urb::Direction::OUT &&
 			    p.return_value == Packet_descriptor::OK)
 				policy.consume_in_result(urb, tx.packet_content(p),
 				                         p.payload_return_size);

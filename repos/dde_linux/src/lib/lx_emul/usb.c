@@ -278,8 +278,8 @@ handle_isoc_request(genode_usb_request_handle_t        handle,
 {
 	struct usb_device        *udev = (struct usb_device *) opaque_callback_data;
 	struct usb_per_dev_data  *data = dev_get_drvdata(&udev->dev);
-	int pipe = (ep_addr & USB_DIR_IN) ? usb_rcvisocpipe(udev, ep_addr)
-	                                  : usb_sndisocpipe(udev, ep_addr);
+	int pipe = (ep_addr & USB_DIR_IN) ? usb_rcvisocpipe(udev, ep_addr & 0x7f)
+	                                  : usb_sndisocpipe(udev, ep_addr & 0x7f);
 	struct usb_host_endpoint *ep = usb_pipe_endpoint(udev, pipe);
 	struct urb *urb;
 	unsigned int i;
