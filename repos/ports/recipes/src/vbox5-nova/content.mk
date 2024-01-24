@@ -66,6 +66,7 @@ $(MIRROR_FROM_QEMU_USB_PORT_DIR):
 
 MIRROR_FROM_OS := src/drivers/ps2/scan_code_set_1.h \
                   include/pointer/shape_report.h \
+                  src/lib/genode_c_api/usb_client.cc
 
 content: $(MIRROR_FROM_OS)
 

@@ -792,7 +792,7 @@ typedef struct VMStateDescription
 
 #define assert(cond) do { \
 	if (!(cond)) { \
-		qemu_printf("assertion failed: %s:%d\n", __FILE__, __LINE__); \
+		qemu_printf("assertion: %s:%d\n", __FILE__, __LINE__); \
 		int *d = (int *)0x0; \
 		*d = 1; \
 	}} while (0)
@@ -886,7 +886,7 @@ typedef struct USBHostDevice
 } USBHostDevice;
 
 
-USBHostDevice *create_usbdevice(void *data);
+USBHostDevice *create_usbdevice(void *data, int speed);
 void remove_usbdevice(USBHostDevice *device);
 
 void usb_host_destroy();

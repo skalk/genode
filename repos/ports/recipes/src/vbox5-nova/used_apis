@@ -21,3 +21,4 @@ nitpicker_gfx
 blit
 libyuv
 format
+genode_c_api

@@ -18,3 +18,4 @@ vfs
 vm_session
 libyuv
 format
+genode_c_api
