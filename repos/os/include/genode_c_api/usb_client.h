@@ -30,6 +30,8 @@ void genode_usb_client_init(struct genode_env            *env,
                             struct genode_allocator      *md_alloc,
                             struct genode_signal_handler *handler);
 
+void genode_usb_client_exit();
+
 
 /*************************
  ** Lifetime management **

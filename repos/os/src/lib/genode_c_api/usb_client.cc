@@ -431,7 +431,11 @@ Usb::Interface &::Interface::_session()
 };
 
 
-static ::Session * _usb_session = nullptr;
+static Constructible<::Session>& _usb_session()
+{
+	static Constructible<::Session> session {};
+	return session;
+}
 
 
 extern "C"
@@ -439,10 +443,16 @@ void genode_usb_client_init(struct genode_env            *env,
                             struct genode_allocator      *alloc,
                             struct genode_signal_handler *handler)
 {
-	static ::Session session(*static_cast<Env*>(env),
+	_usb_session().construct(*static_cast<Env*>(env),
 	                         *static_cast<Allocator*>(alloc),
 	                         cap(handler));
-	_usb_session = &session;
+};
+
+
+extern "C"
+void genode_usb_client_exit()
+{
+	_usb_session().destruct();
 };
 
 
@@ -450,7 +460,8 @@ extern "C"
 void genode_usb_client_update(genode_usb_client_dev_add_t add,
                               genode_usb_client_dev_del_t del)
 {
-	if (_usb_session) _usb_session->update(add, del);
+	if (_usb_session().constructed())
+		_usb_session()->update(add, del);
 }
 
 
@@ -465,12 +476,12 @@ genode_usb_client_device_control(genode_usb_client_dev_handle_t handle,
                                  void                          *opaque_data)
 {
 	try {
-		if (!_usb_session)
+		if (!_usb_session().constructed())
 			return NO_DEVICE;
 
-		return _usb_session->_space.apply<Device>({ handle },
-		                                          [&] (Device & device) {
-			new (_usb_session->_alloc)
+		return _usb_session()->_space.apply<Device>({ handle },
+		                                            [&] (Device & device) {
+			new (_usb_session()->_alloc)
 				Device::Urb(device, request, request_type,
 				            value, index, size, opaque_data);
 			return OK;
@@ -489,9 +500,9 @@ void genode_usb_client_device_update(genode_usb_client_produce_out_t out,
                                      genode_usb_client_complete_t    complete)
 {
 	try {
-		if (!_usb_session)
+		if (!_usb_session().constructed())
 			return;
-		_usb_session->_model.for_each([&] (Device & device) {
+		_usb_session()->_model.for_each([&] (Device & device) {
 			device.update(out, in, complete); });
 
 	} catch(...) { }
@@ -507,16 +518,16 @@ genode_usb_client_iface_transfer(genode_usb_client_dev_handle_t handle,
                                  void                          *opaque_data)
 {
 	try {
-		if (!_usb_session)
+		if (!_usb_session().constructed())
 			return NO_DEVICE;
 
 		genode_usb_client_ret_val_t ret = NO_DEVICE;
 
-		_usb_session->_space.apply<Device>({ handle },
-		                                   [&] (Device & device) {
+		_usb_session()->_space.apply<Device>({ handle },
+		                                     [&] (Device & device) {
 			device.with_active_interfaces([&] (::Interface &iface) {
 				iface.with_endpoint(index, [&] (Endpoint &endp) {
-					new (_usb_session->_alloc)
+					new (_usb_session()->_alloc)
 						::Interface::Urb(iface, endp, type, size, opaque_data);
 					ret = OK;
 				});
