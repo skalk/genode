@@ -8,8 +8,13 @@
 #include <base/allocator_avl.h>
 #include <base/log.h>
 #include <base/attached_rom_dataspace.h>
+
+#if 0
 #include <usb_session/connection.h>
 #include <usb/usb.h>
+#endif
+#include <genode_c_api/usb_client.h>
+
 #include <util/xml_node.h>
 #include <os/ring_buffer.h>
 
@@ -30,9 +35,11 @@ static void update_ep(USBDevice *, uint8_t, uint8_t);
 static bool claim_interfaces(USBDevice *);
 static void reset_alt_settings(USBDevice *);
 
+#if 0
 using Packet_alloc_failed = Usb::Session::Tx::Source::Packet_alloc_failed;
 using Packet_type         = Usb::Packet_descriptor::Type;
 using Packet_error        = Usb::Packet_descriptor::Error;
+#endif
 
 static unsigned endpoint_number(USBEndpoint const *usb_ep)
 {
@@ -41,6 +48,7 @@ static unsigned endpoint_number(USBEndpoint const *usb_ep)
 
 }
 
+#if 0
 class Isoc_packet : Fifo<Isoc_packet>::Element
 {
 	friend class Fifo<Isoc_packet>;
@@ -735,6 +743,7 @@ struct Usb_host_device : List<Usb_host_device>::Element
 		}
 	}
 };
+#endif
 
 
 /********************
@@ -749,34 +758,45 @@ struct Usb_host_device : List<Usb_host_device>::Element
 
 static void reset_alt_settings(USBDevice *udev)
 {
+#if 0
 	USBHostDevice     *d = USB_HOST_DEVICE(udev);
 	Usb_host_device *dev = (Usb_host_device *)d->data;
 
 	dev->reset_alt_settings(udev);
+#endif
+	TRACE_AND_STOP;
 }
 
 
 static void update_ep(USBDevice *udev, uint8_t interface, uint8_t altsetting)
 {
+#if 0
 	USBHostDevice     *d = USB_HOST_DEVICE(udev);
 	Usb_host_device *dev = (Usb_host_device *)d->data;
 
 	udev->altsetting[interface] = altsetting;
 	dev->update_ep(udev);
+#endif
+	TRACE_AND_STOP;
 }
 
 
 static bool claim_interfaces(USBDevice *udev)
 {
+#if 0
 	USBHostDevice     *d = USB_HOST_DEVICE(udev);
 	Usb_host_device *dev = (Usb_host_device *)d->data;
 
 	return dev->claim_interfaces();
+#endif
+	TRACE_AND_STOP;
+	return true;
 }
 
 
 static void usb_host_realize(USBDevice *udev, Error **errp)
 {
+#if 0
 	USBHostDevice     *d = USB_HOST_DEVICE(udev);
 	Usb_host_device *dev = (Usb_host_device *)d->data;
 
@@ -796,22 +816,28 @@ static void usb_host_realize(USBDevice *udev, Error **errp)
 	udev->flags |= (1 << USB_DEV_FLAG_IS_HOST);
 
 	dev->update_ep(udev);
+#endif
+	TRACE_AND_STOP;
 }
 
 
 static void usb_host_cancel_packet(USBDevice *udev, USBPacket *p)
 {
+#if 0
 	USBHostDevice     *d = USB_HOST_DEVICE(udev);
 	Usb_host_device *dev = (Usb_host_device *)d->data;
 	Completion        *c = dev->find_valid_completion(p);
 
 	if (c)
 		c->cancel();
+#endif
+	TRACE_AND_STOP;
 }
 
 
 static void usb_host_handle_data(USBDevice *udev, USBPacket *p)
 {
+#if 0
 	USBHostDevice               *d    = USB_HOST_DEVICE(udev);
 	Usb_host_device             *dev  = (Usb_host_device *)d->data;
 	Genode::size_t               size = 0;
@@ -863,6 +889,8 @@ static void usb_host_handle_data(USBDevice *udev, USBPacket *p)
 			warning("xHCI: packet allocation failed (size ", Hex(size), "in ", __func__, ")");
 		p->status = USB_RET_NAK;
 	}
+#endif
+	TRACE_AND_STOP;
 }
 
 
@@ -870,6 +898,7 @@ static void usb_host_handle_control(USBDevice *udev, USBPacket *p,
                                     int request, int value, int index,
                                     int length, uint8_t *data)
 {
+#if 0
 	USBHostDevice     *d = USB_HOST_DEVICE(udev);
 	Usb_host_device *dev = (Usb_host_device *)d->data;
 
@@ -928,11 +957,14 @@ static void usb_host_handle_control(USBDevice *udev, USBPacket *p,
 
 	dev->submit(packet);
 	p->status = USB_RET_ASYNC;
+#endif
+	TRACE_AND_STOP;
 }
 
 
 static void usb_host_ep_stopped(USBDevice *udev, USBEndpoint *usb_ep)
 {
+#if 0
 	USBHostDevice               *d    = USB_HOST_DEVICE(udev);
 	Usb_host_device             *dev  = (Usb_host_device *)d->data;
 
@@ -950,6 +982,8 @@ static void usb_host_ep_stopped(USBDevice *udev, USBEndpoint *usb_ep)
 	default:
 		return;
 	}
+#endif
+	TRACE_AND_STOP;
 }
 
 
@@ -987,6 +1021,7 @@ static void usb_host_register_types(void)
 }
 
 
+#if 0
 struct Usb_devices : List<Usb_host_device>
 {
 	Entrypoint                    &_ep;
@@ -1098,21 +1133,29 @@ struct Usb_devices : List<Usb_host_device>
 
 
 static Usb_devices *_devices;
+#endif
 
-
-extern "C" void usb_host_destroy()
+static void* add_usb_device(genode_usb_client_dev_handle_t handle, char const *)
 {
-	if (_devices == nullptr) return;
+	return create_usbdevice((void*)handle);
+}
 
-	_devices->destroy();
+
+static void del_usb_device(genode_usb_client_dev_handle_t, void *opaque_data)
+{
+	remove_usbdevice((USBHostDevice*)opaque_data);
 }
 
 
 extern "C" void usb_host_update_devices()
 {
-	if (_devices == nullptr) return;
+	genode_usb_client_update(add_usb_device, del_usb_device);
+}
 
-	_devices->_devices_update();
+
+extern "C" void usb_host_destroy()
+{
+	genode_usb_client_exit();
 }
 
 
@@ -1123,8 +1166,17 @@ extern "C" void _type_init_usb_host_register_types(Entrypoint *ep,
                                                    Allocator *alloc,
                                                    Env *env)
 {
-	usb_host_register_types();
+	struct Helper : Signal_handler<Helper>
+	{
+		Helper(Entrypoint &ep)
+		: Signal_handler<Helper>(ep, *this, &Helper::_update) {}
 
-	static Usb_devices devices(*ep, *alloc, *env);
-	_devices = &devices;
+		void _update() { usb_host_update_devices(); }
+	};
+
+	static Helper helper(*ep);
+	usb_host_register_types();
+	genode_usb_client_init(genode_env_ptr(*env),
+	                       genode_allocator_ptr(*alloc),
+	                       genode_signal_handler_ptr(helper));
 }
