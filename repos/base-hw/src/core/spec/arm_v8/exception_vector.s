@@ -15,6 +15,11 @@
 
 	.rept 16
 	str  x0,  [sp, #-32]
+	mov  x0,  sp
+	and  x0,  x0, #0xfff
+	cbz  x0,  1f
+	b    _kernel_exception
+	1:
 	ldr  x0,  [sp, #-16]
 	add  x0,  x0,  #8
 	stp  x1,  x2,   [x0], #16
@@ -39,14 +44,42 @@
 	mrs  x5, mdscr_el1
 	adr  x6, .
 	and  x6, x6, #0xf80
-	stp  x1, x2, [x0], #16
-	stp  x3, x4, [x0], #16
-	stp  x5, x6, [x0], #16
 	b _kernel_entry
 	.balign 128
 	.endr
 
+_kernel_exception:
+	sub  x0,  sp,   #8*33
+	stp  x1,  x2,   [x0], #16
+	stp  x3,  x4,   [x0], #16
+	stp  x5,  x6,   [x0], #16
+	stp  x7,  x8,   [x0], #16
+	stp  x9,  x10,  [x0], #16
+	stp  x11, x12,  [x0], #16
+	stp  x13, x14,  [x0], #16
+	stp  x15, x16,  [x0], #16
+	stp  x17, x18,  [x0], #16
+	stp  x19, x20,  [x0], #16
+	stp  x21, x22,  [x0], #16
+	stp  x23, x24,  [x0], #16
+	stp  x25, x26,  [x0], #16
+	stp  x27, x28,  [x0], #16
+	stp  x29, x30,  [x0], #16
+	mov  x1,  sp
+	mrs  x2,  elr_el1
+	mrs  x3,  esr_el1
+	ldr  x4,  [sp,  #-32]
+	stp  x1,  x2,   [x0], #16
+	str  x3,  [x0]
+	sub  x0,  sp,   #8*34
+	mov  sp,  x0
+	str  x4,  [x0]
+	bl _ZN4Core3Cpu4dumpERN6Genode9Cpu_stateE
+
 _kernel_entry:
+	stp  x1, x2, [x0], #16
+	stp  x3, x4, [x0], #16
+	stp  x5, x6, [x0], #16
 	stp  q0,  q1,  [x0], #32
 	stp  q2,  q3,  [x0], #32
 	stp  q4,  q5,  [x0], #32
