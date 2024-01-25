@@ -153,6 +153,7 @@ class Kernel::Vm : private Kernel::Object, public Cpu_job
 		void exception(Cpu & cpu)       override;
 		void proceed(Cpu &  cpu)        override;
 		Cpu_job * helping_destination() override { return this; }
+		void dump() override {};
 };
 
 #endif /* _CORE__KERNEL__VM_H_ */

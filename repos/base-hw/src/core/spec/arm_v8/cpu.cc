@@ -174,3 +174,20 @@ void Cpu::clear_memory_region(addr_t const addr, size_t const size,
 	asm volatile("dsb ish");
 	asm volatile("isb");
 }
+
+
+void Cpu::dump()
+{
+	using namespace Genode;
+
+	log("");
+	log("Dump of CPU state:");
+	log("  ESR_EL1: ", Hex(Esr_el1::read()));
+	log("  FAR_EL1: ", Hex(Far_el1::read()));
+	log("  ACTLR_EL1: ", Hex(Actlr_el1::read()));
+	log("  MAIR_EL1: ", Hex(Mair_el1::read()));
+	log("  SCTLR_EL1: ", Hex(Sctlr_el1::read()));
+	log("  TCR_EL1: ", Hex(Tcr_el1::read()));
+	log("  TTBR0_EL1: ", Hex(Ttbr0_el1::read()));
+	log("  TTBR1_EL1: ", Hex(Ttbr1_el1::read()));
+}

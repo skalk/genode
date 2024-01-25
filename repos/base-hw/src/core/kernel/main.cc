@@ -39,8 +39,8 @@ class Kernel::Main
 
 		static Main *_instance;
 
-		Lock                                    _data_lock           { };
 		Cpu_pool                                _cpu_pool;
+		Lock                                    _data_lock           { _cpu_pool };
 		Irq::Pool                               _user_irq_pool       { };
 		Board::Address_space_id_allocator       _addr_space_id_alloc { };
 		Core::Core_platform_pd                  _core_platform_pd    { _addr_space_id_alloc };

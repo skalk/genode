@@ -119,6 +119,8 @@ class Kernel::Cpu : public Core::Cpu, private Irq::Pool, private Timeout
 			void proceed(Kernel::Cpu &) override;
 
 			Kernel::Cpu_job* helping_destination() override { return this; }
+
+			void dump() override { }
 		} _halt_job { };
 
 		enum State { RUN, HALT, SUSPEND };

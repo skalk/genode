@@ -90,6 +90,8 @@ class Kernel::Cpu_job : private Cpu_share
 		 */
 		virtual Cpu_job * helping_destination() = 0;
 
+		virtual void dump() = 0;
+
 		/**
 		 * Construct a job with scheduling priority 'p' and time quota 'q'
 		 */

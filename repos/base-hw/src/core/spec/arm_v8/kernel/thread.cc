@@ -142,6 +142,47 @@ void Thread::proceed(Cpu & cpu)
 }
 
 
+void Thread::dump()
+{
+	using namespace Genode;
+
+	log("");
+	log("Saved thread state of ", *this, ":");
+	for (unsigned i = 0; i < 31; i++)
+		log("  r", i, " = ", Hex(regs->r[i]));
+	log("  sp = ", Hex(regs->sp));
+	log("  ip = ", Hex(regs->ip));
+	log("  pstate = ", Hex(regs->pstate));
+	log("  mdscr_el1 = ", Hex(regs->mdscr_el1));
+
+	log("");
+	log("Last exception cause was:");
+	switch (regs->exception_type) {
+	case Cpu::RESET:         log("  reset"); break;
+	case Cpu::IRQ_LEVEL_EL0: [[fallthrough]];
+	case Cpu::IRQ_LEVEL_EL1: [[fallthrough]];
+	case Cpu::FIQ_LEVEL_EL0: [[fallthrough]];
+	case Cpu::FIQ_LEVEL_EL1: log("  interrupt"); break;
+	case Cpu::SYNC_LEVEL_EL0: [[fallthrough]];
+	case Cpu::SYNC_LEVEL_EL1:
+		{
+			switch (Cpu::Esr::Ec::get(regs->esr_el1)) {
+			case Cpu::Esr::Ec::SVC: log("  system call"); break;
+			case Cpu::Esr::Ec::INST_ABORT_SAME_LEVEL: [[fallthrough]];
+			case Cpu::Esr::Ec::DATA_ABORT_SAME_LEVEL: [[fallthrough]];
+			case Cpu::Esr::Ec::INST_ABORT_LOW_LEVEL:  [[fallthrough]];
+			case Cpu::Esr::Ec::DATA_ABORT_LOW_LEVEL: log("  mmu fault"); break;
+			case Cpu::Esr::Ec::SOFTWARE_STEP_LOW_LEVEL: [[fallthrough]];
+			case Cpu::Esr::Ec::BRK: log("  debug brk/step"); break;
+			default: log("  unknown");
+			};
+			break;
+		}
+	default: log("Unknown exception: ", (void*)regs->exception_type);
+	};
+}
+
+
 void Thread::user_ret_time(Kernel::time_t const t)  { regs->r[0] = t;   }
 void Thread::user_arg_0(Kernel::Call_arg const arg) { regs->r[0] = arg; }
 void Thread::user_arg_1(Kernel::Call_arg const arg) { regs->r[1] = arg; }
