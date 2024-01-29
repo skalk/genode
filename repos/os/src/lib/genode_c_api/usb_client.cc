@@ -92,44 +92,6 @@ class Interface : public List_model<::Interface>::Element
 					_driver_data{opaque_data} {}
 		};
 
-		struct Policy
-		{
-			genode_usb_client_produce_out_t out;
-			genode_usb_client_consume_in_t  in;
-			genode_usb_client_complete_t    complete;
-
-			void produce_out_content(Usb::Interface::Urb &urb,
-			                         char *dst, size_t length)
-			{
-				void * opaque_data = static_cast<Urb&>(urb)._driver_data.data;
-				out(opaque_data, { (void*)dst, length });
-			}
-
-			void consume_in_result(Usb::Interface::Urb &urb,
-			                       char const *src, size_t length)
-			{
-				void * opaque_data = static_cast<Urb&>(urb)._driver_data.data;
-				in(opaque_data, { (void*)src, length });
-			}
-
-			void completed(Usb::Interface::Urb &urb,
-			               Usb::Interface::Packet_descriptor::Return_value v)
-			{
-				using Retval = Usb::Interface::Packet_descriptor::Return_value;
-				genode_usb_client_ret_val_t ret;
-				void * opaque_data = static_cast<Urb&>(urb)._driver_data.data;
-				switch (v) {
-				case Retval::NO_DEVICE: ret = NO_DEVICE; break;
-				case Retval::INVALID:   ret = INVALID;   break;
-				case Retval::OK:        ret = OK;        break;
-				default:
-					error("unhandled packet should not happen!");
-					ret = INVALID;
-				};
-				complete(opaque_data, ret);
-			}
-		};
-
 		Interface(Device &device, Xml_node const &n)
 		:
 			_device(device),
@@ -140,7 +102,7 @@ class Interface : public List_model<::Interface>::Element
 		~Interface()
 		{
 			if (_iface.constructed())
-				_iface->dissolve_all_urbs([] (Usb::Interface::Urb&) {});
+				_iface->dissolve_all_urbs<Urb>([] (Urb&) {});
 		}
 
 		bool active() const { return _active; }
@@ -180,8 +142,32 @@ class Interface : public List_model<::Interface>::Element
 			if (!_iface.constructed())
 				return;
 
-			Policy policy { out, in, complete };
-			_iface->update_urbs(policy);
+			_iface->update_urbs<Urb>(
+
+				/* produce out content */
+				[&] (Urb &urb, void *dst, size_t length) {
+					out(urb._driver_data.data, { (void*)dst, length }); },
+
+				/* consume in results */
+				[&] (Urb &urb, void const *src, size_t length) {
+					in(urb._driver_data.data, { (void*)src, length }); },
+
+				/* complete USB request */
+				[&] (Urb &urb,
+				     Usb::Interface::Packet_descriptor::Return_value v) {
+					using Retval = Usb::Interface::Packet_descriptor::Return_value;
+					genode_usb_client_ret_val_t ret;
+
+					switch (v) {
+					case Retval::NO_DEVICE: ret = NO_DEVICE; break;
+					case Retval::INVALID:   ret = INVALID;   break;
+					case Retval::OK:        ret = OK;        break;
+					default:
+						error("unhandled packet should not happen!");
+						ret = INVALID;
+					};
+					complete(urb._driver_data.data, ret);
+				});
 		}
 
 		template <typename FN>
@@ -244,37 +230,6 @@ class Device : public List_model<Device>::Element
 			genode_usb_client_consume_in_t  in;
 			genode_usb_client_complete_t    complete;
 
-			void produce_out_content(Usb::Device::Urb &urb,
-			                         char *dst, size_t length)
-			{
-				void * opaque_data = static_cast<Urb&>(urb)._driver_data.data;
-				out(opaque_data, { (void*)dst, length });
-			}
-
-			void consume_in_result(Usb::Device::Urb &urb,
-			                       char const *src, size_t length)
-			{
-				void * opaque_data = static_cast<Urb&>(urb)._driver_data.data;
-				in(opaque_data, { (void*)src, length });
-			}
-
-			void completed(Usb::Device::Urb &urb,
-			               Usb::Device::Packet_descriptor::Return_value v)
-			{
-				using Retval = Usb::Device::Packet_descriptor::Return_value;
-				genode_usb_client_ret_val_t ret;
-				void * opaque_data = static_cast<Urb&>(urb)._driver_data.data;
-				switch (v) {
-				case Retval::NO_DEVICE: ret = NO_DEVICE; break;
-				case Retval::INVALID:   ret = INVALID;   break;
-				case Retval::TIMEOUT:   ret = TIMEOUT;   break;
-				case Retval::OK:        ret = OK;        break;
-				default:
-					error("unhandled packet should not happen!");
-					ret = INVALID;
-				};
-				complete(opaque_data, ret);
-			}
 		};
 
 		Device(Name                     &name,
@@ -293,7 +248,7 @@ class Device : public List_model<Device>::Element
 		}
 
 		~Device() {
-			_device.dissolve_all_urbs([] (Usb::Device::Urb&) {}); }
+			_device.dissolve_all_urbs<Urb>([] (Urb&) {}); }
 
 		Usb::Device &session() { return _device; }
 
@@ -343,8 +298,35 @@ class Device : public List_model<Device>::Element
 		            genode_usb_client_consume_in_t  in,
 		            genode_usb_client_complete_t    complete)
 		{
-			Policy policy { out, in, complete };
-			_device.update_urbs(policy);
+			_device.update_urbs<Urb>(
+
+				/* produce out content */
+				[&] (Urb &urb, void *dst, size_t length) {
+					out(urb._driver_data.data, { (void*)dst, length }); },
+
+				/* consume in results */
+				[&] (Urb &urb, void const *src, size_t length) {
+					in(urb._driver_data.data, { (void*)src, length }); },
+
+				/* complete USB request */
+				[&] (Urb &urb,
+				     Usb::Device::Packet_descriptor::Return_value v)
+				{
+					using Retval = Usb::Device::Packet_descriptor::Return_value;
+					genode_usb_client_ret_val_t ret;
+
+					switch (v) {
+					case Retval::NO_DEVICE: ret = NO_DEVICE; break;
+					case Retval::INVALID:   ret = INVALID;   break;
+					case Retval::TIMEOUT:   ret = TIMEOUT;   break;
+					case Retval::OK:        ret = OK;        break;
+					default:
+						error("unhandled packet should not happen!");
+						ret = INVALID;
+					};
+					complete(urb._driver_data.data, ret);
+				});
+
 			_ifaces.for_each([&] (::Interface &iface) {
 				iface.update(out, in, complete); });
 		}

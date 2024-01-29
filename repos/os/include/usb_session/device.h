@@ -23,7 +23,7 @@
 #include <usb_session/connection.h>
 
 namespace Usb {
-	template <typename SESSION, typename URB> class Urb_handler;
+	template <typename SESSION> class Urb_handler;
 	class Endpoint;
 	class Interface;
 	class Device;
@@ -39,7 +39,7 @@ class Usb::Endpoint
 
 	private:
 
-		enum { MAX_NUMBER = 0xf };
+		enum { MAX_NUMBER = 0xf, INVALID = 0xff };
 
 		struct Address : Register<8>
 		{
@@ -52,25 +52,28 @@ class Usb::Endpoint
 			struct Type : Bitfield<0, 2> {};
 		};
 
-		Address::access_t    _address    { 0 };
-		Attributes::access_t _attributes { 0 };
+		Address::access_t    _address    { INVALID };
+		Attributes::access_t _attributes { INVALID };
 
 	public:
 
 		struct Endpoint_not_avail : Exception {};
-
-		Endpoint() : Endpoint(0xff, 0xff) {}
 
 		Endpoint(Address::access_t addr, Attributes::access_t attr)
 		: _address(addr), _attributes(attr) {}
 
 		Endpoint(Interface &iface, Direction d, Type t);
 
-		bool valid() const { return _address != 0xff || _attributes != 0xff; }
+		Endpoint() {}
 
-		uint8_t address() const { return _address; }
+		bool valid() const {
+			return _address != INVALID || _attributes != INVALID; }
 
-		uint8_t number() const { return Address::Number::get(_address); }
+		uint8_t address() const {
+			return _address; }
+
+		uint8_t number() const {
+			return Address::Number::get(_address); }
 
 		Type type() const {
 			return (Type) Attributes::Type::get(_attributes); }
@@ -80,7 +83,7 @@ class Usb::Endpoint
 };
 
 
-template <typename SESSION, typename URB>
+template <typename SESSION>
 class Usb::Urb_handler
 {
 	protected:
@@ -97,17 +100,20 @@ class Usb::Urb_handler
 
 				friend class Urb_handler;
 
-				enum Direction { ANY, IN, OUT };
+				using Direction = Endpoint::Direction;
+				using Isoc_header = genode_usb_isoc_transfer_header;
+				using Isoc_descriptor = genode_usb_isoc_descriptor;
 
 				Urb_handler    &_urb_handler;
 				Direction const _direction;
+				uint32_t  const _isoc_packets;
 				size_t    const _size;
 				Payload         _payload { };
 				bool            _completed { false };
 
-				Constructible<typename Id_space<URB>::Element> _tag {};
+				Constructible<typename Id_space<Urb>::Element> _tag {};
 
-				Fifo_element<URB> _pending_elem { *static_cast<URB*>(this) };
+				Fifo_element<Urb> _pending_elem { *this };
 
 				virtual Packet_descriptor _create() const
 				{
@@ -116,27 +122,87 @@ class Usb::Urb_handler
 					return p;
 				}
 
-				template <typename POLICY>
-				void _submit(POLICY &policy, URB &urb, Tx::Source &tx)
+				size_t _isoc_payload_offset()
+				{
+					return _isoc_packets ? sizeof(Isoc_header) +
+					                       _isoc_packets*sizeof(Isoc_descriptor)
+					                     : 0;
+				}
+
+				template <typename URB,
+				          typename OUT_FN,
+				          typename ISOC_OUT_FN>
+				void _submit(URB               &urb,
+				             Tx::Source        &tx,
+				             OUT_FN      const &out_fn,
+				             ISOC_OUT_FN const &isoc_out_fn)
 				{
 					if (!_tag.constructed())
 						return;
 
 					Packet_descriptor const p = _create();
 
-					if (_size && _direction != Direction::IN)
-						policy.produce_out_content(urb, tx.packet_content(p),
-						                           _size);
+					if (!_isoc_packets &&
+					   _direction == Direction::OUT &&
+					   _size)
+						out_fn(urb, tx.packet_content(p), _size);
+
+					if (_isoc_packets) {
+						addr_t payload = (addr_t)tx.packet_content(p);
+						size_t off     = _isoc_payload_offset();
+
+						Isoc_header &hdr = *(Isoc_header*)(payload);
+
+						hdr.number_of_packets = _isoc_packets;
+
+						for (uint32_t i = 0; i < _isoc_packets; i++) {
+							uint32_t psize =
+								isoc_out_fn(urb, i, (void*)(payload+off),
+								            _size-off);
+							hdr.packets[i].actual_size = 0;
+							hdr.packets[i].size = psize;
+							off += psize;
+						}
+					}
+
 					tx.try_submit_packet(p);
+				}
+
+				template <typename URB,
+				          typename IN_FN,
+				          typename ISOC_IN_FN>
+				void _in_results(URB              &urb,
+				                 Packet_descriptor p,
+				                 Tx::Source       &tx,
+				                 IN_FN      const &in_fn,
+				                 ISOC_IN_FN const &isoc_in_fn)
+				{
+					if (!_isoc_packets) {
+						in_fn(urb, tx.packet_content(p), p.payload_return_size);
+						return;
+					}
+
+					addr_t payload = (addr_t)tx.packet_content(p);
+					size_t off     = _isoc_payload_offset();
+
+					Isoc_header &hdr = *(Isoc_header*)(payload);
+
+					for (uint32_t i = 0; i < _isoc_packets; i++) {
+						isoc_in_fn(urb, i, (void const*)(payload+off),
+						           hdr.packets[i].actual_size);
+						off += hdr.packets[i].size;
+					}
 				}
 
 				Urb(Urb_handler &handler,
 				    Direction    direction,
-				    size_t       size = 0)
+				    size_t       size = 0,
+				    uint32_t     isoc_packets = 0)
 				:
 					_urb_handler(handler),
 					_direction(direction),
-					_size(size)
+					_isoc_packets(isoc_packets),
+					_size(size + _isoc_payload_offset())
 				{
 					_urb_handler._pending.enqueue(_pending_elem);
 				}
@@ -160,14 +226,21 @@ class Usb::Urb_handler
 
 		Allocator_avl                _alloc;
 		Packet_stream_tx::Client<Tx> _tx;
-		Id_space<URB>                _tags    { };
-		Fifo<Fifo_element<URB>>      _pending { };
+		Id_space<Urb>                _tags    { };
+		Fifo<Fifo_element<Urb>>      _pending { };
 
-		template <typename POLICY>
-		bool _try_process_ack(POLICY &, Tx::Source &);
+		template <typename URB,
+		          typename IN_FN,
+		          typename ISOC_IN_FN,
+		          typename CPL_FN>
+		bool _try_process_ack(Tx::Source &, IN_FN const &,
+		                      ISOC_IN_FN const &, CPL_FN const &);
 
-		template <typename POLICY>
-		bool _try_submit_pending_urb(POLICY &, Tx::Source &);
+		template <typename URB,
+		          typename OUT_FN,
+		          typename ISOC_OUT_FN>
+		bool _try_submit_pending_urb(Tx::Source &, OUT_FN const &,
+		                             ISOC_OUT_FN const &);
 
 	public:
 
@@ -180,8 +253,17 @@ class Usb::Urb_handler
 		 *
 		 * \return  true if progress was made
 		 */
-		template <typename POLICY>
-		bool update_urbs(POLICY &policy)
+		template <typename URB,
+		          typename OUT_FN,
+		          typename IN_FN,
+		          typename ISOC_OUT_FN,
+		          typename ISOC_IN_FN,
+		          typename CPL_FN>
+		bool update_urbs(OUT_FN      const &out_fn,
+		                 IN_FN       const &in_fn,
+		                 ISOC_OUT_FN const &isoc_out_fn,
+		                 ISOC_IN_FN  const &isoc_in_fn,
+		                 CPL_FN      const &complete_fn)
 		{
 			typename Tx::Source &tx = *_tx.source();
 
@@ -193,11 +275,11 @@ class Usb::Urb_handler
 				bool progress = false;
 
 				/* process acknowledgements */
-				while (_try_process_ack(policy, tx))
+				while (_try_process_ack<URB>(tx, in_fn, isoc_in_fn, complete_fn))
 					progress = true;
 
 				/* try to submit pending requests */
-				while (_try_submit_pending_urb(policy, tx))
+				while (_try_submit_pending_urb<URB>(tx, out_fn, isoc_out_fn))
 					progress = true;
 
 				overall_progress |= progress;
@@ -213,54 +295,26 @@ class Usb::Urb_handler
 		}
 
 		/**
-		 * Interface of 'POLICY' argument for 'update_urbs'
-		 */
-		struct Update_urbs_policy
-		{
-			/**
-			 * Produce content sent to device
-			 *
-			 * \param dst     destination buffer (located within the I/O
-			 *                communication buffer shared with the server)
-			 * \param length  size of 'dst' buffer in bytes
-			 */
-			void produce_out_content(Urb &, char *dst, size_t length);
-
-			/**
-			 * Consume data received from device
-			 *
-			 * \param src     pointer to received data
-			 * \param length  number of bytes received
-			 */
-			void consume_in_result(Urb &, char const *src, size_t length);
-
-			/**
-			 * Respond on the completion of the given urb
-			 */
-			void completed(Urb &, Packet_descriptor::Return_value);
-		};
-
-		/**
 		 * Call 'fn' with each urb as argument
 		 *
 		 * This method is intended for the destruction of the urbs associated
 		 * with the handler before destructing the 'Urb_handler' object.
 		 */
-		template <typename FN>
+		template <typename URB, typename FN>
 		void dissolve_all_urbs(FN const &fn)
 		{
-			_pending.dequeue_all([&] (Fifo_element<URB> &elem) {
-				fn(elem.object()); });
+			_pending.dequeue_all([&] (Fifo_element<Urb> &elem) {
+				fn(static_cast<URB&>(elem.object())); });
 
-			auto discard_tag_and_apply_fn = [&] (URB &urb) {
+			auto discard_tag_and_apply_fn = [&] (Urb &urb) {
 				urb._tag.destruct();
-				fn(urb);
+				fn(static_cast<URB&>(urb));
 				Packet_descriptor const p { urb._payload.offset,
 				                            urb._payload.bytes };
 				_tx.source()->release_packet(p);
 			};
 
-			while (_tags.template apply_any<URB>(discard_tag_and_apply_fn));
+			while (_tags.template apply_any<Urb>(discard_tag_and_apply_fn));
 		}
 
 		void sigh(Signal_context_capability cap)
@@ -292,15 +346,14 @@ class Usb::Interface
 			uint8_t prot;
 		};
 
-		class Urb : public Urb_handler<Interface_session, Urb>::Urb
+		class Urb : public Urb_handler<Interface_session>::Urb
 		{
 			protected:
 
-				using Base = Urb_handler<Interface_session, Urb>::Urb;
+				using Base = Urb_handler<Interface_session>::Urb;
 
 				Packet_descriptor::Type _type;
 				Endpoint                _ep;
-				uint32_t const          _isoc_frames;
 
 				Packet_descriptor _create() const override
 				{
@@ -310,65 +363,17 @@ class Usb::Interface
 					return p;
 				}
 
-				static Direction _dir(Endpoint &ep, uint32_t isoc_frames)
-				{
-					if (ep.direction() == Endpoint::OUT)
-						return OUT;
-					return isoc_frames ? ANY : IN;
-				}
-
-				static size_t _offset(uint32_t isoc_frames)
-				{
-					return isoc_frames
-						? sizeof(genode_usb_isoc_transfer_header) +
-						  isoc_frames*sizeof(genode_usb_isoc_descriptor)
-						: 0;
-				}
-
 			public:
 
 				Urb(Interface &iface, Endpoint &ep,
 				    Packet_descriptor::Type     type,
 				    size_t                      size = 0,
-				    uint32_t                    isoc_frames = 0)
+				    uint32_t                    isoc_packets = 0)
 				:
-					Base(iface._urb_handler, _dir(ep, isoc_frames),
-					     size + _offset(isoc_frames)),
-					_type(type), _ep(ep), _isoc_frames(isoc_frames)
-				{ }
-
-				template <typename FN>
-				void setup_each_frame(char *payload, size_t size, FN const &fn)
-				{
-					genode_usb_isoc_transfer_header &hdr =
-						*reinterpret_cast<genode_usb_isoc_transfer_header*>(payload);
-					hdr.number_of_packets = _isoc_frames;
-					size_t offset = _offset(_isoc_frames);
-
-					for (unsigned i = 0; i < _isoc_frames; i++) {
-						hdr.packets[i].actual_size = 0;
-						fn(i, hdr.packets[i], payload+offset, size-offset);
-						offset += hdr.packets[i].size;
-					}
-				};
-
-				template <typename FN>
-				void for_each_frame(char const *payload, size_t size, FN const &fn)
-				{
-					genode_usb_isoc_transfer_header const &hdr =
-						*reinterpret_cast<genode_usb_isoc_transfer_header const*>(payload);
-					size_t offset = _offset(_isoc_frames);
-
-					for (unsigned i = 0; i < _isoc_frames; i++) {
-						fn(i, hdr.packets[i], payload+offset, hdr.packets[i].size);
-						offset += hdr.packets[i].size;
-					}
-				};
-
-				size_t frames_offset() { return _offset(_isoc_frames); }
+					Base(iface._urb_handler, ep.direction(),
+					     size, isoc_packets),
+					_type(type), _ep(ep) { }
 		};
-
-		using Policy = Urb_handler<Interface_session, Urb>::Update_urbs_policy;
 
 		struct Alt_setting;
 
@@ -379,10 +384,10 @@ class Usb::Interface
 
 		enum { MAX_EPS = 16 };
 
-		Device                             &_device;
-		Index                               _idx;
-		Urb_handler<Interface_session, Urb> _urb_handler;
-		Endpoint                            _eps[2][MAX_EPS] { };
+		Device                        &_device;
+		Index                          _idx;
+		Urb_handler<Interface_session> _urb_handler;
+		Endpoint                       _eps[2][MAX_EPS] { };
 
 	public:
 
@@ -398,13 +403,39 @@ class Usb::Interface
 		void sigh(Signal_context_capability cap) {
 			_urb_handler.sigh(cap); }
 
-		template <typename POLICY>
-		bool update_urbs(POLICY &policy) {
-			return _urb_handler.update_urbs(policy); }
+		template <typename URB,
+		          typename OUT_FN,
+		          typename IN_FN,
+		          typename ISOC_OUT_FN,
+		          typename ISOC_IN_FN,
+		          typename CPL_FN>
+		bool update_urbs(OUT_FN      const &out_fn,
+		                 IN_FN       const &in_fn,
+		                 ISOC_OUT_FN const &isoc_out_fn,
+		                 ISOC_IN_FN  const &isoc_in_fn,
+		                 CPL_FN      const &complete_fn)
+		{
+			return _urb_handler.update_urbs<URB>(out_fn, in_fn, isoc_out_fn,
+			                                     isoc_in_fn, complete_fn);
+		}
 
-		template <typename FN>
+		template <typename URB,
+		          typename OUT_FN,
+		          typename IN_FN,
+		          typename CPL_FN>
+		bool update_urbs(OUT_FN const &out_fn,
+		                 IN_FN  const &in_fn,
+		                 CPL_FN const &complete_fn)
+		{
+			auto isoc_out = [] (URB&, uint32_t, void*, size_t) { return 0; };
+			auto isoc_in  = [] (URB&, uint32_t, void const*, size_t) { };
+			return _urb_handler.update_urbs<URB>(out_fn, in_fn, isoc_out,
+			                                     isoc_in, complete_fn);
+		}
+
+		template <typename URB, typename FN>
 		void dissolve_all_urbs(FN const &fn) {
-			_urb_handler.dissolve_all_urbs(fn); }
+			_urb_handler.dissolve_all_urbs<URB>(fn); }
 
 		template <typename FN>
 		void for_each_endpoint(FN const &fn)
@@ -427,7 +458,7 @@ class Usb::Device
 		using Interface = Usb::Interface;
 		using Name = Usb::Session::Device_name;
 
-		class Urb : public Urb_handler<Device_session, Urb>::Urb
+		class Urb : public Urb_handler<Device_session>::Urb
 		{
 			public:
 
@@ -435,7 +466,7 @@ class Usb::Device
 
 			private:
 
-				using Base = Urb_handler<Device_session, Urb>::Urb;
+				using Base = Urb_handler<Device_session>::Urb;
 
 				uint8_t        _request;
 				Type::access_t _request_type;
@@ -459,13 +490,12 @@ class Usb::Device
 				    uint16_t value, uint16_t index, size_t size = 0)
 				:
 					Base(device._urb_handler,
-					     Type::D::get(request_type) ? IN : OUT,
+					     Type::D::get(request_type) ? Endpoint::IN
+					                                : Endpoint::OUT,
 					     size),
 					_request(request), _request_type(request_type),
 					_value(value), _index(index) {}
 		};
-
-		using Policy = Urb_handler<Device_session, Urb>::Update_urbs_policy;
 
 	private:
 
@@ -478,7 +508,7 @@ class Usb::Device
 		Region_map        &_rm;
 		Name         const _name { };
 
-		Urb_handler<Device_session, Urb> _urb_handler;
+		Urb_handler<Device_session> _urb_handler;
 
 		Interface_capability _interface_cap(uint8_t num, size_t buf_size);
 
@@ -501,13 +531,23 @@ class Usb::Device
 		void sigh(Signal_context_capability cap) {
 			_urb_handler.sigh(cap); }
 
-		template <typename POLICY>
-		bool update_urbs(POLICY &policy) {
-			return _urb_handler.update_urbs(policy); }
+		template <typename URB,
+		          typename OUT_FN,
+		          typename IN_FN,
+		          typename CPL_FN>
+		bool update_urbs(OUT_FN const &out_fn,
+		                 IN_FN  const &in_fn,
+		                 CPL_FN const &complete_fn)
+		{
+			auto isoc_out = [] (URB&, uint32_t, void*, size_t) { return 0; };
+			auto isoc_in  = [] (URB&, uint32_t, void const*, size_t) { };
+			return _urb_handler.update_urbs<URB>(out_fn, in_fn, isoc_out,
+			                                     isoc_in, complete_fn);
+		}
 
-		template <typename FN>
+		template <typename URB, typename FN>
 		void dissolve_all_urbs(FN const &fn) {
-			_urb_handler.dissolve_all_urbs(fn); }
+			_urb_handler.dissolve_all_urbs<URB>(fn); }
 };
 
 
@@ -526,31 +566,33 @@ struct Usb::Interface::Alt_setting : Device::Urb
 };
 
 
-template <typename SESSION, typename URB>
-template <typename POLICY>
-bool Usb::Urb_handler<SESSION, URB>::_try_process_ack(POLICY &policy,
-                                                      Tx::Source &tx)
+template <typename SESSION>
+template <typename URB, typename IN_FN, typename ISOC_IN_FN, typename CPL_FN>
+bool
+Usb::Urb_handler<SESSION>::_try_process_ack(Tx::Source       &tx,
+                                            IN_FN      const &in_fn,
+                                            ISOC_IN_FN const &isoc_in,
+                                            CPL_FN     const &complete_fn)
 {
 	if (!tx.ack_avail())
 		return false;
 
 	Packet_descriptor const p = tx.try_get_acked_packet();
 
-	typename Id_space<URB>::Id const id { p.tag.value };
+	typename Id_space<Urb>::Id const id { p.tag.value };
 
 	try {
-		_tags.template apply<URB>(id, [&] (URB &urb) {
+		_tags.template apply<Urb>(id, [&] (Urb &urb) {
 
-			if (urb._direction != Urb::Direction::OUT &&
+			if (urb._direction == Urb::Direction::IN &&
 			    p.return_value == Packet_descriptor::OK)
-				policy.consume_in_result(urb, tx.packet_content(p),
-				                         p.payload_return_size);
+				urb._in_results(static_cast<URB&>(urb), p, tx, in_fn, isoc_in);
 
 			urb._completed = true;
 			urb._tag.destruct();
-			policy.completed(urb, p.return_value);
+			complete_fn(static_cast<URB&>(urb), p.return_value);
 		});
-	} catch (typename Id_space<URB>::Unknown_id) {
+	} catch (typename Id_space<Urb>::Unknown_id) {
 		warning("spurious usb-session urb acknowledgement");
 	}
 
@@ -559,10 +601,12 @@ bool Usb::Urb_handler<SESSION, URB>::_try_process_ack(POLICY &policy,
 }
 
 
-template <typename SESSION, typename URB>
-template <typename POLICY>
-bool Usb::Urb_handler<SESSION, URB>::_try_submit_pending_urb(POLICY &policy,
-                                                             Tx::Source &tx)
+template <typename SESSION>
+template <typename URB, typename OUT_FN, typename ISOC_FN>
+bool
+Usb::Urb_handler<SESSION>::_try_submit_pending_urb(Tx::Source &tx,
+                                                   OUT_FN const &out_fn,
+                                                   ISOC_FN const &isoc_fn)
 {
 	if (_pending.empty())
 		return false;
@@ -576,7 +620,7 @@ bool Usb::Urb_handler<SESSION, URB>::_try_submit_pending_urb(POLICY &policy,
 
 	Payload payload { };
 	try {
-		_pending.head([&] (Fifo_element<URB> const &elem) {
+		_pending.head([&] (Fifo_element<Urb> const &elem) {
 
 			Urb const &urb = elem.object();
 			size_t const align = Tagged_packet::PACKET_ALIGNMENT;
@@ -595,7 +639,7 @@ bool Usb::Urb_handler<SESSION, URB>::_try_submit_pending_urb(POLICY &policy,
 	 * So the urb can go from the pending to the in-progress stage.
 	 */
 
-	_pending.dequeue([&] (Genode::Fifo_element<URB> &elem) {
+	_pending.dequeue([&] (Genode::Fifo_element<Urb> &elem) {
 
 		Urb &urb = elem.object();
 
@@ -603,7 +647,7 @@ bool Usb::Urb_handler<SESSION, URB>::_try_submit_pending_urb(POLICY &policy,
 		urb._tag.construct(elem.object(), _tags);
 
 		urb._payload = payload;
-		urb._submit(policy, elem.object(), tx);
+		urb._submit(static_cast<URB&>(elem.object()), tx, out_fn, isoc_fn);
 	});
 
 	return true;
