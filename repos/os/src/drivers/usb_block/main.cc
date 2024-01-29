@@ -44,7 +44,7 @@ namespace Usb {
  ** USB Mass Storage (BBB) Block::Driver implementation **
  *********************************************************/
 
-class Usb::Block_driver : Device::Policy
+class Usb::Block_driver
 {
 	private:
 
@@ -350,7 +350,7 @@ class Usb::Block_driver : Device::Policy
 				drv(drv), cmd(cmd), read(read),
 				write(write), tag(tag), size(size), in(in) {}
 
-			void produce_out_content(Urb &, char * dst, size_t sz)
+			void produce_out_content(char * dst, size_t sz)
 			{
 				if (state == CBW) {
 					(drv.*cmd)(dst, sz);
@@ -359,7 +359,7 @@ class Usb::Block_driver : Device::Policy
 				(drv.*write)(dst, sz);
 			}
 
-			void consume_in_result(Urb &, char const *src, size_t sz)
+			void consume_in_result(char const *src, size_t sz)
 			{
 				if (state == DATA) {
 					(drv.*read)(src, sz);
@@ -382,7 +382,7 @@ class Usb::Block_driver : Device::Policy
 				}
 			}
 
-			void completed(Urb &, Desc::Return_value ret)
+			void completed(Desc::Return_value ret)
 			{
 				if (ret != Desc::OK) {
 					error("Bulk URB failure!");
@@ -417,7 +417,15 @@ class Usb::Block_driver : Device::Policy
 					default: break;
 					};
 
-				drv._interface.update_urbs(*this);
+				drv._interface.update_urbs<Urb>(
+					[this] (Urb &, void *dst, size_t sz) {
+						produce_out_content((char*)dst, sz); },
+					[this] (Urb &, void const *src, size_t sz) {
+						consume_in_result((char const*)src, sz); },
+					[this] (Urb&,
+					        Interface::Packet_descriptor::Return_value r) {
+						completed(r); });
+
 				if (state == DONE) drv._state = next_state;
 				return s != state;
 			}
@@ -558,12 +566,7 @@ class Usb::Block_driver : Device::Policy
 
 	public:
 
-		void produce_out_content(Device::Urb &, char *, size_t) { }
-
-		void consume_in_result(Device::Urb &, char const *, size_t) { }
-
-		void completed(Device::Urb &,
-		               Device::Packet_descriptor::Return_value ret)
+		void completed(Device::Packet_descriptor::Return_value ret)
 		{
 			if (ret != Device::Packet_descriptor::OK) {
 				error("Control URB failure!");
@@ -596,9 +599,16 @@ class Usb::Block_driver : Device::Policy
 
 		bool handle_io()
 		{
+			using Urb   = Device::Urb;
+			using Value = Device::Packet_descriptor::Return_value;
+
+			auto out = [] (Urb&, void*, size_t) { };
+			auto in  = [] (Urb&, void const*, size_t) { };
+			auto cpl = [this] (Urb&, Value r) { completed(r); };
+
 			switch (_state) {
 			case ALT_SETTING: [[fallthrough]];
-			case RESET:         return _device.update_urbs(*this);
+			case RESET:         return _device.update_urbs<Urb>(out, in, cpl);
 			case INQUIRY:       return _inquiry_cmd.process(CHECK_MEDIUM);
 			case CHECK_MEDIUM:  return _medium_state.process(READ_CAPACITY);
 			case READ_CAPACITY: return _capacity(READY);
