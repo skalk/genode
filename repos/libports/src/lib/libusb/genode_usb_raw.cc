@@ -69,6 +69,7 @@ struct Usb_device
 	Signal_context_capability _handler_cap;
 	Usb::Connection           _session { _env };
 	Usb::Device               _device  { _session, _alloc, _env.rm() };
+	libusb_speed              _speed { LIBUSB_SPEED_UNKNOWN };
 	unsigned                  _open { 0 };
 	Registry<Interface>       _interfaces {};
 
@@ -79,6 +80,19 @@ struct Usb_device
 	:
 		_env(env), _alloc(alloc), _handler_cap(cap)
 	{
+		String<32> speed;
+		_session.with_xml([&] (Xml_node xml) {
+			xml.with_optional_sub_node("device", [&] (Xml_node node) {
+				speed = node.attribute_value("speed", String<32>()); });
+		});
+
+		if      (speed == "low")            _speed = LIBUSB_SPEED_LOW;
+		else if (speed == "full")           _speed = LIBUSB_SPEED_FULL;
+		else if (speed == "high")           _speed = LIBUSB_SPEED_HIGH;
+		else if (speed == "super" ||
+				 speed == "super_plus" ||
+		         speed == "super_plus_2x2") _speed = LIBUSB_SPEED_SUPER;
+
 		_device.sigh(_handler_cap);
 	}
 
@@ -296,7 +310,7 @@ int genode_get_device_list(struct libusb_context *ctx,
 		/* initialize device structure */
 		dev->bus_number = busnum;
 		dev->device_address = devaddr;
-		dev->speed = LIBUSB_SPEED_SUPER;
+		dev->speed = device()._speed;
 
 		int result = usbi_sanitize_device(dev);
 		if (result < 0) {
