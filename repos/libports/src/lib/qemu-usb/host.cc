@@ -14,6 +14,7 @@
 #include <usb/usb.h>
 #endif
 #include <genode_c_api/usb_client.h>
+#include <os/backtrace.h>
 
 #include <util/xml_node.h>
 #include <os/ring_buffer.h>
@@ -21,13 +22,15 @@
 #include <extern_c_begin.h>
 #include <qemu_emul.h>
 #include <hw/usb.h>
+#include <desc.h>
 #include <extern_c_end.h>
-
 
 using namespace Genode;
 
+
+
 static bool const verbose_devices  = false;
-static bool const verbose_host     = false;
+static bool const verbose_host     = true;
 static bool const verbose_warnings = false;
 Mutex _mutex;
 
@@ -794,30 +797,103 @@ static bool claim_interfaces(USBDevice *udev)
 }
 
 
-static void usb_host_realize(USBDevice *udev, Error **errp)
+void produce_out_data(void *opaque_data, genode_buffer_t buffer)
 {
-#if 0
-	USBHostDevice     *d = USB_HOST_DEVICE(udev);
-	Usb_host_device *dev = (Usb_host_device *)d->data;
+	USBPacket   *p    = (USBPacket*)opaque_data;
+	USBEndpoint *ep   = p  ? p->ep   : nullptr;
+	USBDevice   *udev = ep ? ep->dev : nullptr;
+
+	error("produce_out_data");
+
+	if (udev) Genode::memcpy(buffer.addr, udev->data_buf, buffer.size);
+	else error("cannot produce data for invalid USB Packet");
+}
+
+
+void consume_in_data(void *opaque_data, genode_buffer_t buffer)
+{
+	USBPacket   *p    = (USBPacket*)opaque_data;
+	USBEndpoint *ep   = p  ? p->ep   : nullptr;
+	USBDevice   *udev = ep ? ep->dev : nullptr;
+
+	if (!udev) {
+		error("cannot consume data of invalid USB Packet");
+		return;
+	}
+
+	error("consume_in_data ", udev->data_buf, " ", buffer.size);
+	p->actual_length = buffer.size;
+	Genode::memcpy(udev->data_buf, buffer.addr, buffer.size);
+}
+
+
+void complete_packet(void *opaque_data, genode_usb_client_ret_val_t result)
+{
+	USBPacket *p = (USBPacket*)opaque_data;
+	USBEndpoint *ep   = p  ? p->ep   : nullptr;
+	USBDevice   *udev = ep ? ep->dev : nullptr;
+
+	if (!udev) {
+		error("cannot complete invalid USB Packet");
+		return;
+	}
+
+	p->status = USB_RET_SUCCESS;
+	usb_generic_async_ctrl_complete(udev, p);
+}
+
+
+extern "C" void usb_host_update_device_transfers()
+{
+	genode_usb_client_device_update(produce_out_data, consume_in_data,
+	                                complete_packet);
+}
+
+
+static void usb_host_update_ep(USBDevice *udev)
+{
+	usb_ep_reset(udev);
 
 	/* retrieve device speed */
 	Usb::Config_descriptor cdescr;
 	Usb::Device_descriptor ddescr;
 
-	try { dev->usb_raw.config_descriptor(&ddescr, &cdescr); }
+	try { usb_raw.config_descriptor(&ddescr, &cdescr); }
 	catch (Usb::Session::Device_not_found) { return; }
 
-	if (verbose_host)
-		log("set udev->speed to %d", Usb_host_device::to_qemu_speed(ddescr.speed));
+	for (unsigned i = 0; i < cdescr.num_interfaces; i++) {
+		try {
+			Usb::Interface_descriptor iface;
+			uint8_t const altsetting = udev->altsetting[i];
+			usb_raw.interface_descriptor(i, altsetting, &iface);
+			for (unsigned k = 0; k < iface.num_endpoints; k++) {
+				Usb::Endpoint_descriptor endp;
+				usb_raw.endpoint_descriptor(i, altsetting, k, &endp);
 
-	udev->speed     = Usb_host_device::to_qemu_speed(ddescr.speed);
+				int const pid      = (endp.address & USB_DIR_IN) ? USB_TOKEN_IN : USB_TOKEN_OUT;
+				int const ep       = (endp.address & 0xf);
+				uint8_t const type = (endp.attributes & 0x3);
+
+				usb_ep_set_max_packet_size(udev, pid, ep, endp.max_packet_size);
+				usb_ep_set_type(udev, pid, ep, type);
+				usb_ep_set_ifnum(udev, pid, ep, i);
+				usb_ep_set_halted(udev, pid, ep, 0);
+			}
+		} catch (Usb::Session::Interface_not_found) { }
+	}
+}
+
+
+static void usb_host_realize(USBDevice *udev, Error **errp)
+{
+	USBHostDevice *d = USB_HOST_DEVICE(udev);
+	 genode_usb_client_dev_handle_t handle =
+		 (genode_usb_client_dev_handle_t)d->data;
+
+	udev->speed     = USB_SPEED_SUPER;
 	udev->speedmask = (1 << udev->speed);
-
-	udev->flags |= (1 << USB_DEV_FLAG_IS_HOST);
-
-	dev->update_ep(udev);
-#endif
-	TRACE_AND_STOP;
+	udev->flags    |= (1 << USB_DEV_FLAG_IS_HOST);
+	usb_host_update_ep(udev);
 }
 
 
@@ -831,7 +907,7 @@ static void usb_host_cancel_packet(USBDevice *udev, USBPacket *p)
 	if (c)
 		c->cancel();
 #endif
-	TRACE_AND_STOP;
+	error(__func__, " not implemented yet");
 }
 
 
@@ -898,9 +974,9 @@ static void usb_host_handle_control(USBDevice *udev, USBPacket *p,
                                     int request, int value, int index,
                                     int length, uint8_t *data)
 {
-#if 0
-	USBHostDevice     *d = USB_HOST_DEVICE(udev);
-	Usb_host_device *dev = (Usb_host_device *)d->data;
+	USBHostDevice *d = USB_HOST_DEVICE(udev);
+	 genode_usb_client_dev_handle_t handle =
+		 (genode_usb_client_dev_handle_t)d->data;
 
 	if (verbose_host)
 		log("r: ", Hex(request), " v: ", Hex(value), " "
@@ -910,12 +986,6 @@ static void usb_host_handle_control(USBDevice *udev, USBPacket *p,
 	case DeviceOutRequest | USB_REQ_SET_ADDRESS:
 		udev->addr = value;
 		return;
-	case DeviceOutRequest | USB_REQ_SET_CONFIGURATION:
-		dev->set_configuration(value & 0xff, p);
-		return;
-	case InterfaceOutRequest | USB_REQ_SET_INTERFACE:
-		dev->set_interface(index, value, p);
-		return;
 	}
 
 	if (udev->speed == USB_SPEED_SUPER &&
@@ -924,41 +994,14 @@ static void usb_host_handle_control(USBDevice *udev, USBPacket *p,
 		error("r->usb3ep0quirk = true");
 	}
 
-	Usb::Packet_descriptor packet;
-	try {
-		packet = dev->alloc_packet(length, true);
-	} catch (...) {
-		if (verbose_warnings)
-			warning("Packet allocation failed");
-		return;
-	}
+	error("CTRL request to ", data, " ", (size_t)length);
+	Genode::backtrace();
 
-	packet.type = Usb::Packet_descriptor::CTRL;
-	packet.control.request_type = request >> 8;
-	packet.control.request      = request & 0xff;
-	packet.control.index        = index;
-	packet.control.value        = value;
-
-	/*
-	 * Send usb ctrl transfers with one second timeout as some devices (e.g.,
-	 * smartcard readers) do not response to certain control transfers.
-	 */
-	packet.control.timeout = 1000; /* ms */
-
-	Completion *c = dynamic_cast<Completion *>(packet.completion);
-	c->p        = p;
-	c->dev      = udev;
-	c->data     = data;
-
-	if (!(packet.control.request_type & USB_DIR_IN) && length) {
-		char *packet_content = dev->usb_raw.source()->packet_content(packet);
-		Genode::memcpy(packet_content, data, length);
-	}
-
-	dev->submit(packet);
+	genode_usb_client_device_control(handle, request & 0xff,
+	                                 (request >> 8) & 0xff,
+	                                 value, index, length, p);
 	p->status = USB_RET_ASYNC;
-#endif
-	TRACE_AND_STOP;
+	usb_host_update_device_transfers();
 }
 
 
@@ -983,7 +1026,7 @@ static void usb_host_ep_stopped(USBDevice *udev, USBEndpoint *usb_ep)
 		return;
 	}
 #endif
-	TRACE_AND_STOP;
+	error(__func__, " not implemented yet");
 }
 
 
@@ -1021,120 +1064,6 @@ static void usb_host_register_types(void)
 }
 
 
-#if 0
-struct Usb_devices : List<Usb_host_device>
-{
-	Entrypoint                    &_ep;
-	Env                           &_env;
-	Allocator                     &_alloc;
-	Signal_handler<Usb_devices>    _device_dispatcher { _ep, *this, &Usb_devices::_devices_update };
-	Attached_rom_dataspace         _devices_rom = { _env, "usb_devices" };
-
-	void _garbage_collect()
-	{
-		for (Usb_host_device *next = first(); next;) {
-			Usb_host_device *current = next;
-			next = current->next();
-
-			if (current->deleted == false)
-				continue;
-
-			remove(current);
-			Genode::destroy(_alloc, current);
-		}
-	}
-
-	template <typename FUNC>
-	void for_each(FUNC  const &fn)
-	{
-		for (Usb_host_device *d = first(); d; d = d->next())
-			fn(*d);
-	}
-
-	void _devices_update()
-	{
-		Mutex::Guard guard(_mutex);
-
-		_garbage_collect();
-
-		_devices_rom.update();
-		if (!_devices_rom.valid())
-			return;
-
-		for_each([] (Usb_host_device &device) {
-			device.deleted = true;
-		});
-
-		if (verbose_devices)
-			log(_devices_rom.local_addr<char const>());
-
-		Xml_node devices_node(_devices_rom.local_addr<char>(), _devices_rom.size());
-		devices_node.for_each_sub_node("device", [&] (Xml_node const &node) {
-
-			Session_label label = node.attribute_value("label", String<160>());
-
-			Dev_info const dev_info(label);
-
-			if (!node.has_attribute("label")) {
-				error("no label found for device ", dev_info);
-				return;
-			}
-
-			/* ignore if already created */
-			bool exists = false;
-			for_each([&] (Usb_host_device &device) {
-				if (device.info != dev_info)
-					return;
-
-				exists         = true;
-				device.deleted = false;
-			});
-
-			if (exists)
-				return;
-
-			try {
-				Usb_host_device *new_device = new (_alloc)
-					Usb_host_device(_ep, _alloc, _env, dev_info);
-
-				insert(new_device);
-
-				log("Attach USB device ", dev_info);
-			} catch (...) {
-				error("could not attach USB device ", dev_info);
-			}
-		});
-
-		/* remove devices deleted by update */
-		for_each([] (Usb_host_device &device) {
-			if (device.deleted == false) return;
-
-			device._release_interfaces();
-			device._destroy();
-		});
-		_garbage_collect();
-	}
-
-	Usb_devices(Entrypoint &ep, Allocator &alloc, Env &env)
-	: _ep(ep), _env(env), _alloc(alloc)
-	{
-		_devices_rom.sigh(_device_dispatcher);
-		_devices_update();
-	}
-
-	void destroy()
-	{
-		for (Usb_host_device *d = first(); d; d = d->next())
-			d->destroy();
-
-		_garbage_collect();
-	}
-};
-
-
-static Usb_devices *_devices;
-#endif
-
 static void* add_usb_device(genode_usb_client_dev_handle_t handle, char const *)
 {
 	return create_usbdevice((void*)handle);
@@ -1171,7 +1100,11 @@ extern "C" void _type_init_usb_host_register_types(Entrypoint *ep,
 		Helper(Entrypoint &ep)
 		: Signal_handler<Helper>(ep, *this, &Helper::_update) {}
 
-		void _update() { usb_host_update_devices(); }
+		void _update()
+		{
+			usb_host_update_devices();
+			usb_host_update_device_transfers();
+		}
 	};
 
 	static Helper helper(*ep);
@@ -1179,4 +1112,5 @@ extern "C" void _type_init_usb_host_register_types(Entrypoint *ep,
 	genode_usb_client_init(genode_env_ptr(*env),
 	                       genode_allocator_ptr(*alloc),
 	                       genode_signal_handler_ptr(helper));
+	usb_host_update_devices();
 }

@@ -10,7 +10,7 @@ LIBS += libc
 LIBS += libyuv
 LIBS += format
 
-SRC_CC = dummies.cc qemu_emul.cc host.cc webcam.cc
+SRC_CC = dummies.cc qemu_emul.cc host.cc webcam.cc usb_client.cc
 
 SRC_C  = desc.c hcd-xhci.c hcd-xhci-pci.c core.c bus.c
 SRC_C += dev-webcam.c
@@ -19,6 +19,7 @@ SHARED_LIB = yes
 
 LD_OPT += --version-script=$(LIB_DIR)/symbol.map
 
+vpath usb_client.cc $(call select_from_repositories,src/lib/genode_c_api)
 vpath dev-webcam.c $(LIB_DIR)
 vpath %.c  $(QEMU_USB_DIR)
 vpath %.cc $(LIB_DIR)
