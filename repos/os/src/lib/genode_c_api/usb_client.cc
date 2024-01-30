@@ -184,11 +184,13 @@ class Device : public List_model<Device>::Element
 {
 	public:
 
-		using Name = String<64>;
+		using Name  = String<64>;
+		using Speed = String<32>;
 
 	private:
 
 		Name                      const _name;
+		Speed                     const _speed;
 		Id_space<Device>::Element const _elem;
 		Usb::Device                     _device;
 		Signal_context_capability       _sigh_cap;
@@ -224,15 +226,8 @@ class Device : public List_model<Device>::Element
 				_driver_data{opaque_data} {}
 		};
 
-		struct Policy
-		{
-			genode_usb_client_produce_out_t out;
-			genode_usb_client_consume_in_t  in;
-			genode_usb_client_complete_t    complete;
-
-		};
-
 		Device(Name                     &name,
+		       Speed                    &speed,
 		       Usb::Connection          &usb,
 		       Allocator                &alloc,
 		       Region_map               &rm,
@@ -240,6 +235,7 @@ class Device : public List_model<Device>::Element
 		       Signal_context_capability cap)
 		:
 			_name(name),
+			_speed(speed),
 			_elem(*this, space),
 			_device(usb, alloc, rm, name),
 			_sigh_cap(cap)
@@ -253,6 +249,18 @@ class Device : public List_model<Device>::Element
 		Usb::Device &session() { return _device; }
 
 		Name name() { return _name; }
+
+		Usb_speed speed()
+		{
+			if (_speed == "low")        return GENODE_USB_SPEED_LOW;
+			if (_speed == "full")       return GENODE_USB_SPEED_FULL;
+			if (_speed == "high")       return GENODE_USB_SPEED_HIGH;
+			if (_speed == "super")      return GENODE_USB_SPEED_SUPER;
+			if (_speed == "super_plus") return GENODE_USB_SPEED_SUPER_PLUS;
+			if (_speed == "super_plus_2x2")
+				return GENODE_USB_SPEED_SUPER_PLUS_2X2;
+			return GENODE_USB_SPEED_FULL;
+		}
 
 		Signal_context_capability sigh_cap() { return _sigh_cap; }
 
@@ -368,11 +376,13 @@ struct Session
 				/* create */
 				[&] (Xml_node const &node) -> Device &
 				{
-					Device::Name name = node.attribute_value("name",
-					                                         Device::Name());
-					Device &dev = *new (_alloc) Device(name, _usb, _alloc,
-					                                   _env.rm(), _space,
-					                                   _handler_cap);
+					Device::Name name =
+						node.attribute_value("name", Device::Name());
+						Device::Speed speed =
+						node.attribute_value("speed", Device::Speed());
+					Device &dev = *new (_alloc)
+						Device(name, speed, _usb, _alloc, _env.rm(),
+						       _space, _handler_cap);
 					return dev;
 				},
 
@@ -395,7 +405,8 @@ struct Session
 		/* add new devices for C-API client after it got successfully added */
 		_model.for_each([&] (Device &dev) {
 			if (!dev.driver_data())
-				dev.driver_data(add(dev.handle(), dev.name().string()));
+				dev.driver_data(add(dev.handle(), dev.name().string(),
+				                    dev.speed()));
 		});
 	}
 };

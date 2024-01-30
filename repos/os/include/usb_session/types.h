@@ -17,38 +17,16 @@
 
 #include <base/fixed_stdint.h>
 
-#ifdef __cplusplus
-namespace Usb {
 
-	enum Endpoint_type {
-		USB_ENDPOINT_BULK      = 0x2,
-		USB_ENDPOINT_INTERRUPT = 0x3,
-	};
-
-	/**
-	 * The following three enums are ORed together to form a control request
-	 * type
-	 */
-	enum Endpoint_direction {
-		USB_ENDPOINT_OUT       = 0,
-		USB_ENDPOINT_IN        = 0x80,
-	};
-
-	enum Request_type {
-		USB_TYPE_STANDARD = 0,
-		USB_TYPE_CLASS    = (1U << 5),
-		USB_TYPE_VENDOR   = (2U << 5),
-		USB_TYPE_RESERVED = (3U << 5),
-	};
-
-	enum Recipient {
-		USB_RECIPIENT_DEVICE    = 0,
-		USB_RECIPIENT_INTERFACE = 0x1,
-		USB_RECIPIENT_ENDPOINT  = 0x2,
-		USB_RECIPIENT_OTHER     = 0x3,
-	};
-}
-#endif /* __cplusplus */
+enum Usb_speed {
+	GENODE_USB_SPEED_LOW,
+	GENODE_USB_SPEED_FULL,
+	GENODE_USB_SPEED_HIGH,
+	GENODE_USB_SPEED_SUPER,
+	GENODE_USB_SPEED_SUPER_PLUS,
+	GENODE_USB_SPEED_SUPER_PLUS_2X2,
+};
+typedef enum Usb_speed genode_usb_speed_t;
 
 
 struct genode_usb_isoc_descriptor

@@ -34,6 +34,7 @@ extern "C" {
  ** USB device lifetime management **
  ************************************/
 
+
 /**
  * Callback to announce configuration of a device
  */
@@ -72,6 +73,7 @@ genode_usb_device_add_configuration(struct genode_usb_device           *dev,
 
 void genode_usb_announce_device(genode_usb_bus_num_t                bus,
                                 genode_usb_dev_num_t                dev,
+                                genode_usb_speed_t                  speed,
                                 struct genode_usb_device_descriptor desc,
                                 genode_usb_dev_add_config_t         callback,
                                 void                               *opaque_data);

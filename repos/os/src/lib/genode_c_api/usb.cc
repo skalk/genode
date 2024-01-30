@@ -148,20 +148,36 @@ struct genode_usb_device : Reg_list<genode_usb_device>::Element
 {
 	genode_usb_bus_num_t               const bus;
 	genode_usb_dev_num_t               const dev;
+	genode_usb_speed_t                 const speed;
 	genode_usb_device_descriptor       const desc;
 	Reg_list<genode_usb_configuration> configs {};
 
 	genode_usb_device(Reg_list<genode_usb_device> &registry,
 	                  genode_usb_bus_num_t         bus,
 	                  genode_usb_dev_num_t         dev,
+	                  genode_usb_speed_t           speed,
 	                  genode_usb_device_descriptor desc)
 	:
 		Reg_list<genode_usb_device>::Element(registry, *this),
-		bus(bus), dev(dev), desc(desc) {}
+		bus(bus), dev(dev), speed(speed), desc(desc) {}
 
 	using Label = String<64>;
 
 	Label label() const { return Label("usb-", bus, "-", dev); }
+
+	String<32> speed_to_string() const
+	{
+		switch (speed) {
+		case GENODE_USB_SPEED_LOW:            return "low";
+		case GENODE_USB_SPEED_FULL:           return "full";
+		case GENODE_USB_SPEED_HIGH:           return "high";
+		case GENODE_USB_SPEED_SUPER:          return "super";
+		case GENODE_USB_SPEED_SUPER_PLUS:     return "super_plus";
+		case GENODE_USB_SPEED_SUPER_PLUS_2X2: return "super_plus_2x2";
+		};
+
+		return "full";
+	}
 
 	void generate(Xml_generator & xml) const;
 };
@@ -620,6 +636,7 @@ class Root : Sliced_heap, public Root_component<Session_component>
 		                              bool                         active);
 		void announce_device(genode_usb_bus_num_t         bus,
 		                     genode_usb_dev_num_t         dev,
+		                     genode_usb_speed_t           speed,
 		                     genode_usb_device_descriptor desc,
 		                     genode_usb_dev_add_config_t  callback,
 		                     void                        *opaque_data);
@@ -685,7 +702,8 @@ void genode_usb_device::generate(Xml_generator & xml) const
 	};
 
 	xml.node("device", [&] {
-		xml.attribute("name ",      label());
+		xml.attribute("name",       label());
+		xml.attribute("speed",      speed_to_string());
 		xml.attribute("vendor_id",  Value(Hex(desc.vendor_id)));
 		xml.attribute("product_id", Value(Hex(desc.product_id)));
 		xml.attribute("class",      Value(Hex(desc.dclass)));
@@ -1335,12 +1353,13 @@ void ::Root::device_add_configuration(struct genode_usb_device    *dev,
 
 void ::Root::announce_device(genode_usb_bus_num_t         bus,
                              genode_usb_dev_num_t         dev,
+                             genode_usb_speed_t           speed,
                              genode_usb_device_descriptor desc,
                              genode_usb_dev_add_config_t  callback,
                              void                        *opaque_data)
 {
 	genode_usb_device *device = new (_heap)
-		genode_usb_device(_devices, bus, dev, desc);
+		genode_usb_device(_devices, bus, dev, speed, desc);
 	for (unsigned i = desc.num_configs; i > 0; i--)
 		callback(device, i-1, opaque_data);
 	_announce_service();
@@ -1492,12 +1511,14 @@ void genode_usb_device_add_configuration(struct genode_usb_device    *dev,
 extern "C"
 void genode_usb_announce_device(genode_usb_bus_num_t         bus,
                                 genode_usb_dev_num_t         dev,
+                                genode_usb_speed_t           speed,
                                 genode_usb_device_descriptor desc,
                                 genode_usb_dev_add_config_t  callback,
                                 void                        *opaque_data)
 {
 	if (_usb_root)
-		_usb_root->announce_device(bus, dev, desc, callback, opaque_data);
+		_usb_root->announce_device(bus, dev, speed, desc,
+		                           callback, opaque_data);
 }
 
 

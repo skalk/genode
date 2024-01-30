@@ -17,6 +17,7 @@
 
 #include <base/fixed_stdint.h>
 #include <genode_c_api/base.h>
+#include <usb_session/types.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -42,7 +43,8 @@ typedef unsigned long genode_usb_client_iface_handle_t;
  * Callback to announce a device
  */
 typedef void* (*genode_usb_client_dev_add_t)
-	(genode_usb_client_dev_handle_t handle, char const *name);
+	(genode_usb_client_dev_handle_t handle, char const *name,
+	 genode_usb_speed_t speed);
 
 /**
  * Callback to delete a device
