@@ -996,7 +996,7 @@ void Session_component::_device_policy(genode_usb_device const &d,
 bool Session_component::_controls(genode_usb_device const & d)
 {
 	bool ret = false;
-	_device_policy(d, [&] (Xml_node & dev_node) {
+	_device_policy(d, [&] (Xml_node dev_node) {
 		if (!dev_node.has_sub_node("interface")) {
 			ret = true;
 			return;
@@ -1010,7 +1010,7 @@ bool Session_component::_controls(genode_usb_device const & d)
 bool Session_component::_matches(genode_usb_device const & d)
 {
 	bool ret = false;
-	_device_policy(d, [&] (Xml_node &) { ret = true; });
+	_device_policy(d, [&] (Xml_node) { ret = true; });
 	return ret;
 }
 
@@ -1034,7 +1034,7 @@ bool Session_component::matches(genode_usb_device::Label label, uint8_t iface)
 	_devices.for_each([&] (genode_usb_device const & d) {
 		if (d.label() != label)
 			return;
-		_device_policy(d, [&] (Xml_node & dev_node) {
+		_device_policy(d, [&] (Xml_node dev_node) {
 			if (!dev_node.has_sub_node("interface"))
 				ret = true;
 			else
