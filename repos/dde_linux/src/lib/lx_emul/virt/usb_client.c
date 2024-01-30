@@ -40,7 +40,8 @@ static struct usb_hcd * dummy_hc_device(void)
 	return &hcd;
 }
 
-static void * register_device(genode_usb_client_dev_handle_t handle, char const *label)
+static void * register_device(genode_usb_client_dev_handle_t handle,
+                              char const *label, genode_usb_speed_t speed)
 {
 	int err;
 	static int num = 0;
@@ -52,8 +53,26 @@ static void * register_device(genode_usb_client_dev_handle_t handle, char const 
 		return NULL;
 	}
 
-	udev->devnum     = num++;
-	udev->speed      = USB_SPEED_FULL;
+	udev->devnum = num++;
+
+	switch (speed) {
+	case GENODE_USB_SPEED_LOW:   udev->speed = USB_SPEED_LOW;   break;
+	case GENODE_USB_SPEED_FULL:  udev->speed = USB_SPEED_FULL;  break;
+	case GENODE_USB_SPEED_HIGH:  udev->speed = USB_SPEED_HIGH;  break;
+	case GENODE_USB_SPEED_SUPER: udev->speed = USB_SPEED_SUPER; break;
+	case GENODE_USB_SPEED_SUPER_PLUS:
+		udev->speed = USB_SPEED_SUPER_PLUS;
+		udev->ssp_rate = USB_SSP_GEN_2x1;
+		break;
+	case GENODE_USB_SPEED_SUPER_PLUS_2X2:
+		udev->speed = USB_SPEED_SUPER_PLUS;
+		udev->ssp_rate = USB_SSP_GEN_2x2;
+		break;
+	default:
+		udev->speed = USB_SPEED_FULL;
+		break;
+	};
+
 	udev->authorized = 1;
 	udev->bus_mA     = 900; /* set to maximum USB3.0 */
 	usb_set_device_state(udev, USB_STATE_ADDRESS);

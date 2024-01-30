@@ -493,8 +493,24 @@ static int raw_notify(struct notifier_block *nb, unsigned long action,
 		{
 			struct genode_usb_device_descriptor *desc =
 				(struct genode_usb_device_descriptor*) &udev->descriptor;
-			genode_usb_announce_device(udev->bus->busnum, udev->devnum, *desc,
-			                           add_configuration_callback, udev);
+			genode_usb_speed_t speed;
+			switch (udev->speed) {
+			case USB_SPEED_LOW:      speed = GENODE_USB_SPEED_LOW; break;
+			case USB_SPEED_UNKNOWN:
+			case USB_SPEED_FULL:     speed = GENODE_USB_SPEED_FULL; break;
+			case USB_SPEED_HIGH:
+			case USB_SPEED_WIRELESS: speed = GENODE_USB_SPEED_HIGH; break;
+			case USB_SPEED_SUPER:    speed = GENODE_USB_SPEED_SUPER; break;
+			case USB_SPEED_SUPER_PLUS:
+				if (udev->ssp_rate == USB_SSP_GEN_2x2)
+					speed = GENODE_USB_SPEED_SUPER_PLUS_2X2;
+				else
+					speed = GENODE_USB_SPEED_SUPER_PLUS;
+				break;
+			default: speed = GENODE_USB_SPEED_FULL;
+			}
+			genode_usb_announce_device(udev->bus->busnum, udev->devnum, speed,
+			                           *desc, add_configuration_callback, udev);
 			break;
 		}
 
