@@ -676,6 +676,8 @@ void genode_usb_device::generate(Xml_generator & xml) const
 		xml.node("endpoint", [&] {
 			xml.attribute("address",    Value(Hex(endp.desc.address)));
 			xml.attribute("attributes", Value(Hex(endp.desc.attributes)));
+			xml.attribute("max_packet_size",
+			              Value(Hex(endp.desc.max_packet_size)));
 		});
 	};
 

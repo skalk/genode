@@ -29,11 +29,13 @@ struct Endpoint : List_model<Endpoint>::Element
 {
 	uint8_t const address;
 	uint8_t const attributes;
+	uint8_t const max_packet_size;
 
 	Endpoint(Xml_node const &n)
 	:
 		address(n.attribute_value<uint8_t>("address", 0xff)),
-		attributes(n.attribute_value<uint8_t>("attributes", 0xff)) {}
+		attributes(n.attribute_value<uint8_t>("attributes", 0xff)),
+		max_packet_size(n.attribute_value<uint8_t>("max_packet_size", 0)) {}
 
 	bool matches(Xml_node const &node) const {
 		return address == node.attribute_value<uint8_t>("address", 0xff); }
@@ -105,7 +107,9 @@ class Interface : public List_model<::Interface>::Element
 				_iface->dissolve_all_urbs<Urb>([] (Urb&) {});
 		}
 
-		bool active() const { return _active; }
+		uint8_t number()      const { return _number; };
+		uint8_t alt_setting() const { return _alt_setting; };
+		bool    active()      const { return _active; }
 
 		bool matches(Xml_node const &n) const
 		{
@@ -177,6 +181,10 @@ class Interface : public List_model<::Interface>::Element
 				if (endp.address == index) fn(endp);
 			});
 		}
+
+		template <typename FN>
+		void for_each_endpoint(FN const &fn) {
+			_endpoints.for_each([&] (Endpoint &endp) { fn(endp); }); }
 };
 
 
@@ -455,6 +463,55 @@ void genode_usb_client_update(genode_usb_client_dev_add_t add,
 {
 	if (_usb_session().constructed())
 		_usb_session()->update(add, del);
+}
+
+
+extern "C"
+genode_usb_client_ret_val_t
+genode_usb_client_device_ifaces(genode_usb_client_dev_handle_t handle,
+                                genode_usb_client_dev_iface_t  iface_fn)
+{
+	try {
+		if (!_usb_session().constructed())
+			return NO_DEVICE;
+
+		return _usb_session()->_space.apply<Device>({ handle },
+		                                            [&] (Device & device) {
+			device.with_active_interfaces([&] (::Interface &iface) {
+				iface_fn(iface.number(), iface.alt_setting()); });
+			return OK;
+		});
+	} catch(Id_space<Device>::Unknown_id&) {
+		return NO_DEVICE;
+	}
+}
+
+
+extern "C"
+genode_usb_client_ret_val_t
+genode_usb_client_device_endpoints(genode_usb_client_dev_handle_t   handle,
+                                   genode_uint8_t                   iface_nr,
+                                   genode_uint8_t                   iface_alt,
+                                   genode_usb_client_dev_endpoint_t endp_fn)
+{
+	try {
+		if (!_usb_session().constructed())
+			return NO_DEVICE;
+
+		return _usb_session()->_space.apply<Device>({ handle },
+		                                            [&] (Device & device) {
+			device.with_active_interfaces([&] (::Interface &iface) {
+				if (iface_nr  == iface.number() &&
+				    iface_alt == iface.alt_setting())
+					iface.for_each_endpoint([&] (Endpoint &endp) {
+						endp_fn(endp.address, endp.attributes,
+						        endp.max_packet_size); });
+			});
+			return OK;
+		});
+	} catch(Id_space<Device>::Unknown_id&) {
+		return NO_DEVICE;
+	}
 }
 
 

@@ -57,7 +57,6 @@ typedef void (*genode_usb_client_dev_del_t)
 void genode_usb_client_update(genode_usb_client_dev_add_t add,
                               genode_usb_client_dev_del_t del);
 
-
 /******************************************
  ** USB device and interface interaction **
  ******************************************/
@@ -69,6 +68,29 @@ typedef enum {
 	TIMEOUT,
 	OK
 } genode_usb_client_ret_val_t;
+
+/**
+ * Callback to retrieve information about an interface
+ */
+typedef void (*genode_usb_client_dev_iface_t)
+	(genode_uint8_t number, genode_uint8_t alt_setting);
+
+/**
+ * Callback to retrieve information about an endpoint
+ */
+typedef void (*genode_usb_client_dev_endpoint_t)
+	(genode_uint8_t address, genode_uint8_t attributes,
+	 genode_uint8_t max_packet_size);
+
+genode_usb_client_ret_val_t
+genode_usb_client_device_ifaces(genode_usb_client_dev_handle_t handle,
+                                genode_usb_client_dev_iface_t  iface);
+
+genode_usb_client_ret_val_t
+genode_usb_client_device_endpoints(genode_usb_client_dev_handle_t   handle,
+                                   genode_uint8_t                   iface_nr,
+                                   genode_uint8_t                   iface_alt,
+                                   genode_usb_client_dev_endpoint_t endp);
 
 /**
  * Callback to produce out content of an USB request
