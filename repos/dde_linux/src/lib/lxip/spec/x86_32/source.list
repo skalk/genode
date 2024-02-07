@@ -133,7 +133,6 @@ net/ipv4/tcp_rate.c
 net/ipv4/tcp_recovery.c
 net/ipv4/tcp_timer.c
 net/ipv4/tcp_ulp.c
-net/ipv4/tunnel4.c
 net/ipv4/udp.c
 net/ipv4/udp_offload.c
 net/ipv4/udp_tunnel_core.c
