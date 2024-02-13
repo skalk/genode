@@ -167,8 +167,8 @@ static void log_event_in_packet(unsigned cur, unsigned max,
                                 struct input_value const *v,
                                 struct evdev const *evdev)
 {
-	printk("--- Event[%u/%u] %s '%s' type=%s code=%s value=%d\n", cur, max,
-	       dev_name(&evdev->handle.dev->dev), evdev->handle.dev->name,
+	printk("--- Event[%u/%u] %s '%s' %s type=%s code=%s value=%d\n", cur, max,
+	       dev_name(&evdev->handle.dev->dev), evdev->handle.dev->name, NAME_OF_MOTION(evdev->motion),
 	       NAME_OF_TYPE(v->type), NAME_OF_CODE(v->type, v->code), v->value);
 }
 
@@ -210,6 +210,7 @@ static void log_device_info(struct input_dev *dev)
 			count++;
 		printk(" leds:   %u\n", count);
 	}
+	printk(" hint_events_per_packet: %u max_vals: %u\n", dev->hint_events_per_packet, dev->max_vals);
 	if (dev->mt) {
 		printk(" dev->mt->flags=%x\n", dev->mt->flags);
 	}

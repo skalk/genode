@@ -145,6 +145,25 @@ struct evdev_key
 #define INIT_KEY (struct evdev_key){ false, 0, false }
 #define EVDEV_KEY(code, press) (struct evdev_key){ true, code, press, jiffies }
 
+struct evdev_keys
+{
+	unsigned         pending; /* pending keys counter */
+	struct evdev_key key[16]; /* max 16 keys per packet */
+};
+
+#define array_for_each_element(element, array) \
+	for ((element) = (array); \
+	     (element) < ((array) + ARRAY_SIZE((array))); \
+	     (element)++)
+
+#define for_each_key(key, keys, pending_only) \
+	array_for_each_element(key, (keys)->key) \
+		if (!(pending_only) || (key)->pending)
+
+#define for_each_pending_key(key, keys) \
+	if ((keys)->pending) \
+		for_each_key(key, keys, true)
+
 
 struct evdev_xy
 {
@@ -168,12 +187,12 @@ struct evdev
 	enum evdev_motion    motion;
 
 	/* record of all events in one packet - submitted on SYN */
-	unsigned         tool;  /* BTN_TOOL_* or 0 */
-	struct evdev_key key;
-	struct evdev_xy  rel;
-	struct evdev_xy  wheel;
-	struct evdev_xy  abs;
-	struct evdev_mt  mt;
+	unsigned          tool;  /* BTN_TOOL_* or 0 */
+	struct evdev_keys keys;
+	struct evdev_xy   rel;
+	struct evdev_xy   wheel;
+	struct evdev_xy   abs;
+	struct evdev_mt   mt;
 
 	/* device-specific state machine */
 	union {
@@ -302,6 +321,10 @@ static bool record_touchpad(struct evdev *evdev, struct input_value const *v)
 	if (evdev->motion != MOTION_TOUCHPAD)
 		return false;
 
+	/* monitor (physical) button state clashing with tap-to-click */
+	if (v->type == EV_KEY && v->code == BTN_LEFT)
+		evdev->touchpad.btn_left_pressed = !!v->value;
+
 	/* only multi-touch pads supported currently */
 	return record_mt(&evdev->mt, v);
 }
@@ -341,20 +364,31 @@ static bool is_tool_key(unsigned code)
 
 static bool record_key(struct evdev *evdev, struct input_value const *v)
 {
+	struct evdev_keys * const keys = &evdev->keys;
+
 	if (v->type != EV_KEY)
 		return false;
 
 	if (is_tool_key(v->code)) {
 		evdev->tool = v->value ? v->code : 0;
 	} else {
-		evdev->key = EVDEV_KEY(v->code, !!v->value);
+		struct evdev_key *key;
+		for_each_key(key, keys, false) {
+			if (key->pending)
+				continue;
+
+			*key = EVDEV_KEY(v->code, !!v->value);
+			keys->pending++;
+			break;
+		}
 	}
 
 	return true;
 }
 
 
-static void submit_press_release(struct evdev_key *key, struct genode_event_submit *submit)
+static void submit_press_release(struct evdev_key *key, struct evdev_keys *keys,
+                                 struct genode_event_submit *submit)
 {
 	if (!key->pending)
 		return;
@@ -363,7 +397,21 @@ static void submit_press_release(struct evdev_key *key, struct genode_event_subm
 		submit->press(submit, lx_emul_event_keycode(key->code));
 	else
 		submit->release(submit, lx_emul_event_keycode(key->code));
+
 	*key = INIT_KEY;
+	keys->pending--;
+}
+
+
+static void submit_keys(struct evdev_keys *keys, struct genode_event_submit *submit)
+{
+	struct evdev_key *key;
+
+	if (!keys->pending)
+		return;
+
+	for_each_pending_key(key, keys)
+		submit_press_release(key, keys, submit);
 }
 
 
@@ -403,6 +451,10 @@ static void submit_pointer(struct evdev *evdev, struct genode_event_submit *subm
 
 static void submit_touchtool(struct evdev *evdev, struct genode_event_submit *submit)
 {
+	struct evdev_keys * const keys = &evdev->keys;
+
+	struct evdev_key *key;
+
 	if (evdev->motion != MOTION_TOUCHTOOL)
 		return;
 
@@ -411,40 +463,52 @@ static void submit_touchtool(struct evdev *evdev, struct genode_event_submit *su
 		evdev->abs.pending = false;
 	}
 
-	if (evdev->key.pending && evdev->key.code == BTN_TOUCH) {
-		evdev->key.code = evdev->tool;
-		submit_press_release(&evdev->key, submit);
+	/* submit recorded tool on BTN_TOUCH */
+	for_each_pending_key(key, keys) {
+		if (key->code != BTN_TOUCH)
+			continue;
+
+		key->code = evdev->tool;
+		submit_press_release(key, keys, submit);
+		break;
 	}
 }
 
 
-static void touchpad_tap_to_click(struct evdev_key *key, struct evdev_touchpad *tp,
+static void touchpad_tap_to_click(struct evdev_keys *keys, struct evdev_touchpad *tp,
                                   struct genode_event_submit *submit)
 {
 	enum { TAP_TIME = 130 /* max touch duration in ms */ };
 
-	if (!key->pending || key->code != BTN_TOUCH)
+	struct evdev_key *key;
+
+	if (!keys->pending)
 		return;
 
-	if (key->press && !tp->btn_left_pressed) {
-		tp->touch_time = key->jiffies;
-	} else {
-		if (time_before(key->jiffies, tp->touch_time + msecs_to_jiffies(TAP_TIME))) {
-			submit->press(submit, lx_emul_event_keycode(BTN_LEFT));
-			submit->release(submit, lx_emul_event_keycode(BTN_LEFT));
-		}
-		tp->touch_time = 0;
-	}
+	for_each_pending_key(key, keys) {
+		if (key->code != BTN_TOUCH)
+			continue;
 
-	*key = INIT_KEY;
+		if (key->press && !tp->btn_left_pressed) {
+			tp->touch_time = key->jiffies;
+		} else {
+			if (time_before(key->jiffies, tp->touch_time + msecs_to_jiffies(TAP_TIME))) {
+				submit->press(submit, lx_emul_event_keycode(BTN_LEFT));
+				submit->release(submit, lx_emul_event_keycode(BTN_LEFT));
+			}
+			tp->touch_time = 0;
+		}
+
+		*key = INIT_KEY;
+		keys->pending--;
+		break;
+	}
 }
 
 
 static void submit_touchpad(struct evdev *evdev, struct genode_event_submit *submit)
 {
-	struct evdev_key * const key = &evdev->key;
 	struct evdev_mt * const mt = &evdev->mt;
-	struct evdev_touchpad * const tp = &evdev->touchpad;
 
 	if (evdev->motion != MOTION_TOUCHPAD)
 		return;
@@ -479,17 +543,16 @@ static void submit_touchpad(struct evdev *evdev, struct genode_event_submit *sub
 		mt->pending = false;
 	}
 
-	/* monitor (physical) button state clashing with tap-to-click */
-	if (key->pending && key->code == BTN_LEFT)
-		tp->btn_left_pressed = key->press;
-
-	touchpad_tap_to_click(key, tp, submit);
+	touchpad_tap_to_click(&evdev->keys, &evdev->touchpad, submit);
 }
 
 
 static void submit_touchscreen(struct evdev *evdev, struct genode_event_submit *submit)
 {
 	struct evdev_mt * const mt = &evdev->mt;
+	struct evdev_keys * const keys = &evdev->keys;
+
+	struct evdev_key *key;
 
 	if (evdev->motion != MOTION_TOUCHSCREEN)
 		return;
@@ -527,8 +590,14 @@ static void submit_touchscreen(struct evdev *evdev, struct genode_event_submit *
 	}
 
 	/* filter BTN_TOUCH */
-	if (evdev->key.pending && evdev->key.code == BTN_TOUCH)
-		evdev->key = INIT_KEY;
+	for_each_pending_key(key, keys) {
+		if (key->code != BTN_TOUCH)
+			continue;
+
+		*key = INIT_KEY;
+		keys->pending--;
+		break;
+	}
 }
 
 
@@ -546,7 +615,7 @@ static bool submit_on_syn(struct evdev *evdev, struct input_value const *v,
 	submit_touchscreen(evdev, submit);
 
 	/* submit keys not handled above */
-	submit_press_release(&evdev->key, submit);
+	submit_keys(&evdev->keys, submit);
 
 	return true;
 }
