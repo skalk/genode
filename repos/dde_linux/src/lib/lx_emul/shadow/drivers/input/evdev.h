@@ -213,6 +213,7 @@ static void log_device_info(struct input_dev *dev)
 	printk(" hint_events_per_packet: %u max_vals: %u\n", dev->hint_events_per_packet, dev->max_vals);
 	if (dev->mt) {
 		printk(" dev->mt->flags=%x\n", dev->mt->flags);
+		printk(" dev->mt->num_slots=%u\n", dev->mt->num_slots);
 	}
 	if (dev->absinfo) {
 		printk(" absinfo: %px\n", dev->absinfo);

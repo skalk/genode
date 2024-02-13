@@ -117,13 +117,19 @@ enum evdev_motion evdev_motion(struct input_dev const *dev)
 
 struct evdev_mt_slot
 {
-	int tracking_id; /* -1 means unused */
+	int id; /* -1 means unused */
 	int x, y, ox, oy;
 };
 #define INIT_MT_SLOT (struct evdev_mt_slot){ -1, -1, -1, -1, -1 }
 
 
-enum { MAX_MT_SLOTS = 5 /* fingers */ };
+/*
+ * Maximum number of touch slots supported.
+ *
+ * Many Linux drivers report 2 to 10 slots, the Magic Trackpad reports 16. The
+ * Surface driver reports 64, which we just ignore.
+ */
+enum { MAX_MT_SLOTS = 16 };
 
 struct evdev_mt
 {
@@ -132,6 +138,14 @@ struct evdev_mt
 	unsigned             cur_slot;
 	struct evdev_mt_slot slots[MAX_MT_SLOTS];
 };
+
+#define array_for_each_element(element, array) \
+	for ((element) = (array); \
+	     (element) < ((array) + ARRAY_SIZE((array))); \
+	     (element)++)
+
+#define for_each_mt_slot(slot, mt) \
+	array_for_each_element(slot, (mt)->slots)
 
 
 struct evdev_key
@@ -150,11 +164,6 @@ struct evdev_keys
 	unsigned         pending; /* pending keys counter */
 	struct evdev_key key[16]; /* max 16 keys per packet */
 };
-
-#define array_for_each_element(element, array) \
-	for ((element) = (array); \
-	     (element) < ((array) + ARRAY_SIZE((array))); \
-	     (element)++)
 
 #define for_each_key(key, keys, pending_only) \
 	array_for_each_element(key, (keys)->key) \
@@ -289,7 +298,7 @@ static bool record_mt(struct evdev_mt *mt, struct input_value const *v)
 
 	case ABS_MT_TRACKING_ID:
 		if (mt->cur_slot < mt->num_slots) {
-			mt->slots[mt->cur_slot].tracking_id = v->value;
+			mt->slots[mt->cur_slot].id = v->value >= 0 ? mt->cur_slot : -1;
 			mt->pending = true;
 		}
 		break;
@@ -510,6 +519,8 @@ static void submit_touchpad(struct evdev *evdev, struct genode_event_submit *sub
 {
 	struct evdev_mt * const mt = &evdev->mt;
 
+	struct evdev_mt_slot *slot;
+
 	if (evdev->motion != MOTION_TOUCHPAD)
 		return;
 
@@ -525,10 +536,8 @@ static void submit_touchpad(struct evdev *evdev, struct genode_event_submit *sub
 	 */
 
 	if (mt->pending) {
-		for (int i = 0; i < sizeof(mt->slots)/sizeof(*mt->slots); i++) {
-			struct evdev_mt_slot *slot = &mt->slots[i];
-
-			if (slot->tracking_id == -1) {
+		for_each_mt_slot(slot, mt) {
+			if (slot->id == -1) {
 				*slot = INIT_MT_SLOT;
 				continue;
 			}
@@ -553,16 +562,15 @@ static void submit_touchscreen(struct evdev *evdev, struct genode_event_submit *
 	struct evdev_keys * const keys = &evdev->keys;
 
 	struct evdev_key *key;
+	struct evdev_mt_slot *slot;
 
 	if (evdev->motion != MOTION_TOUCHSCREEN)
 		return;
 
 	if (mt->pending) {
-		for (int i = 0; i < sizeof(mt->slots)/sizeof(*mt->slots); i++) {
-			struct evdev_mt_slot *slot = &mt->slots[i];
-
-			if (slot->tracking_id == -1 && slot->ox != -1 && slot->oy != -1) {
-				submit->touch_release(submit, i);
+		for_each_mt_slot(slot, mt) {
+			if (slot->id == -1 && slot->ox != -1 && slot->oy != -1) {
+				submit->touch_release(submit, slot->id);
 
 				*slot = INIT_MT_SLOT;
 				continue;
@@ -574,7 +582,7 @@ static void submit_touchscreen(struct evdev *evdev, struct genode_event_submit *
 
 			if (slot->x != -1 && slot->y != -1) {
 				struct genode_event_touch_args args = {
-					.finger = i,
+					.finger = slot->id,
 					.xpos   = slot->x,
 					.ypos   = slot->y,
 					.width  = 1
@@ -701,10 +709,12 @@ static void init_motion(struct evdev *evdev)
 		if (dev->mt) {
 			struct evdev_mt *mt = &evdev->mt;
 
+			struct evdev_mt_slot *slot;
+
 			mt->num_slots = min(dev->mt->num_slots, MAX_MT_SLOTS);
 			mt->cur_slot = 0;
-			for (int i = 0; i < sizeof(mt->slots)/sizeof(*mt->slots); i++)
-				mt->slots[i] = INIT_MT_SLOT;
+			for_each_mt_slot(slot, mt)
+				*slot = INIT_MT_SLOT;
 
 			/* disable undesired events */
 			clear_bit(ABS_X,              dev->absbit);
