@@ -64,7 +64,7 @@ void *jent_memset(void *dest, int c, size_t n);
 static inline void jent_memset_secure(void *s, size_t n)
 {
 	jent_memset(s, 0, n);
-	__asm__ __volatile__("" : : "r" (s) : "memory");
+	asm volatile ("" : : "r" (s) : "memory");
 }
 
 #ifdef __cplusplus
