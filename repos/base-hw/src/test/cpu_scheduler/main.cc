@@ -193,6 +193,7 @@ class Scheduler_test::Main
 			if (round_time != expected_round_time) {
 
 				error("wrong time ", round_time, " in line ", line_nr);
+				log(_scheduler);
 				_env.parent().exit(-1);
 			}
 			Context &current { cast(_scheduler.current()) };
@@ -201,12 +202,14 @@ class Scheduler_test::Main
 
 				error("wrong share ", _id_of_context(current), " in line ",
 				      line_nr);
+				log(_scheduler);
 
 				_env.parent().exit(-1);
 			}
 			if (current_time_left != expected_current_time_left) {
 
 				error("wrong quota ", current_time_left, " in line ", line_nr);
+				log(_scheduler);
 				_env.parent().exit(-1);
 			}
 		}
@@ -452,7 +455,7 @@ Scheduler_test::Main::Main(Env &env)
 
 	_construct_context(6, __LINE__);
 	_scheduler.ready(_context(6));
-	_update_current_and_check(120, 700, 2, 100, __LINE__);
+	_update_current_and_check(120, 700, 6, 100, __LINE__);
 
 	_scheduler.ready(_context(4));
 	_update_current_and_check( 80, 780, 4,  90, __LINE__);
@@ -460,10 +463,10 @@ Scheduler_test::Main::Main(Env &env)
 	_scheduler.unready(_context(4));
 	_scheduler.ready(_context(1));
 	_update_current_and_check( 50, 830, 1,  10, __LINE__);
-	_update_current_and_check( 50, 840, 1, 100, __LINE__);
-	_update_current_and_check( 50, 890, 1,  50, __LINE__);
-	_update_current_and_check(100, 940, 2,  20, __LINE__);
-	_update_current_and_check( 60, 960, 6,  40, __LINE__);
+	_update_current_and_check( 50, 840, 1,  50, __LINE__);
+	_update_current_and_check( 50, 890, 6,  20, __LINE__);
+	_update_current_and_check(100, 910, 2,  90, __LINE__);
+	_update_current_and_check( 60, 970, 2,  30, __LINE__);
 	_update_current_and_check( 60,   0, 3, 110, __LINE__);
 
 
@@ -519,8 +522,8 @@ Scheduler_test::Main::Main(Env &env)
 	_update_current_and_check( 40, 810, 4, 100, __LINE__);
 
 	_scheduler.ready(_context(3));
-	_update_current_and_check( 30, 840, 4,  70, __LINE__);
-	_update_current_and_check( 80, 910, 1,  90, __LINE__);
+	_update_current_and_check( 30, 840, 3, 100, __LINE__);
+	_update_current_and_check( 70, 910, 3,  30, __LINE__);
 
 	_scheduler.ready(_context(7));
 	_scheduler.ready(_context(8));
@@ -557,15 +560,16 @@ Scheduler_test::Main::Main(Env &env)
 
 	_scheduler.unready(_context(8));
 	_scheduler.yield();
-	_update_current_and_check( 40, 260, 1,  90, __LINE__);
+	_update_current_and_check( 40, 260, 2,  10, __LINE__);
+	_update_current_and_check( 40, 270, 1, 100, __LINE__);
 
 	_scheduler.unready(_context(1));
-	_update_current_and_check( 50, 310, 2, 100, __LINE__);
+	_update_current_and_check( 40, 310, 2, 100, __LINE__);
 	_update_current_and_check( 10, 320, 2,  90, __LINE__);
 
-	_set_context_ready_and_check(1, false, __LINE__);
-	_update_current_and_check(200, 410, 1, 100, __LINE__);
-	_update_current_and_check( 10, 420, 1,  90, __LINE__);
+	_set_context_ready_and_check(1, true, __LINE__);
+	_update_current_and_check(200, 410, 1,  60, __LINE__);
+	_update_current_and_check( 10, 420, 1,  50, __LINE__);
 
 	_scheduler.unready(_context(1));
 	_update_current_and_check( 10, 430, 2, 100, __LINE__);
@@ -573,7 +577,9 @@ Scheduler_test::Main::Main(Env &env)
 	_set_context_ready_and_check(5, true, __LINE__);
 	_update_current_and_check( 10, 440, 5, 120, __LINE__);
 
+	log(_scheduler);
 	_scheduler.yield();
+	log(_scheduler);
 	_update_current_and_check( 90, 530, 2,  90, __LINE__);
 
 	_scheduler.yield();
