@@ -58,31 +58,6 @@ typedef enum {
 } genode_usb_client_ret_val_t;
 
 /**
- * Callback to retrieve information about an interface
- */
-typedef void (*genode_usb_client_dev_iface_t)
-	(genode_uint8_t number, genode_uint8_t alt_setting, void *opaque_data);
-
-/**
- * Callback to retrieve information about an endpoint
- */
-typedef void (*genode_usb_client_dev_endpoint_t)
-	(genode_uint8_t address, genode_uint8_t attributes,
-	 genode_uint8_t max_packet_size, void *opaque_data);
-
-genode_usb_client_ret_val_t
-genode_usb_client_device_ifaces(genode_usb_client_dev_handle_t handle,
-                                genode_usb_client_dev_iface_t  iface,
-                                void * opaque_data);
-
-genode_usb_client_ret_val_t
-genode_usb_client_device_endpoints(genode_usb_client_dev_handle_t   handle,
-                                   genode_uint8_t                   iface_nr,
-                                   genode_uint8_t                   iface_alt,
-                                   genode_usb_client_dev_endpoint_t endp,
-                                   void * opaque_data);
-
-/**
  * Callback to produce out content of an USB request
  */
 typedef void (*genode_usb_client_produce_out_t)

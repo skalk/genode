@@ -181,10 +181,6 @@ class Interface : public List_model<::Interface>::Element
 				if (endp.address == index) fn(endp);
 			});
 		}
-
-		template <typename FN>
-		void for_each_endpoint(FN const &fn) {
-			_endpoints.for_each([&] (Endpoint &endp) { fn(endp); }); }
 };
 
 
@@ -449,57 +445,6 @@ void genode_usb_client_update(genode_usb_client_dev_add_t add,
                               genode_usb_client_dev_del_t del)
 {
 	if (_usb_session) _usb_session->update(add, del);
-}
-
-
-extern "C"
-genode_usb_client_ret_val_t
-genode_usb_client_device_ifaces(genode_usb_client_dev_handle_t handle,
-                                genode_usb_client_dev_iface_t  iface_fn,
-                                void * opaque_data)
-{
-	try {
-		if (!_usb_session)
-			return NO_DEVICE;
-
-		return _usb_session->_space.apply<Device>({ handle },
-		                                            [&] (Device & device) {
-			device.with_active_interfaces([&] (::Interface &iface) {
-				iface_fn(iface.number(), iface.alt_setting(), opaque_data); });
-			return OK;
-		});
-	} catch(Id_space<Device>::Unknown_id&) {
-		return NO_DEVICE;
-	}
-}
-
-
-extern "C"
-genode_usb_client_ret_val_t
-genode_usb_client_device_endpoints(genode_usb_client_dev_handle_t   handle,
-                                   genode_uint8_t                   iface_nr,
-                                   genode_uint8_t                   iface_alt,
-                                   genode_usb_client_dev_endpoint_t endp_fn,
-                                   void * opaque_data)
-{
-	try {
-		if (!_usb_session)
-			return NO_DEVICE;
-
-		return _usb_session->_space.apply<Device>({ handle },
-		                                            [&] (Device & device) {
-			device.with_active_interfaces([&] (::Interface &iface) {
-				if (iface_nr  == iface.number() &&
-				    iface_alt == iface.alt_setting())
-					iface.for_each_endpoint([&] (Endpoint &endp) {
-						endp_fn(endp.address, endp.attributes,
-						        endp.max_packet_size, opaque_data); });
-			});
-			return OK;
-		});
-	} catch(Id_space<Device>::Unknown_id&) {
-		return NO_DEVICE;
-	}
 }
 
 
