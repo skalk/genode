@@ -177,12 +177,12 @@ class Usb::Block_driver
 		}
 
 		void _no_write(Byte_range_ptr&) { }
-		void _no_read(Byte_range_ptr const&) { }
+		void _no_read(Const_byte_range_ptr const&) { }
 
 		void _inquiry(Byte_range_ptr &dst) {
 			Inquiry inq(dst, INQ_TAG, _active_lun, _verbose_scsi); }
 
-		void _inquiry_result(Byte_range_ptr const &src)
+		void _inquiry_result(Const_byte_range_ptr const &src)
 		{
 			using Response = Scsi::Inquiry_response;
 
@@ -206,7 +206,7 @@ class Usb::Block_driver
 		void _sense(Byte_range_ptr &dst) {
 			Request_sense r(dst, REQ_TAG, _active_lun, _verbose_scsi); }
 
-		void _sense_result(Byte_range_ptr const &src)
+		void _sense_result(Const_byte_range_ptr const &src)
 		{
 			using namespace Scsi;
 
@@ -259,7 +259,7 @@ class Usb::Block_driver
 				Read_capacity_10 r(dst, CAP_TAG, _active_lun, _verbose_scsi);
 		}
 
-		void _capacity_result(Byte_range_ptr const &src)
+		void _capacity_result(Const_byte_range_ptr const &src)
 		{
 			if (_force_cmd_16) {
 				Scsi::Capacity_response_16 r(src, _verbose_scsi);
@@ -280,7 +280,7 @@ class Usb::Block_driver
 				memcpy(dst.start, _block_cmd->address, dst.num_bytes);
 		}
 
-		void _block_read(Byte_range_ptr const &src)
+		void _block_read(Const_byte_range_ptr const &src)
 		{
 			if (_block_cmd.constructed())
 				memcpy(_block_cmd->address, src.start, src.num_bytes);
@@ -320,7 +320,7 @@ class Usb::Block_driver
 			Block_driver &drv;
 
 			void (Block_driver::*cmd)   (Byte_range_ptr&);
-			void (Block_driver::*read)  (Byte_range_ptr const&);
+			void (Block_driver::*read)  (Const_byte_range_ptr const&);
 			void (Block_driver::*write) (Byte_range_ptr&);
 
 			uint32_t tag;
@@ -339,7 +339,7 @@ class Usb::Block_driver
 
 			Scsi_command(Block_driver & drv,
 			             void (Block_driver::*cmd)(Byte_range_ptr&),
-			             void (Block_driver::*read)(Byte_range_ptr const&),
+			             void (Block_driver::*read)(Const_byte_range_ptr const&),
 			             void (Block_driver::*write)(Byte_range_ptr&),
 			             uint32_t tag,
 			             size_t   size,
@@ -348,7 +348,7 @@ class Usb::Block_driver
 				drv(drv), cmd(cmd), read(read),
 				write(write), tag(tag), size(size), in(in) {}
 
-			void produce_out_content(Byte_range_ptr dst)
+			void produce_out_content(Byte_range_ptr &dst)
 			{
 				if (state == CBW) {
 					(drv.*cmd)(dst);
@@ -357,7 +357,7 @@ class Usb::Block_driver
 				(drv.*write)(dst);
 			}
 
-			void consume_in_result(Byte_range_ptr const src)
+			void consume_in_result(Const_byte_range_ptr const &src)
 			{
 				if (state == DATA) {
 					(drv.*read)(src);
@@ -416,10 +416,10 @@ class Usb::Block_driver
 					};
 
 				drv._interface.update_urbs<Urb>(
-					[this] (Urb &, void *dst, size_t sz) {
-						produce_out_content({(char*)dst, sz}); },
-					[this] (Urb &, void const *src, size_t sz) {
-						consume_in_result({(char *)src, sz}); },
+					[this] (Urb &, Byte_range_ptr &dst) {
+						produce_out_content(dst); },
+					[this] (Urb &, Const_byte_range_ptr &src) {
+						consume_in_result(src); },
 					[this] (Urb&,
 					        Interface::Packet_descriptor::Return_value r) {
 						completed(r); });
@@ -600,8 +600,8 @@ class Usb::Block_driver
 			using Urb   = Device::Urb;
 			using Value = Device::Packet_descriptor::Return_value;
 
-			auto out = [] (Urb&, void*, size_t) { };
-			auto in  = [] (Urb&, void const*, size_t) { };
+			auto out = [] (Urb&, Byte_range_ptr&) { };
+			auto in  = [] (Urb&, Const_byte_range_ptr&) { };
 			auto cpl = [this] (Urb&, Value r) { completed(r); };
 
 			switch (_state) {

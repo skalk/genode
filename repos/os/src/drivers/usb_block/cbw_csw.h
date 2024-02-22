@@ -281,7 +281,7 @@ struct Write_16 : Usb::Cbw, Scsi::Write_16
 };
 
 
-struct Usb::Csw : Genode::Mmio<0xd>
+struct Usb::Csw : Genode::Const_mmio<0xd>
 {
 	enum { LENGTH = 13 };
 
@@ -292,7 +292,7 @@ struct Usb::Csw : Genode::Mmio<0xd>
 	enum { PASSED = 0, FAILED = 1, PHASE_ERROR = 2 };
 	struct Sts : Register<0xc, 8> { }; /* status */
 
-	Csw(Genode::Byte_range_ptr const &range) : Mmio(range) { }
+	Csw(Genode::Const_byte_range_ptr const &range) : Const_mmio(range) { }
 
 	uint32_t sig() const { return read<Sig>(); }
 	uint32_t tag() const { return read<Tag>(); }
