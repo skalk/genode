@@ -463,7 +463,7 @@ static int genode_set_interface_altsetting(struct libusb_device_handle* dev_hand
 
 	Usb_device::Urb urb(nullptr, 0, device()._device, P::Request::SET_INTERFACE,
 	                    Rt::value(P::Recipient::IFACE, P::Type::STANDARD,
-	                              P::Direction::IN),
+	                              P::Direction::OUT),
 	                    (uint8_t)altsetting, (uint8_t)interface_number, 0);
 	device()._wait_for_urb(urb);
 	return LIBUSB_SUCCESS;
