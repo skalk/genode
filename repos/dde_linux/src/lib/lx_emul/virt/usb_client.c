@@ -128,6 +128,22 @@ static void urb_in(void * data, genode_buffer_t buf)
 }
 
 
+static genode_uint32_t isoc_urb_out(void * data, genode_uint32_t idx,
+                                    genode_buffer_t buf)
+{
+	printk("%s: not implemented yet, we had no isochronous Linux driver yet",
+	       __func__);
+	return 0;
+}
+
+
+static void isoc_urb_in(void * data, genode_uint32_t idx, genode_buffer_t buf)
+{
+	printk("%s: not implemented yet, we had no isochronous Linux driver yet",
+	       __func__);
+}
+
+
 static void urb_complete(void * data, genode_usb_client_ret_val_t result)
 {
 	struct urb *urb = (struct urb *) data;
@@ -145,7 +161,8 @@ static void urb_complete(void * data, genode_usb_client_ret_val_t result)
 static int usb_loop(void *arg)
 {
 	for (;;) {
-		genode_usb_client_device_update(urb_out, urb_in, urb_complete);
+		genode_usb_client_device_update(urb_out, urb_in, isoc_urb_out,
+		                                isoc_urb_in, urb_complete);
 		lx_emul_task_schedule(true);
 	}
 	return -1;
