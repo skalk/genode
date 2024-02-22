@@ -127,34 +127,34 @@ void Usb_device::Interface::handle_events()
 	update_urbs<Urb>(
 
 		/* produce out content */
-		[] (Urb &urb, void *dst, size_t size) {
-			memcpy(dst, urb.buf, min(size, urb.size)); },
+		[] (Urb &urb, Byte_range_ptr &dst) {
+			memcpy(dst.start, urb.buf, min(dst.num_bytes, urb.size)); },
 
 		/* consume in results */
-		[] (Urb &urb, void const *src, size_t size) {
-			memcpy(urb.buf, src, min(size, urb.size));
-			if (urb.itransfer) urb.itransfer->transferred = size;
+		[] (Urb &urb, Const_byte_range_ptr const &src) {
+			memcpy(urb.buf, src.start, min(src.num_bytes, urb.size));
+			if (urb.itransfer) urb.itransfer->transferred = src.num_bytes;
 		},
 
 		/* produce out content of isochronous packet i */
-		[] (Urb &urb, uint32_t i, void *dst, size_t size) {
+		[] (Urb &urb, uint32_t i, Byte_range_ptr &dst) {
 			struct libusb_transfer *transfer =
 				USBI_TRANSFER_TO_LIBUSB_TRANSFER(urb.itransfer);
 			if (IS_XFEROUT(transfer)) {
 				addr_t src = (addr_t)urb.buf+isoc_packet_offset(i, transfer);
-				memcpy(dst, (void*)src, min(transfer->iso_packet_desc[i].length,
-				                             size));
+				memcpy(dst.start, (void*)src, min(transfer->iso_packet_desc[i].length,
+				                                  dst.num_bytes));
 			}
 			return transfer->iso_packet_desc[i].length;
 		},
 
 		/* consume in results of isochronous packet i */
-		[] (Urb &urb, uint32_t i, void const *src, size_t size) {
+		[] (Urb &urb, uint32_t i, Const_byte_range_ptr const &src) {
 			struct libusb_transfer *transfer =
 				USBI_TRANSFER_TO_LIBUSB_TRANSFER(urb.itransfer);
 			addr_t dst = (addr_t)urb.buf+isoc_packet_offset(i, transfer);
-			memcpy((void*)dst, src, size);
-			transfer->iso_packet_desc[i].actual_length = size;
+			memcpy((void*)dst, src.start, src.num_bytes);
+			transfer->iso_packet_desc[i].actual_length = src.num_bytes;
 			transfer->iso_packet_desc[i].status = LIBUSB_TRANSFER_COMPLETED;
 		},
 
@@ -199,13 +199,13 @@ void Usb_device::handle_events()
 	_device.update_urbs<Urb>(
 
 		/* produce out content */
-		[] (Urb &urb, void *dst, size_t size) {
-			memcpy(dst, urb.buf, min(size, urb.size)); },
+		[] (Urb &urb, Byte_range_ptr &dst) {
+			memcpy(dst.start, urb.buf, min(dst.num_bytes, urb.size)); },
 
 		/* consume in results */
-		[] (Urb &urb, void const *src, size_t size) {
-			memcpy(urb.buf, src, min(size, urb.size));
-			if (urb.itransfer) urb.itransfer->transferred = size;
+		[] (Urb &urb, Const_byte_range_ptr const &src) {
+			memcpy(urb.buf, src.start, min(src.num_bytes, urb.size));
+			if (urb.itransfer) urb.itransfer->transferred = src.num_bytes;
 		},
 
 		/* complete USB request */
