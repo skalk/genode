@@ -71,8 +71,8 @@ class Urb : Usb::Endpoint, public Usb::Interface::Urb
 		bool isoc() const { return Usb::Interface::Urb::_type == Pdesc::ISOC; }
 		void cancel() { _canceled = true; }
 
-		size_t read_cache(void *dst, size_t size);
-		void   write_cache(void const *src, size_t size);
+		size_t read_cache(Byte_range_ptr &dst);
+		void   write_cache(Const_byte_range_ptr const &src);
 		void   destroy();
 };
 
@@ -105,11 +105,11 @@ class Isoc_cache
 
 		Isoc_cache(::Interface &iface, Endpoint &ep, Allocator &alloc);
 
-		void handle(USBPacket *p);
-		size_t read(void *dst, size_t size);
-		void write(void const *src, size_t size);
-		void destroy(Urb * urb);
-		void flush();
+		void   handle(USBPacket *p);
+		size_t read(Byte_range_ptr &dst);
+		void   write(Const_byte_range_ptr const &src);
+		void   destroy(Urb * urb);
+		void   flush();
 };
 
 
@@ -149,11 +149,11 @@ class Endpoint : public List_model<Endpoint>::Element
 		void handle_isoc_packet(USBPacket *p) {
 			if (_isoc_cache.constructed()) _isoc_cache->handle(p); }
 
-		size_t read_cache(void *dst, size_t size) {
-			return (_isoc_cache.constructed()) ? _isoc_cache->read(dst, size) : 0; }
+		size_t read_cache(Byte_range_ptr &dst) {
+			return (_isoc_cache.constructed()) ? _isoc_cache->read(dst) : 0; }
 
-		void write_cache(void const *src, size_t size) {
-			if (_isoc_cache.constructed()) _isoc_cache->write(src, size); }
+		void write_cache(Const_byte_range_ptr const &src) {
+			if (_isoc_cache.constructed()) _isoc_cache->write(src); }
 
 		void destroy_urb(Urb * urb) {
 			if (_isoc_cache.constructed()) _isoc_cache->destroy(urb); }
@@ -460,16 +460,15 @@ Urb::Urb(::Interface &iface,
 	_endpoint(endp) {}
 
 
-size_t Urb::read_cache(void *dst, size_t size)
+size_t Urb::read_cache(Byte_range_ptr &dst)
 {
-	return _canceled ? 0 : _endpoint.read_cache(dst, size);
+	return _canceled ? 0 : _endpoint.read_cache(dst);
 }
 
 
-void Urb::write_cache(void const *src, size_t size)
+void Urb::write_cache(Const_byte_range_ptr const &src)
 {
-	if (!_canceled)
-		_endpoint.write_cache(src, size);
+	if (!_canceled) _endpoint.write_cache(src);
 }
 
 
@@ -544,23 +543,23 @@ void Isoc_cache::handle(USBPacket *p)
 }
 
 
-size_t Isoc_cache::read(void *dst, size_t size)
+size_t Isoc_cache::read(Byte_range_ptr &dst)
 {
 	if (_ep.in())
 		return _ep.max_packet_size();
 
 	size_t offset = _read * _ep.max_packet_size();
 	_read++;
-	Genode::memcpy(dst, (void*)(_buffer+offset), _ep.max_packet_size());
+	Genode::memcpy(dst.start, (void*)(_buffer+offset), _ep.max_packet_size());
 	return _ep.max_packet_size();
 }
 
 
-void Isoc_cache::write(void const *src, size_t size)
+void Isoc_cache::write(Const_byte_range_ptr const &src)
 {
 	size_t offset = _wrote * _ep.max_packet_size();
-	_wrote        += size / _ep.max_packet_size();
-	Genode::memcpy((void*)(_buffer+offset), src, size);
+	_wrote        += src.num_bytes / _ep.max_packet_size();
+	Genode::memcpy((void*)(_buffer+offset), src.start, src.num_bytes);
 }
 
 
@@ -638,7 +637,7 @@ static void usb_host_update_ep(USBDevice *udev)
 }
 
 
-void produce_out_data(USBPacket * const p, void *dst, size_t size)
+void produce_out_data(USBPacket * const p, Byte_range_ptr &dst)
 {
 	USBEndpoint *ep   = p  ? p->ep   : nullptr;
 	USBDevice   *udev = ep ? ep->dev : nullptr;
@@ -650,11 +649,11 @@ void produce_out_data(USBPacket * const p, void *dst, size_t size)
 
 	switch (usb_ep_get_type(udev, p->pid, p->ep->nr)) {
 	case USB_ENDPOINT_XFER_CONTROL:
-		Genode::memcpy(dst, udev->data_buf, size);
+		Genode::memcpy(dst.start, udev->data_buf, dst.num_bytes);
 		return;
 	case USB_ENDPOINT_XFER_BULK:
 	case USB_ENDPOINT_XFER_INT:
-		usb_packet_copy(p, dst, size);
+		usb_packet_copy(p, dst.start, dst.num_bytes);
 		break;
 	case USB_ENDPOINT_XFER_ISOC:
 		error("ISOC produce out");
@@ -665,7 +664,7 @@ void produce_out_data(USBPacket * const p, void *dst, size_t size)
 }
 
 
-void consume_in_data(USBPacket * const p, void const *src, size_t size)
+void consume_in_data(USBPacket * const p, Const_byte_range_ptr const &src)
 {
 	USBEndpoint *ep   = p  ? p->ep   : nullptr;
 	USBDevice   *udev = ep ? ep->dev : nullptr;
@@ -677,12 +676,16 @@ void consume_in_data(USBPacket * const p, void const *src, size_t size)
 
 	switch (usb_ep_get_type(udev, p->pid, p->ep->nr)) {
 	case USB_ENDPOINT_XFER_CONTROL:
-		p->actual_length = size;
-		Genode::memcpy(udev->data_buf, src, size);
+		p->actual_length = src.num_bytes;
+		Genode::memcpy(udev->data_buf, src.start, src.num_bytes);
 		return;
 	case USB_ENDPOINT_XFER_BULK:
 	case USB_ENDPOINT_XFER_INT:
-		usb_packet_copy(p, const_cast<void*>(src), size);
+		/*
+		 * unfortunately usb_packet_copy does not provide a signature
+		 * for const-access of the source
+		 */
+		usb_packet_copy(p, const_cast<char*>(src.start), src.num_bytes);
 		break;
 	default:
 		error("cannot consume data of unknown packet");
@@ -726,14 +729,14 @@ void ::Interface::update_urbs()
 		return;
 
 	_iface->update_urbs<Urb>(
-		[&] (Urb &urb, void *dst, size_t length) {
-			produce_out_data(urb._packet, dst, length); },
-		[&] (Urb &urb, void const *src, size_t length) {
-			consume_in_data(urb._packet, src, length); },
-		[&] (Urb &urb, uint32_t, void *dst, size_t length) {
-			return urb.read_cache(dst, length); },
-		[&] (Urb &urb, uint32_t, void const *src, size_t length) {
-			urb.write_cache(src, length); },
+		[&] (Urb &urb, Byte_range_ptr &dst) {
+			produce_out_data(urb._packet, dst); },
+		[&] (Urb &urb, Const_byte_range_ptr const &src) {
+			consume_in_data(urb._packet, src); },
+		[&] (Urb &urb, uint32_t, Byte_range_ptr &dst) {
+			return urb.read_cache(dst); },
+		[&] (Urb &urb, uint32_t, Const_byte_range_ptr const &src) {
+			urb.write_cache(src); },
 		[&] (Urb &urb, Usb::Interface::Packet_descriptor::Return_value)
 		{
 			if (!urb.isoc()) {
@@ -750,10 +753,10 @@ void ::Interface::update_urbs()
 void Device::update_urbs()
 {
 	_device.update_urbs<Urb>(
-		[&] (Urb &urb, void *dst, size_t length) {
-			produce_out_data(urb._packet, dst, length); },
-		[&] (Urb &urb, void const *src, size_t length) {
-			consume_in_data(urb._packet, src, length); },
+		[&] (Urb &urb, Byte_range_ptr &dst) {
+			produce_out_data(urb._packet, dst); },
+		[&] (Urb &urb, Const_byte_range_ptr const &src) {
+			consume_in_data(urb._packet, src); },
 		[&] (Urb &urb, Usb::Device::Packet_descriptor::Return_value) {
 			complete_packet(urb._packet);
 			if (_usb_session().constructed())
