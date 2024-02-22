@@ -55,11 +55,11 @@ static genode_usb_request_ret_t handle_return_code(int err)
 	case -ENOENT:    return NO_DEVICE;
 	case -ENODEV:    return NO_DEVICE;
 	case -ESHUTDOWN: return NO_DEVICE;
+	case -EILSEQ:    return NO_DEVICE; /* xHCI ret val when HID vanishs */
 	case -ETIMEDOUT: return TIMEOUT;
 	case -ENOSPC:    return INVALID;
 	case -EPROTO:    return INVALID;
 	case -ENOMEM:    return INVALID;
-	case -EILSEQ:    return INVALID;
 	case -EPIPE:     return INVALID;
 	case -EINVAL:    return INVALID;
 	default:         return INVALID;
@@ -128,36 +128,42 @@ handle_control_request(genode_usb_request_handle_t handle,
 	struct usb_device *udev = (struct usb_device *) opaque_callback_data;
 	int ret = 0;
 	u32 size;
+	bool send_msg = true;
 
-	switch (ctrl_request) {
-	case USB_REQ_SET_INTERFACE:
-		{
-			struct usb_interface *iface = usb_ifnum_to_if(udev, ctrl_index);
-			struct usb_host_interface *alt =
-				iface ? usb_altnum_to_altsetting(iface, ctrl_value) : NULL;
+	/* check for set alternate interface request */
+	if (ctrl_request == USB_REQ_SET_INTERFACE &&
+	    ctrl_request_type == USB_RECIP_INTERFACE) {
+		struct usb_interface *iface = usb_ifnum_to_if(udev, ctrl_index);
+		struct usb_host_interface *alt =
+			iface ? usb_altnum_to_altsetting(iface, ctrl_value) : NULL;
 
-			if (iface && iface->cur_altsetting != alt)
-				ret = usb_set_interface(udev, ctrl_index, ctrl_value);
-			break;
-		}
-	case USB_REQ_SET_CONFIGURATION:
-		{
-			if (!(udev->actconfig &&
-			      udev->actconfig->desc.bConfigurationValue == ctrl_value))
-				ret = usb_set_configuration(udev, ctrl_value);
-			break;
-		}
-	default:
-		{
-			int pipe = (ctrl_request_type & 0x80)
-				? usb_rcvctrlpipe(udev, 0) : usb_sndctrlpipe(udev, 0);
+		if (iface && iface->cur_altsetting != alt)
+			ret = usb_set_interface(udev, ctrl_index, ctrl_value);
+
+		send_msg = false;
+	}
+
+	/* check for set device configuration request */
+	if (ctrl_request == USB_REQ_SET_CONFIGURATION &&
+	    ctrl_request_type == USB_RECIP_DEVICE) {
+		if (!(udev->actconfig &&
+		      udev->actconfig->desc.bConfigurationValue == ctrl_value))
+			ret = usb_set_configuration(udev, ctrl_value);
+		send_msg = false;
+	}
+
+	/* otherwise send control message */
+	if (send_msg) {
+		int pipe = (ctrl_request_type & 0x80)
+			? usb_rcvctrlpipe(udev, 0) : usb_sndctrlpipe(udev, 0);
+
 			usb_unlock_device(udev);
 			ret = usb_control_msg(udev, pipe, ctrl_request, ctrl_request_type,
 			                      ctrl_value, ctrl_index, payload.addr,
 			                      payload.size, ctrl_timeout);
 			usb_lock_device(udev);
-		}
-	};
+	}
+
 	size = ret < 0 ? 0 : ret;
 	genode_usb_ack_request(handle, handle_return_code(ret < 0 ? ret : 0),
 	                       &size);
@@ -224,7 +230,8 @@ handle_irq_request(genode_usb_request_handle_t handle,
 
 	if ((payload.size && !payload.addr) ||
 	    !ep || !usb_endpoint_maxp(&ep->desc)) {
-		genode_usb_ack_request(handle, handle_return_code(-EINVAL), NULL);
+		int ret = ep ? -EINVAL : -ENODEV;
+		genode_usb_ack_request(handle, handle_return_code(ret), NULL);
 		return;
 	}
 
@@ -291,7 +298,8 @@ handle_isoc_request(genode_usb_request_handle_t        handle,
 	    number_of_packets > 128 ||
 	    number_of_packets < 1   ||
 	    !ep) {
-		genode_usb_ack_request(handle, handle_return_code(-EINVAL), NULL);
+		int ret = ep ? -EINVAL : -EINVAL;
+		genode_usb_ack_request(handle, handle_return_code(ret), NULL);
 		return;
 	}
 
