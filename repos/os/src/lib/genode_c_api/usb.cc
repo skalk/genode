@@ -915,15 +915,17 @@ Device_component::handle_response(genode_usb_request_handle_t handle,
 			if (value != OK)
 				return;
 
-			switch (p.request) {
-			case Packet_descriptor::SET_INTERFACE:
+			if (p.request == Packet_descriptor::SET_INTERFACE &&
+			    p.request_type == Packet_descriptor::IFACE) {
 				_session.set_interface(_device_label, p.index, p.value);
 				return;
-			case Packet_descriptor::SET_CONFIGURATION:
+			}
+
+			if (p.request == Packet_descriptor::SET_CONFIGURATION &&
+			    p.request_type == Packet_descriptor::DEVICE) {
 				_session.set_configuration(_device_label, p.value);
 				return;
-			default: ;
-			};
+			}
 		},
 		[&] (Packet_error) {});
 
