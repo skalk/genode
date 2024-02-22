@@ -17,6 +17,7 @@
 #include <util/bit_allocator.h>
 #include <util/reconstructible.h>
 #include <util/list_model.h>
+#include <util/string.h>
 
 #include <usb_session/device.h>
 #include <genode_c_api/usb_client.h>
@@ -139,9 +140,11 @@ class Interface : public List_model<::Interface>::Element
 			);
 		}
 
-		void update(genode_usb_client_produce_out_t out,
-		            genode_usb_client_consume_in_t  in,
-		            genode_usb_client_complete_t    complete)
+		void update(genode_usb_client_produce_out_t      out,
+		            genode_usb_client_consume_in_t       in,
+		            genode_usb_client_produce_out_isoc_t out_isoc,
+		            genode_usb_client_consume_in_isoc_t  in_isoc,
+		            genode_usb_client_complete_t         complete)
 		{
 			if (!_iface.constructed())
 				return;
@@ -149,12 +152,27 @@ class Interface : public List_model<::Interface>::Element
 			_iface->update_urbs<Urb>(
 
 				/* produce out content */
-				[&] (Urb &urb, void *dst, size_t length) {
-					out(urb._driver_data.data, { (void*)dst, length }); },
+				[&] (Urb &urb, Byte_range_ptr &dst) {
+					out(urb._driver_data.data, { dst.start, dst.num_bytes });
+				},
 
 				/* consume in results */
-				[&] (Urb &urb, void const *src, size_t length) {
-					in(urb._driver_data.data, { (void*)src, length }); },
+				[&] (Urb &urb, Const_byte_range_ptr &src) {
+					in(urb._driver_data.data,
+					   { (void*)src.start, src.num_bytes });
+				},
+
+				/* produce out content */
+				[&] (Urb &urb, uint32_t idx, Byte_range_ptr &dst) {
+					return out_isoc(urb._driver_data.data, idx,
+					                { dst.start, dst.num_bytes });
+				},
+
+				/* consume in results */
+				[&] (Urb &urb, uint32_t idx, Const_byte_range_ptr &src) {
+					in_isoc(urb._driver_data.data, idx,
+					        { (void*)src.start, src.num_bytes });
+				},
 
 				/* complete USB request */
 				[&] (Urb &urb,
@@ -306,19 +324,25 @@ class Device : public List_model<Device>::Element
 			);
 		}
 
-		void update(genode_usb_client_produce_out_t out,
-		            genode_usb_client_consume_in_t  in,
-		            genode_usb_client_complete_t    complete)
+		void update(genode_usb_client_produce_out_t      out,
+		            genode_usb_client_consume_in_t       in,
+		            genode_usb_client_produce_out_isoc_t out_isoc,
+		            genode_usb_client_consume_in_isoc_t  in_isoc,
+		            genode_usb_client_complete_t         complete)
 		{
 			_device.update_urbs<Urb>(
 
 				/* produce out content */
-				[&] (Urb &urb, void *dst, size_t length) {
-					out(urb._driver_data.data, { (void*)dst, length }); },
+				[&] (Urb &urb, Byte_range_ptr &dst) {
+					out(urb._driver_data.data, { (void*)dst.start,
+					                             dst.num_bytes });
+				},
 
 				/* consume in results */
-				[&] (Urb &urb, void const *src, size_t length) {
-					in(urb._driver_data.data, { (void*)src, length }); },
+				[&] (Urb &urb, Const_byte_range_ptr &src) {
+					in(urb._driver_data.data, { (void*)src.start,
+					                            src.num_bytes });
+				},
 
 				/* complete USB request */
 				[&] (Urb &urb,
@@ -340,7 +364,7 @@ class Device : public List_model<Device>::Element
 				});
 
 			_ifaces.for_each([&] (::Interface &iface) {
-				iface.update(out, in, complete); });
+				iface.update(out, in, out_isoc, in_isoc, complete); });
 		}
 
 		template <typename FN>
@@ -478,15 +502,18 @@ genode_usb_client_device_control(genode_usb_client_dev_handle_t handle,
 
 
 extern "C"
-void genode_usb_client_device_update(genode_usb_client_produce_out_t out,
-                                     genode_usb_client_consume_in_t  in,
-                                     genode_usb_client_complete_t    complete)
+void
+genode_usb_client_device_update(genode_usb_client_produce_out_t      out,
+                                genode_usb_client_consume_in_t       in,
+                                genode_usb_client_produce_out_isoc_t out_isoc,
+                                genode_usb_client_consume_in_isoc_t  in_isoc,
+                                genode_usb_client_complete_t         complete)
 {
 	try {
 		if (!_usb_session)
 			return;
 		_usb_session->_model.for_each([&] (Device & device) {
-			device.update(out, in, complete); });
+			device.update(out, in, out_isoc, in_isoc, complete); });
 
 	} catch(...) { }
 }

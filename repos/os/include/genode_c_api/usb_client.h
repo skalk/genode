@@ -70,6 +70,18 @@ typedef void (*genode_usb_client_consume_in_t)
 	(void *opaque_data, genode_buffer_t buffer);
 
 /**
+ * Callback to produce out content of isochronous packet i
+ */
+typedef genode_uint32_t (*genode_usb_client_produce_out_isoc_t)
+	(void *opaque_data, genode_uint32_t i, genode_buffer_t buffer);
+
+/**
+ * Callback to consume in result of isochronous packet i
+ */
+typedef void (*genode_usb_client_consume_in_isoc_t)
+	(void *opaque_data, genode_uint32_t i, genode_buffer_t buffer);
+
+/**
  * Callback to complete an USB request
  */
 typedef void (*genode_usb_client_complete_t)
@@ -84,9 +96,12 @@ genode_usb_client_device_control(genode_usb_client_dev_handle_t handle,
                                  unsigned long                  size,
                                  void                          *opaque_data);
 
-void genode_usb_client_device_update(genode_usb_client_produce_out_t out,
-                                     genode_usb_client_consume_in_t  in,
-                                     genode_usb_client_complete_t    complete);
+void
+genode_usb_client_device_update(genode_usb_client_produce_out_t      out,
+                                genode_usb_client_consume_in_t       in,
+                                genode_usb_client_produce_out_isoc_t out_isoc,
+                                genode_usb_client_consume_in_isoc_t  in_isoc,
+                                genode_usb_client_complete_t         complete);
 
 
 typedef enum { BULK, IRQ, ISOC, FLUSH } genode_usb_client_iface_type_t;
