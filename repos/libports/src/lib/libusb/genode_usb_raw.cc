@@ -116,7 +116,7 @@ static inline addr_t isoc_packet_offset(uint32_t idx,
                                         struct libusb_transfer *transfer)
 {
 	addr_t offset = 0;
-	for (uint32_t i = 0; i <= idx; i++)
+	for (uint32_t i = 0; i < idx; i++)
 		offset += transfer->iso_packet_desc[i].length;
 	return offset;
 }
