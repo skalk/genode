@@ -343,7 +343,7 @@ append_if [expr $use_usb] config {
 					<inline name="usb_drv.config">
 <config>
 	<report devices="yes"/>
-	<policy label_prefix="usb_hid_drv" class="0x3"/>
+	<policy label_prefix="usb_hid_drv"><device class="0x3"/></policy>
 </config>
 					</inline>
 					<inline name="usb_report_filter.config">

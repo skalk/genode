@@ -20,6 +20,7 @@
 #include <linux/usb.h>
 #include <linux/usb/hcd.h>
 #include <linux/mutex.h>
+#include <linux/version.h>
 #include <uapi/linux/usbdevice_fs.h>
 
 #include <lx_emul/shared_dma_buffer.h>
@@ -55,11 +56,11 @@ static genode_usb_request_ret_t handle_return_code(int err)
 	case -ENOENT:    return NO_DEVICE;
 	case -ENODEV:    return NO_DEVICE;
 	case -ESHUTDOWN: return NO_DEVICE;
+	case -EILSEQ:    return NO_DEVICE; /* xHCI ret val when HID vanishs */
 	case -ETIMEDOUT: return TIMEOUT;
 	case -ENOSPC:    return INVALID;
 	case -EPROTO:    return INVALID;
 	case -ENOMEM:    return INVALID;
-	case -EILSEQ:    return INVALID;
 	case -EPIPE:     return INVALID;
 	case -EINVAL:    return INVALID;
 	default:         return INVALID;
@@ -128,36 +129,42 @@ handle_control_request(genode_usb_request_handle_t handle,
 	struct usb_device *udev = (struct usb_device *) opaque_callback_data;
 	int ret = 0;
 	u32 size;
+	bool send_msg = true;
 
-	switch (ctrl_request) {
-	case USB_REQ_SET_INTERFACE:
-		{
-			struct usb_interface *iface = usb_ifnum_to_if(udev, ctrl_value);
-			struct usb_host_interface *alt =
-				iface ? usb_altnum_to_altsetting(iface, ctrl_index) : NULL;
+	/* check for set alternate interface request */
+	if (ctrl_request == USB_REQ_SET_INTERFACE &&
+	    ctrl_request_type == USB_RECIP_INTERFACE) {
+		struct usb_interface *iface = usb_ifnum_to_if(udev, ctrl_index);
+		struct usb_host_interface *alt =
+			iface ? usb_altnum_to_altsetting(iface, ctrl_value) : NULL;
 
-			if (iface && iface->cur_altsetting != alt)
-				ret = usb_set_interface(udev, ctrl_value, ctrl_index);
-			break;
-		}
-	case USB_REQ_SET_CONFIGURATION:
-		{
-			if (!(udev->actconfig &&
-			      udev->actconfig->desc.bConfigurationValue == ctrl_index))
-				ret = usb_set_configuration(udev, ctrl_index);
-			break;
-		}
-	default:
-		{
-			int pipe = (ctrl_request_type & 0x80)
-				? usb_rcvctrlpipe(udev, 0) : usb_sndctrlpipe(udev, 0);
+		if (iface && iface->cur_altsetting != alt)
+			ret = usb_set_interface(udev, ctrl_index, ctrl_value);
+
+		send_msg = false;
+	}
+
+	/* check for set device configuration request */
+	if (ctrl_request == USB_REQ_SET_CONFIGURATION &&
+	    ctrl_request_type == USB_RECIP_DEVICE) {
+		if (!(udev->actconfig &&
+		      udev->actconfig->desc.bConfigurationValue == ctrl_value))
+			ret = usb_set_configuration(udev, ctrl_value);
+		send_msg = false;
+	}
+
+	/* otherwise send control message */
+	if (send_msg) {
+		int pipe = (ctrl_request_type & 0x80)
+			? usb_rcvctrlpipe(udev, 0) : usb_sndctrlpipe(udev, 0);
+
 			usb_unlock_device(udev);
 			ret = usb_control_msg(udev, pipe, ctrl_request, ctrl_request_type,
 			                      ctrl_value, ctrl_index, payload.addr,
 			                      payload.size, ctrl_timeout);
 			usb_lock_device(udev);
-		}
-	};
+	}
+
 	size = ret < 0 ? 0 : ret;
 	genode_usb_ack_request(handle, handle_return_code(ret < 0 ? ret : 0),
 	                       &size);
@@ -224,7 +231,8 @@ handle_irq_request(genode_usb_request_handle_t handle,
 
 	if ((payload.size && !payload.addr) ||
 	    !ep || !usb_endpoint_maxp(&ep->desc)) {
-		genode_usb_ack_request(handle, handle_return_code(-EINVAL), NULL);
+		int ret = ep ? -EINVAL : -ENODEV;
+		genode_usb_ack_request(handle, handle_return_code(ret), NULL);
 		return;
 	}
 
@@ -280,8 +288,8 @@ handle_isoc_request(genode_usb_request_handle_t        handle,
 {
 	struct usb_device        *udev = (struct usb_device *) opaque_callback_data;
 	struct usb_per_dev_data  *data = dev_get_drvdata(&udev->dev);
-	int pipe = (ep_addr & USB_DIR_IN) ? usb_rcvisocpipe(udev, ep_addr)
-	                                  : usb_sndisocpipe(udev, ep_addr);
+	int pipe = (ep_addr & USB_DIR_IN) ? usb_rcvisocpipe(udev, ep_addr & 0x7f)
+	                                  : usb_sndisocpipe(udev, ep_addr & 0x7f);
 	struct usb_host_endpoint *ep = usb_pipe_endpoint(udev, pipe);
 	struct urb *urb;
 	unsigned int i;
@@ -291,7 +299,8 @@ handle_isoc_request(genode_usb_request_handle_t        handle,
 	    number_of_packets > 128 ||
 	    number_of_packets < 1   ||
 	    !ep) {
-		genode_usb_ack_request(handle, handle_return_code(-EINVAL), NULL);
+		int ret = ep ? -EINVAL : -EINVAL;
+		genode_usb_ack_request(handle, handle_return_code(ret), NULL);
 		return;
 	}
 
@@ -379,9 +388,11 @@ static int poll_usb_device(void * args)
 		if (data->dev) usb_unlock_device(data->dev);
 
 		/* check if device got removed */
+		if (!data->dev)
+			genode_usb_discontinue_device(bus, dev);
+
 		if (data->kill_task) {
 			exit_usb_task(data);
-			genode_usb_discontinue_device(bus, dev);
 			do_exit(0);
 		}
 		lx_emul_task_schedule(true);
@@ -493,8 +504,26 @@ static int raw_notify(struct notifier_block *nb, unsigned long action,
 		{
 			struct genode_usb_device_descriptor *desc =
 				(struct genode_usb_device_descriptor*) &udev->descriptor;
-			genode_usb_announce_device(udev->bus->busnum, udev->devnum, *desc,
-			                           add_configuration_callback, udev);
+			genode_usb_speed_t speed;
+			switch (udev->speed) {
+			case USB_SPEED_LOW:      speed = GENODE_USB_SPEED_LOW; break;
+			case USB_SPEED_UNKNOWN:
+			case USB_SPEED_FULL:     speed = GENODE_USB_SPEED_FULL; break;
+			case USB_SPEED_HIGH:
+			case USB_SPEED_WIRELESS: speed = GENODE_USB_SPEED_HIGH; break;
+			case USB_SPEED_SUPER:    speed = GENODE_USB_SPEED_SUPER; break;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,13,0)
+			case USB_SPEED_SUPER_PLUS:
+				if (udev->ssp_rate == USB_SSP_GEN_2x2)
+					speed = GENODE_USB_SPEED_SUPER_PLUS_2X2;
+				else
+					speed = GENODE_USB_SPEED_SUPER_PLUS;
+				break;
+#endif
+			default: speed = GENODE_USB_SPEED_FULL;
+			}
+			genode_usb_announce_device(udev->bus->busnum, udev->devnum, speed,
+			                           *desc, add_configuration_callback, udev);
 			break;
 		}
 
