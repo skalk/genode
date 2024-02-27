@@ -164,6 +164,12 @@ void genode_usb_handle_disconnected_sessions(void);
 #include <base/env.h>
 #include <base/signal.h>
 
+/**
+ * Callback to signal release of device(s)
+ */
+typedef void (*genode_usb_dev_release_t) (genode_usb_bus_num_t bus,
+                                          genode_usb_dev_num_t dev);
+
 namespace Genode_c_api {
 
 	using namespace Genode;
@@ -174,7 +180,8 @@ namespace Genode_c_api {
 	void initialize_usb_service(Env                                   &env,
 	                            Signal_context_capability              sigh_cap,
 	                            genode_shared_dataspace_alloc_attach_t alloc_fn,
-	                            genode_shared_dataspace_free_t         free_fn);
+	                            genode_shared_dataspace_free_t         free_fn,
+	                            genode_usb_dev_release_t               release_fn);
 }
 
 #endif /* __cplusplus */

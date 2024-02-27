@@ -71,7 +71,8 @@ struct Main
 
 		Genode_c_api::initialize_usb_service(env, signal_handler,
 		                                     lx_emul_shared_dma_buffer_allocate,
-		                                     lx_emul_shared_dma_buffer_free);
+		                                     lx_emul_shared_dma_buffer_free,
+		                                     lx_emul_usb_release_device);
 		lx_emul_start_kernel(nullptr);
 	}
 };

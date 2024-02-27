@@ -476,6 +476,7 @@ class Session_component
 		Signal_context_capability              _sigh_cap;
 		genode_shared_dataspace_alloc_attach_t _alloc_fn;
 		genode_shared_dataspace_free_t         _free_fn;
+		genode_usb_dev_release_t               _release_fn;
 
 		Constrained_ram_allocator  _env_ram     { _env.pd(),
 		                                          _ram_quota_guard(),
@@ -485,6 +486,8 @@ class Session_component
 		                                          _env.rm(), *this    };
 
 		Reg_list<Device_component> _device_sessions {};
+
+		enum State { ACTIVE, IN_DESTRUCTION } _state { ACTIVE };
 
 		/*
 		 * Non_copyable
@@ -510,6 +513,7 @@ class Session_component
 		                  Signal_context_capability              sigh_cap,
 		                  genode_shared_dataspace_alloc_attach_t alloc_fn,
 		                  genode_shared_dataspace_free_t         free_fn,
+		                  genode_usb_dev_release_t               release_fn,
 		                  Label     const                       &label,
 		                  Resources const                       &resources,
 		                  Diag      const                       &diag);
@@ -604,6 +608,7 @@ class Root : Sliced_heap, public Root_component<Session_component>
 
 		genode_shared_dataspace_alloc_attach_t _alloc_fn;
 		genode_shared_dataspace_free_t         _free_fn;
+		genode_usb_dev_release_t               _release_fn;
 
 		Root(const Root&);
 		Root & operator=(const Root&);
@@ -620,7 +625,8 @@ class Root : Sliced_heap, public Root_component<Session_component>
 		Root(Env                                   &env,
 		     Signal_context_capability              sigh_cap,
 		     genode_shared_dataspace_alloc_attach_t alloc_fn,
-		     genode_shared_dataspace_free_t         free_fn);
+		     genode_shared_dataspace_free_t         free_fn,
+		     genode_usb_dev_release_t               release_fn);
 
 		/*
 		 * Update report about existing USB devices
@@ -1197,6 +1203,9 @@ Rom_session_capability Session_component::devices_rom()
 
 bool Session_component::acquired(genode_usb_device const &dev)
 {
+	if (_state == IN_DESTRUCTION)
+		return false;
+
 	bool ret = false;
 	_device_sessions.for_each([&] (Device_component & dc) {
 		if (dc._device_label == dev.label()) ret = true; });
@@ -1289,6 +1298,7 @@ Session_component::Session_component(Env                                   &env,
                                      Signal_context_capability              sigh_cap,
                                      genode_shared_dataspace_alloc_attach_t alloc_fn,
                                      genode_shared_dataspace_free_t         free_fn,
+                                     genode_usb_dev_release_t               release_rn,
                                      Label     const                       &label,
                                      Resources const                       &resources,
                                      Diag      const                       &diag)
@@ -1302,13 +1312,20 @@ Session_component::Session_component(Env                                   &env,
 	_config(config),
 	_sigh_cap(sigh_cap),
 	_alloc_fn(alloc_fn),
-	_free_fn(free_fn) { }
+	_free_fn(free_fn),
+	_release_fn(release_rn) { }
 
 
 Session_component::~Session_component()
 {
+	_state = IN_DESTRUCTION;
 	_device_sessions.for_each([&] (Device_component & dc) {
-		destroy(_heap, &dc); });
+		_devices.for_each([&] (genode_usb_device & device) {
+			if (device.label() == dc._device_label)
+				_release_fn(device.bus, device.dev); });
+
+		destroy(_heap, &dc);
+	});
 }
 
 
@@ -1322,8 +1339,8 @@ Session_component * ::Root::_create_session(const char * args,
 
 		sc = new (md_alloc())
 			Session_component(_env, *this, _sessions, _devices, _config,
-			                  _sigh_cap, _alloc_fn, _free_fn, label,
-			                  session_resources_from_args(args),
+			                  _sigh_cap, _alloc_fn, _free_fn, _release_fn,
+			                  label, session_resources_from_args(args),
 			                  session_diag_from_args(args));
 	} catch (Session_policy::No_policy_defined) {
 		error("Invalid session request, no matching policy for ",
@@ -1539,11 +1556,13 @@ void ::Root::wakeup()
 ::Root::Root(Env                                   &env,
              Signal_context_capability              cap,
              genode_shared_dataspace_alloc_attach_t alloc_fn,
-             genode_shared_dataspace_free_t         free_fn)
+             genode_shared_dataspace_free_t         free_fn,
+             genode_usb_dev_release_t               release_fn)
 :
 	Sliced_heap(env.ram(), env.rm()),
 	Root_component<Session_component>(env.ep(), *this),
-	_env(env), _sigh_cap(cap), _alloc_fn(alloc_fn), _free_fn(free_fn)
+	_env(env), _sigh_cap(cap), _alloc_fn(alloc_fn),
+	_free_fn(free_fn), _release_fn(release_fn)
 {
 	_config.sigh(_config_handler);
 	_config_update();
@@ -1554,9 +1573,10 @@ void
 Genode_c_api::initialize_usb_service(Env                                   &env,
                                      Signal_context_capability              sigh,
                                      genode_shared_dataspace_alloc_attach_t alloc_fn,
-                                     genode_shared_dataspace_free_t         free_fn)
+                                     genode_shared_dataspace_free_t         free_fn,
+                                     genode_usb_dev_release_t               release_fn)
 {
-	static ::Root root(env, sigh, alloc_fn, free_fn);
+	static ::Root root(env, sigh, alloc_fn, free_fn, release_fn);
 	_usb_root = &root;
 }
 

@@ -454,6 +454,56 @@ void lx_user_init(void)
 }
 
 
+struct usb_find_request {
+	genode_usb_bus_num_t bus;
+	genode_usb_dev_num_t dev;
+	struct usb_device  * ret;
+};
+
+
+static int check_usb_device(struct usb_device *usb_dev, void * data)
+{
+	struct usb_find_request * req = (struct usb_find_request *) data;
+	if (usb_dev->devnum == req->dev && usb_dev->bus->busnum == req->bus)
+		req->ret = usb_dev;
+	return 0;
+}
+
+static struct usb_device * find_usb_device(genode_usb_bus_num_t bus,
+                                           genode_usb_dev_num_t dev)
+{
+	struct usb_find_request req = { bus, dev, NULL };
+	usb_for_each_dev(&req, check_usb_device);
+	return req.ret;
+}
+
+
+static int device_released(void *d)
+{
+	struct usb_device *udev = (struct usb_device*)d;
+	struct usb_per_dev_data * data = udev ? dev_get_drvdata(&udev->dev) : NULL;
+	return !data;
+}
+
+
+void lx_emul_usb_release_device(genode_usb_bus_num_t bus,
+                                genode_usb_dev_num_t dev)
+{
+	struct usb_device * udev = find_usb_device(bus, dev);
+	struct usb_per_dev_data * data = udev ? dev_get_drvdata(&udev->dev) : NULL;
+	bool acquired = genode_usb_device_acquired(bus, dev);
+
+	if (acquired || !data)
+		return;
+
+	printk("release %u %u %px\n", bus, dev, data);
+	data->kill_task = true;
+	lx_emul_task_unblock(data->task);
+	lx_emul_execute_kernel_until(&device_released, udev);
+	printk("released successfully %u %u %px\n", bus, dev, data);
+}
+
+
 static void add_endpoint_callback(struct genode_usb_interface * iface,
                                   unsigned idx, void * data)
 {
