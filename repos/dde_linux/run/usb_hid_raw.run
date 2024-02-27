@@ -115,7 +115,7 @@ install_config {
 
 	<start name="usb_hid_drv" caps="180">
 		<resource name="RAM" quantum="11M"/>
-		<config use_report="yes" capslock_led="rom" numlock_led="rom" scrlock_led="rom"/>
+		<config capslock_led="rom" numlock_led="rom" scrlock_led="rom"/>
 		<route>
 			<service name="ROM" label="capslock"> <child name="dynamic_rom"/> </service>
 			<service name="ROM" label="numlock">  <child name="dynamic_rom"/> </service>
