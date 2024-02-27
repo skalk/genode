@@ -152,8 +152,8 @@ static void urb_complete(void * data, genode_usb_client_ret_val_t result)
 	switch (result) {
 	case OK:        urb->status = 0;          break;
 	case NO_MEMORY: urb->status = -ENOMEM;    break;
-	case NO_DEVICE: urb->status = -ENODEV;    break;
-	case INVALID:   urb->status = -EINVAL;    break;
+	case NO_DEVICE: urb->status = -ENOENT;    break;
+	case INVALID:   urb->status = -EPIPE;     break;
 	case TIMEOUT:   urb->status = -ETIMEDOUT;
 	};
 	if (urb->complete) urb->complete(urb);
