@@ -26,7 +26,7 @@ int usb_hcd_submit_urb (struct urb *urb, gfp_t mem_flags)
 	if (!urb->dev->bus)
 		return -ENODEV;
 
-	handle = (genode_usb_client_dev_handle_t)urb->dev->parent;
+	handle = (genode_usb_client_dev_handle_t)urb->dev->filelist.prev;
 
 	switch(usb_pipetype(urb->pipe)) {
 	case PIPE_CONTROL:

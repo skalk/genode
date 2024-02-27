@@ -53,6 +53,13 @@ static void * register_device(genode_usb_client_dev_handle_t handle,
 		return NULL;
 	}
 
+	/*
+	 * We store handle in filelist list head to be used in hcd urb submission
+	 * before sending any URB. The filelist member is referenced in devio.c
+	 * only which is not used here.
+	 */
+	udev->filelist.prev = (struct list_head *) handle;
+
 	udev->devnum = num++;
 
 	switch (speed) {
@@ -94,11 +101,6 @@ static void * register_device(genode_usb_client_dev_handle_t handle,
 		return NULL;
 	}
 
-	/*
-	 * after device initialization, it seems safe
-	 * to set our device handle as parent
-	 */
-	udev->parent = (struct usb_device*) handle;
 	return udev;
 }
 
@@ -106,7 +108,7 @@ static void * register_device(genode_usb_client_dev_handle_t handle,
 static void unregister_device(genode_usb_client_dev_handle_t handle, void *data)
 {
 	struct usb_device *udev = (struct usb_device *)data;
-	udev->parent = NULL;
+	udev->filelist.prev = NULL;
 	usb_disconnect(&udev);
 	usb_put_dev(udev);
 }
