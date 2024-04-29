@@ -1,6 +1,7 @@
 assert_spec linux
 
 set tshark [installed_command tshark]
+set trafgen [installed_command trafgen]
 set lx_fs_root "internet_checksum_dir"
 set lx_fs_dir "bin/$lx_fs_root"
 set input_file_name "input.pcap"
@@ -56,7 +57,7 @@ install_config {
 
 exec rm -rf $lx_fs_dir
 exec mkdir -p $lx_fs_dir
-exec trafgen --rand --seed $seed --in [genode_dir]/repos/os/src/test/internet_checksum/trafgen.cfg --num 10000 --out $input_file
+exec $trafgen --rand --seed $seed --in [genode_dir]/repos/os/src/test/internet_checksum/trafgen.cfg --num 10000 --out $input_file
 
 proc assert_no_bad_checksums_in {pcap_file} {
 	global tshark
