@@ -218,219 +218,40 @@ bridges.
 Improvements for NXP's i.MX family
 ==================================
 
-; @skalk
+The current release comprises a lot of updates and additional support for the
+i.MX family of devices.
 
-commit 4a5c073ed849ec6a39e841a36083a338cfa23f8c
-Author: Josef Söntgen <josef.soentgen@genode-labs.com>
-Date:   Tue May 21 13:20:56 2024 +0200
+First of all, we have updated all existent Linux driver ports to Linux kernel
+version 6.1.20. In detail, these are the drivers for the Freescale Ethernet
+Device (FEC) for ARMv7 and ARMv8, the display management for the i.MX 8M Quad
+EVK and the MNT Reform 2, as well as the SD-card Host Controller for the same
+two boards.
 
-    nic/fec: use linux-imx 6.1.20
-    
-    This commit introduces an updated driver that uses the current
-    linux-imx (6.1.20) version.
+The Gapfruit AG and namely Alice Domage rendered outstanding service to enable
+platform support for the i.MX 8M Plus SoC and the Compulab's IOT Gateway, which
+is based on it. Beside clock, powering, and reset support by a platform driver
+specific to this SoC, support is now available for both Ethernet cards (FEC and
+ST Microelectronic' STMMAC), SD-card host controller, I2C, and GPIO.
 
-commit 2f33a1d428ea097038c1e4a4e4d4cee002926cab
-Author: Josef Söntgen <josef.soentgen@genode-labs.com>
-Date:   Mon May 27 14:02:10 2024 +0200
+Genode's custom kernel supports two further boards now, namely the F&S Embedded
+armStone Starterkit and MNT Pocket Reform. Both using the i.MX 8M Plus SoC,
+mentioned above. The support is limited to the very basics, and no peripherals
+apart from CPU and timer are integrated yet.
 
-    framebuffer/imx8mq: use linux-imx 6.1.20
-    
-    This commit introduces an updated driver that uses the current
-    linux-imx (6.1.20) version.
-    
-    It also contains a unified test run-script that works on both the
-    EVK as well as the MNT Reform2. The HDMI port on the later device
-    can be exercised by changing the device-tree route to
-    'imx8mq_fb-mnt_reform2-hdmi.dtb'.
+Since release 21.11 the Pin I/O session interface is available, and shall
+replace the older Gpio session interface. By now, for the i.MX SoC's that all
+contain the same kind of GPIO controllers, a native driver existed only, which
+support the old interface. With this release, we introduce a pin driver
+implementing the favored Pin I/O session interface instead. All occurrences in
+packages and run-scripts under Genode's umbrella use the new driver now, which
+can be found under `src/driver/pin/imx` within the genode-imx repository.
+The old driver and the Gpio session interface are still existent. But now, as
+there is no hard dependency or necessity for it anymore, we mark the old
+driver, as well as the Gpio session interface as being deprecated.
 
-commit 5b4fc047fa4ac6541192158c156e09eb5c570c14
-Author: Stefan Kalkowski <stefan.kalkowski@genode-labs.com>
-Date:   Mon Jun 10 16:28:40 2024 +0200
-
-    sd_card/imx8mq: use linux-imx 6.1.20
-    
-    This commit introduces an updated driver that uses the current
-    linux-imx (6.1.20) version.
-
-commit b021cd0813e1be3377be3f25bdc028e83f35f23a
-Author: Josef Söntgen <josef.soentgen@genode-labs.com>
-Date:   Mon Jun 3 15:21:52 2024 +0200
-
-    Remove old DDE Linux MNT Reform 2 snippets
-
-commit a2f5e04f3e2dc7ee33837551818c0974965e6ddf
-Author: Alice Domage <alice.domage@gapfruit.com>
-Date:   Tue Feb 27 15:28:49 2024 +0100
-
-    imx8mp_iot_gate: add base-hw kernel support
-
-commit 5d51d49145326c2605298e57686b3f2814d5110a
-Author: Alice Domage <alice.domage@gapfruit.com>
-Date:   Thu Mar 14 17:02:50 2024 +0100
-
-    add: imx8mp_platform
-    
-    The driver is duplicated from imx8mq and adapted for imx8mp
-
-commit accedf54777754068874c6d5079e3e876b893710
-Author: Stefan Kalkowski <stefan.kalkowski@genode-labs.com>
-Date:   Wed May 22 15:51:52 2024 +0200
-
-    imx8m*_platform: unification & disable clocks
-    
-    * Unify System-Reset-Controller, General-Power-Controller, and
-      common parts of the Central-Clock-Module in between
-      i.MX 8M Quad & 8M Plus SoC
-    * Fix regression: root clocks, gates and plls not necessary get
-      disabled by default
-
-commit b58d781660697a1fa96784c111f5cc4d829a5eb4
-Author: Stefan Kalkowski <stefan.kalkowski@genode-labs.com>
-Date:   Mon May 27 16:02:17 2024 +0200
-
-    imx8mp_platform: correct set/unset of PLLs
-    
-    The enable-output-gate bits of the PLL 1416 and 1443 are not equal.
-    Implement the correct protocol to enable/disable the PLL, and to ensure
-    that it isn't bypassed.
-
-commit 56b1574e041a028b4265252600b8f519b723c9d7
-Author: Stefan Kalkowski <stefan.kalkowski@genode-labs.com>
-Date:   Thu Jun 6 15:33:57 2024 +0200
-
-    imx8mp_platform: setup IOMUX controller
-
-commit 1a52e69ca6afea4bc8e50e7bb23c29334f4326ac
-Author: Stefan Kalkowski <stefan.kalkowski@genode-labs.com>
-Date:   Thu Jun 6 15:34:49 2024 +0200
-
-    simple EEPROM over I2C reader for i.MX 8M IOT gate
-
-commit b0e230d042fcfba19fb5c7ba6235c9725bcc178c
-Author: Stefan Kalkowski <stefan.kalkowski@genode-labs.com>
-Date:   Thu Jun 6 15:36:36 2024 +0200
-
-    stmmac_nic: initial support for imx8mp_iot_gate
-
-commit b739035f4ab3a9765134d019eab7ad7f006b684a
-Author: Stefan Kalkowski <stefan.kalkowski@genode-labs.com>
-Date:   Tue Jun 11 14:40:06 2024 +0200
-
-    fec_nic: add support for i.MX 8M IOT gateway
-
-commit fdfe9f8ca1363d8b4e7b0730e700c268431d2325
-Author: Stefan Kalkowski <stefan.kalkowski@genode-labs.com>
-Date:   Tue Jun 11 15:20:50 2024 +0200
-
-    imx8mq_sd_card: add support for i.MX 8M IOT gateway
-
-commit 49d6b6272a6db36958f207a670653200640077c9
-Author: Stefan Kalkowski <stefan.kalkowski@genode-labs.com>
-Date:   Mon Jun 17 12:49:22 2024 +0200
-
-    imx8mp_platform: implement system reset mechanism
-    
-    - Consume system state ROM analogue to PC platform driver
-    - Use first watchdog timer as mechanism to reset system
-    - Keep first and second watchdog timer's clocks alive,
-      the second one is intended to be used by the secure world (ATF)
-
-commit 501709d5f4a440be01594b7f583232ce50c6693b
-Author: Stefan Kalkowski <stefan.kalkowski@genode-labs.com>
-Date:   Mon Jun 17 13:54:39 2024 +0200
-
-    imx8mp_iot_gate: add GPIO controllers to devices
-    
-    - Add missing gpio2, gpio3, gpio4, and gpio5 to board devices ROM
-
-commit 133d92a0caa64a0028f4ba237dc84d92fc752324
-Author: Stefan Kalkowski <stefan.kalkowski@genode-labs.com>
-Date:   Tue Jun 18 13:29:55 2024 +0200
-
-    imx8mp_iot_gate: add ECSPI device to board ROM
-    
-    - the IOT gateway uses only the second ECSPI from NXP's i.MX 8M Plus SoC
-
-commit 6306d8f00d2aedda5d8032ee24e30c3faf590eb2
-Author: Stefan Kalkowski <stefan.kalkowski@genode-labs.com>
-Date:   Wed Jun 19 11:41:38 2024 +0200
-
-    imx7d_sabre: move all board specifics to imx repo
-    
-    Ref genodelabs/genode#5252
-
-commit cd8fb1ebe0afd39b4fa3d8297fc09e41d9129c91
-Author: Stefan Kalkowski <stefan.kalkowski@genode-labs.com>
-Date:   Wed Jun 19 13:43:48 2024 +0200
-
-    tz_vmm: move trustzone example into imx repo
-    
-    Ref genodelabs/genode#5252
-
-commit 1eadf43f32391ce3b249bc7c60458a4bab90dd9a
-Author: Stefan Kalkowski <stefan.kalkowski@genode-labs.com>
-Date:   Wed Jun 19 13:56:51 2024 +0200
-
-    synaptics_dsx_touch: move driver to imx repository
-    
-    Ref genodelabs/genode#5252
-
-commit ea5c632a4c8b61bc2c2b0cbf422678dd11b18190
-Author: Stefan Kalkowski <stefan.kalkowski@genode-labs.com>
-Date:   Wed Jun 19 14:03:17 2024 +0200
-
-    imx8q_evk_i2c: move driver to imx repository
-    
-    Ref genodelabs/genode#5252
-
-commit 32984ab438c67f0e8e319ddf7a3bfba6d3cde1aa
-Author: Stefan Kalkowski <stefan.kalkowski@genode-labs.com>
-Date:   Wed Jun 19 14:52:12 2024 +0200
-
-    imx*_sd_card: move drivers to imx repository
-    
-    Ref genodelabs/genode#5252
-
-commit b844240e89f6a574fe6716850d45232101c853ee
-Author: Stefan Kalkowski <stefan.kalkowski@genode-labs.com>
-Date:   Wed Jun 19 16:48:59 2024 +0200
-
-    move remaining imx53 related files to imx repo
-    
-    Ref genodelabs/genode#5252
-
-commit 2b3fb1c72da3ce428523555447ea90256591d8dd
-Author: Stefan Kalkowski <stefan.kalkowski@genode-labs.com>
-Date:   Thu Jun 20 14:17:02 2024 +0200
-
-    hw: adapt to removal of cortex* directories
-    
-    Ref genodelabs/genode#5253
-
-commit a8d02b398d71d69d1a3ee7a715ce3f22b9f76ae6
-Author: Stefan Kalkowski <stefan.kalkowski@genode-labs.com>
-Date:   Tue Jun 25 12:02:23 2024 +0200
-
-    add pin driver with Pin_state, Pin_control, and IRQ
-    
-    - To replace the legacy GPIO session interface with the
-      newer Pin_state, Pin_control and IRQ session
-
-commit 0b7f89c50eaf24862d397aad2e8506d88d11f4e2
-Author: Stefan Kalkowski <stefan.kalkowski@genode-labs.com>
-Date:   Tue Jun 25 12:06:07 2024 +0200
-
-    adapt components and run-scripts to use pin driver
-
-commit 745313f056676ddebbd9c364dd9dfc123c53ca5b
-Author: Alexander Boettcher <alexander.boettcher@genode-labs.com>
-Date:   Wed Jun 26 15:49:34 2024 +0200
-
-    timer: add EPIT 2 standalone timer
-    
-    Based upon new Timer schema of genode#5138 and derived from
-    from former epit timer of Genode base repository, which got replaced by
-    this timer.
+Finally, we moved all remaining i.MX specific parts out of Genode's main
+repository into the genode-imx repository to be consistent with the recent
+approach of vendor specific external repositories.
 
 
 Libraries and applications
@@ -466,24 +287,14 @@ Platforms
 Execution on bare hardware (base-hw)
 ====================================
 
-; @skalk
-
-commit 391a919a2dfb62769f21463072441284e328f15f
-Author: Stefan Kalkowski <stefan.kalkowski@genode-labs.com>
-Date:   Wed Jul 3 14:44:15 2024 +0200
-
-    hw: move stack into cpu local mem area
-    
-    Ref genodelabs/genode#5310
-
-commit 080b3f0f1ef22a5b8b233ffa1624b5e460d6ecae
-Author: Stefan Kalkowski <stefan.kalkowski@genode-labs.com>
-Date:   Thu Jul 4 14:50:14 2024 +0200
-
-    hw: move cpu kernel object into cpu local area
-    
-    Fix genodelabs/genode#5310
-
+Under the hood of Genode's custom kernel the way how CPU-local memory is
+arranged changed fundamentally.
+The kernel's virtual memory layout now comprises a CPU area. Each CPU has its
+own slot within this area, containing kernel stack, CPU object data resp. all
+CPU-local data.
+This change is transparent to most Genode developers. It was done to ease
+CPU detection and bootstrapping at runtime, for kernel stack overflow detection,
+and to retrieve the current CPU object by means of the kernel stack pointer.
 
 NOVA microhypervisor
 ====================
