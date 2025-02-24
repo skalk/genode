@@ -1,5 +1,5 @@
 <config>
-	<bool name="leitzentrale" initial="yes"/>
+	<bool name="leitzentrale" initial="no"/>
 	<bool name="capslock"     initial="no"/>
 	<bool name="numlock"      initial="no"/>
 	<bool name="slides"       initial="no"/>
