@@ -466,6 +466,8 @@ class Device_component
 		Signal_context_capability        _sigh_cap;
 		bool                             _warn_once { true };
 
+		bool _device_specific_filter(Constructible<Packet_descriptor> &cp);
+
 		void
 		_handle_request(Constructible<Packet_descriptor> &cp,
 		                genode_buffer_t                   payload,
@@ -899,6 +901,35 @@ Interface_component::Interface_component(Env                           &env,
 }
 
 
+bool
+Device_component::_device_specific_filter(Constructible<Packet_descriptor> &cpd)
+{
+	enum { VENDOR_ALCOR=0x58f, PRODUCT_SDC9540=0x9540 };
+
+	bool sdc_au9540 = false;
+
+	_session._devices.apply(
+		[&] (genode_usb_device &d) {
+			return VENDOR_ALCOR    == d.desc.vendor_id &&
+			       PRODUCT_SDC9540 == d.desc.product_id; },
+		[&] (genode_usb_device &) { sdc_au9540 = true; });
+
+	if (!sdc_au9540)
+		return false;
+
+	enum { GET_DATA_REQUEST = 0x3, SDC_REQUEST_TYPE = 0xA1 };
+
+	if (cpd->request_type != SDC_REQUEST_TYPE ||
+	    cpd->request      != GET_DATA_REQUEST)
+		return false;
+
+	genode_usb_request_handle_t handle = &cpd;
+	uint32_t ret = 0;
+	handle_response(handle, INVALID, &ret);
+	return true;
+}
+
+
 void
 Device_component::_handle_request(Constructible<Packet_descriptor> &cpd,
                                   genode_buffer_t                   payload,
@@ -906,6 +937,9 @@ Device_component::_handle_request(Constructible<Packet_descriptor> &cpd,
                                   void                             *opaque_data)
 {
 	using P = Packet_descriptor;
+
+	if (_device_specific_filter(cpd))
+		return;
 
 	genode_usb_request_handle_t handle = &cpd;
 	bool granted = false;
