@@ -163,18 +163,17 @@ namespace Affinity_test {
 
 		void entry() override
 		{
-			barrier.wakeup();
 			Genode::log("Affinity: thread started on CPU ",
 			            location, " spinning...");
 
+			barrier.wakeup();
 			for (;;) cnt = cnt + 1;
 		}
 
 		Spinning_thread(Genode::Env &env, Location location)
 		: Genode::Thread(env, Name("spinning_thread"), STACK_SIZE, location,
 		                 Weight(), env.cpu()),
-		  location(location), cnt(0ULL) {
-			start(); }
+		  location(location), cnt(0ULL) { }
 	};
 
 	void execute(Genode::Env &env, Genode::Heap &heap,
@@ -188,12 +187,14 @@ namespace Affinity_test {
 		uint64_t thread_cnt[cpus.total()] { };
 
 		/* construct the thread objects */
-		for (unsigned i = 0; i < cpus.total(); i++)
+		for (unsigned i = 0; i < cpus.total(); i++) {
 			threads[i] = new (heap)
 				Spinning_thread(env, cpus.location_of_index(i));
+			if (i) threads[i]->start();
+		}
 
 		/* wait until all threads are up and running */
-		for (unsigned i = 0; i < cpus.total(); i++)
+		for (unsigned i = 1; i < cpus.total(); i++)
 			threads[i]->barrier.block();
 
 		log("Affinity: Threads started on a different CPU each.");
@@ -239,8 +240,11 @@ namespace Affinity_test {
 
 						print(out, "Affinity: Round ", Right_aligned(2, round), ": ");
 
-						for (unsigned i = 0; i < num_cpus; i++)
-							print(out, thread_cnt[i] == threads[i]->cnt ? " D " : " A ");
+						for (unsigned i = 0; i < num_cpus; i++) {
+							/* CPU 0 is by definition alive, because this code runs it */
+							bool alive = i ? (thread_cnt[i] != threads[i]->cnt) : true;
+							print(out, alive ? " A " : " D ");
+						}
 					}
 				};
 
