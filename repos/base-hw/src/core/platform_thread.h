@@ -200,15 +200,22 @@ class Core::Platform_thread : Noncopyable
 		{
 			Kernel::Thread::Exception_state exception_state;
 			using namespace Kernel;
-			call(call_id_exception_state(), (Call_arg)&*_kobj,
-			                                (Call_arg)&exception_state);
+			_kobj.with([&] (auto &thread) {
+				call(call_id_exception_state(), (Call_arg)&thread,
+				     (Call_arg)&exception_state); });
 			return exception_state;
 		}
 
 		/**
 		 * Return information about current fault
 		 */
-		Kernel::Thread_fault fault_info() { return _kobj->fault(); }
+		Kernel::Thread_fault fault_info()
+		{
+			Kernel::Thread_fault ret {};
+			_kobj.with([&] (auto &thread) {
+				 ret = thread.fault(); });
+			return ret;
+		}
 
 		/**
 		 * Run this thread
@@ -225,12 +232,20 @@ class Core::Platform_thread : Noncopyable
 		/**
 		 * Pause this thread
 		 */
-		void pause() { Kernel::pause_thread(*_kobj); }
+		void pause()
+		{
+			_kobj.with([&] (auto &thread) {
+				Kernel::pause_thread(thread); });
+		}
 
 		/**
 		 * Enable/disable single stepping
 		 */
-		void single_step(bool on) { Kernel::single_step(*_kobj, on); }
+		void single_step(bool on)
+		{
+			_kobj.with([&] (auto &thread) {
+				Kernel::single_step(thread, on); });
+		}
 
 		/**
 		 * Resume this thread
@@ -241,7 +256,8 @@ class Core::Platform_thread : Noncopyable
 			    Kernel::Thread::Exception_state::NO_EXCEPTION)
 				restart();
 
-			Kernel::resume_thread(*_kobj);
+			_kobj.with([&] (auto &thread) {
+				Kernel::resume_thread(thread); });
 		}
 
 		/**
@@ -286,8 +302,9 @@ class Core::Platform_thread : Noncopyable
 		 */
 		Trace::Execution_time execution_time() const
 		{
-			uint64_t execution_time =
-				const_cast<Platform_thread *>(this)->_kobj->execution_time();
+			uint64_t execution_time = 0;
+			_kobj.with([&] (auto &thread) {
+				execution_time = thread.execution_time(); });
 			return { execution_time, 0, 0, _group_id }; }
 
 

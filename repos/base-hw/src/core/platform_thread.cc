@@ -168,21 +168,23 @@ void Platform_thread::start(void * const ip, void * const sp)
 	}
 
 	/* initialize thread registers */
-	_kobj->regs->ip = reinterpret_cast<addr_t>(ip);
-	_kobj->regs->sp = reinterpret_cast<addr_t>(sp);
+	_kobj.with([&] (auto &thread) {
+		thread.regs->ip = reinterpret_cast<addr_t>(ip);
+		thread.regs->sp = reinterpret_cast<addr_t>(sp);
 
-	Native_utcb &utcb = *Thread::myself()->utcb();
+		Native_utcb &utcb = *Thread::myself()->utcb();
 
-	/* reset capability counter */
-	utcb.cap_cnt(0);
-	utcb.cap_add(Capability_space::capid(_kobj.cap()));
-	if (_main_thread) {
-		utcb.cap_add(Capability_space::capid(_pd.parent()));
-		utcb.cap_add(Capability_space::capid(_utcb.ds_cap()));
-	}
+		/* reset capability counter */
+		utcb.cap_cnt(0);
+		utcb.cap_add(Capability_space::capid(_kobj.cap()));
+		if (_main_thread) {
+			utcb.cap_add(Capability_space::capid(_pd.parent()));
+			utcb.cap_add(Capability_space::capid(_utcb.ds_cap()));
+		}
 
-	Kernel::start_thread(*_kobj, _pd.kernel_pd(),
-	                     *(Native_utcb*)_utcb.core_addr);
+		Kernel::start_thread(thread, _pd.kernel_pd(),
+		                     *(Native_utcb*)_utcb.core_addr);
+	});
 }
 
 
@@ -191,8 +193,13 @@ void Platform_thread::pager(Pager_object &po)
 	using namespace Kernel;
 
 	po.with_pager([&] (Platform_thread &pt) {
-		thread_pager(*_kobj, *pt._kobj,
-		             Capability_space::capid(po.cap())); });
+		_kobj.with([&] (auto &thread) {
+			pt._kobj.with([&] (auto &pager_thread) {
+				thread_pager(thread, pager_thread,
+				             Capability_space::capid(po.cap()));
+			});
+		});
+	});
 	_pager = &po;
 }
 
@@ -209,7 +216,8 @@ Core::Pager_object &Platform_thread::pager()
 Thread_state Platform_thread::state()
 {
 	Cpu_state cpu { };
-	Kernel::get_cpu_state(*_kobj, cpu);
+	_kobj.with([&] (auto &thread) {
+		Kernel::get_cpu_state(thread, cpu); });
 
 	auto state = [&] () -> Thread_state::State
 	{
@@ -231,7 +239,8 @@ Thread_state Platform_thread::state()
 
 void Platform_thread::state(Thread_state thread_state)
 {
-	Kernel::set_cpu_state(*_kobj, thread_state.cpu);
+	_kobj.with([&] (auto &thread) {
+		Kernel::set_cpu_state(thread, thread_state.cpu); });
 }
 
 
@@ -243,5 +252,7 @@ void Platform_thread::restart()
 
 void Platform_thread::fault_resolved(Untyped_capability cap, bool resolved)
 {
-	Kernel::ack_pager_signal(Capability_space::capid(cap), *_kobj, resolved);
+	_kobj.with([&] (auto &thread) {
+		Kernel::ack_pager_signal(Capability_space::capid(cap), thread,
+		                         resolved); });
 }

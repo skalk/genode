@@ -83,6 +83,18 @@ class Core::Kernel_object : public Constructible<Kernel::Core_object<T>>
 			_cap = Capability_space::import(T::syscall_create(*this, args...));
 			return _cap.valid();
 		}
+
+		void with(auto const &fn)
+		{
+			if (Constructible<Kernel::Core_object<T>>::constructed())
+				fn(**this);
+		}
+
+		void with(auto const &fn) const
+		{
+			if (Constructible<Kernel::Core_object<T>>::constructed())
+				fn(**this);
+		}
 };
 
 #endif /* _CORE__OBJECT_H_ */
