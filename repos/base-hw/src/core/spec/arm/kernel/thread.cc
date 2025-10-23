@@ -33,7 +33,7 @@ void Thread::exception(Genode::Cpu_state &state)
 {
 	using Ctx = Board::Cpu::Context;
 
-	Genode::memcpy(&*regs, &state, sizeof(Ctx));
+	_save(state);
 
 	switch (regs->cpu_exception) {
 	case Ctx::SUPERVISOR_CALL:

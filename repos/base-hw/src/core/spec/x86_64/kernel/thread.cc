@@ -177,9 +177,8 @@ void Kernel::Thread::_call_cache_line_size()
 void Kernel::Thread::exception(Genode::Cpu_state &state)
 {
 	using Genode::Cpu_state;
-	using Ctx = Board::Cpu::Context;
 
-	Genode::memcpy(&*regs, &state, sizeof(Ctx));
+	_save(state);
 
 	switch (regs->trapno) {
 

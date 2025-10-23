@@ -27,7 +27,7 @@ void Thread::_call_suspend() { }
 
 void Thread::exception(Genode::Cpu_state &state)
 {
-	Genode::memcpy(&*regs, &state, sizeof(Board::Cpu::Context));
+	_save(state);
 
 	switch (regs->exception_type) {
 	case Cpu::RESET:         return;
