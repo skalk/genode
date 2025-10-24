@@ -27,9 +27,13 @@ void Thread::_call_suspend() { }
 
 void Thread::exception(Genode::Cpu_state &state)
 {
+	using namespace Genode;
+
 	_save(state);
 
-	switch (regs->exception_type) {
+	uint64_t type = static_cast<Board::Cpu::Context&>(state).exception_type;
+
+	switch (type) {
 	case Cpu::RESET:         return;
 	case Cpu::IRQ_LEVEL_EL0: [[fallthrough]];
 	case Cpu::IRQ_LEVEL_EL1: [[fallthrough]];
@@ -40,13 +44,13 @@ void Thread::exception(Genode::Cpu_state &state)
 	case Cpu::SYNC_LEVEL_EL0: [[fallthrough]];
 	case Cpu::SYNC_LEVEL_EL1:
 		{
-			switch (Cpu::Esr::Ec::get(regs->esr_el1)) {
+			switch (Cpu::Esr::Ec::get(state.esr_el1)) {
 			case Cpu::Esr::Ec::SVC:
 				_call();
 				return;
 			case Cpu::Esr::Ec::INST_ABORT_SAME_LEVEL: [[fallthrough]];
 			case Cpu::Esr::Ec::DATA_ABORT_SAME_LEVEL:
-				Genode::raw("Fault in kernel/core ESR=", Genode::Hex(regs->esr_el1));
+				raw("Fault in kernel/core ESR=", Hex(state.esr_el1));
 				[[fallthrough]];
 			case Cpu::Esr::Ec::INST_ABORT_LOW_LEVEL:  [[fallthrough]];
 			case Cpu::Esr::Ec::DATA_ABORT_LOW_LEVEL:
@@ -57,25 +61,24 @@ void Thread::exception(Genode::Cpu_state &state)
 				_exception();
 				return;
 			default:
-				Genode::raw("Unknown cpu exception EC=", Cpu::Esr::Ec::get(regs->esr_el1),
-				            " ISS=", Cpu::Esr::Iss::get(regs->esr_el1),
-				            " ip=", (void*)regs->ip);
+				raw("Unknown cpu exception EC=", Cpu::Esr::Ec::get(state.esr_el1),
+				    " ISS=", Cpu::Esr::Iss::get(state.esr_el1),
+				    " ip=", (void*)state.ip);
 			};
 			
 			/*
 			 * If the machine exception is caused by a non-privileged
 			 * component, mark it dead, and continue execution.
 			 */
-			if (regs->exception_type == Cpu::SYNC_LEVEL_EL0) {
-				Genode::raw("Will freeze thread ", *this);
+			if (type == Cpu::SYNC_LEVEL_EL0) {
+				raw("Will freeze thread ", *this);
 				_become_inactive(DEAD);
 				return;
 			}
 			break;
 		}
 	default:
-		Genode::raw("Exception vector: ", (void*)regs->exception_type,
-					" not implemented!");
+		raw("Exception vector: ", (void*)type, " not implemented!");
 	};
 
 	while (1) { ; }

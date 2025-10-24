@@ -35,7 +35,7 @@ void Thread::exception(Genode::Cpu_state &state)
 
 	_save(state);
 
-	switch (regs->cpu_exception) {
+	switch (state.cpu_exception) {
 	case Ctx::SUPERVISOR_CALL:
 		_call();
 		return;
@@ -49,14 +49,14 @@ void Thread::exception(Genode::Cpu_state &state)
 		return;
 	case Ctx::UNDEFINED_INSTRUCTION:
 		Genode::raw(*this, ": undefined instruction at ip=",
-		            Genode::Hex(regs->ip));
+		            Genode::Hex(state.ip));
 		_die();
 		return;
 	case Ctx::RESET:
 		return;
 	default:
 		Genode::raw(*this, ": triggered an unknown exception ",
-		            regs->cpu_exception);
+		            state.cpu_exception);
 		_die();
 		return;
 	}

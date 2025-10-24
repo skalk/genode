@@ -180,7 +180,7 @@ void Kernel::Thread::exception(Genode::Cpu_state &state)
 
 	_save(state);
 
-	switch (regs->trapno) {
+	switch (state.trapno) {
 
 	case Cpu_state::PAGE_FAULT:
 		_mmu_exception();
@@ -199,14 +199,15 @@ void Kernel::Thread::exception(Genode::Cpu_state &state)
 		return;
 	}
 
-	if (regs->trapno >= Cpu_state::INTERRUPTS_START &&
-	    regs->trapno <= Cpu_state::INTERRUPTS_END) {
+	if (state.trapno >= Cpu_state::INTERRUPTS_START &&
+	    state.trapno <= Cpu_state::INTERRUPTS_END) {
 		_interrupt(_user_irq_pool);
 		return;
 	}
 
-	Genode::raw(*this, ": triggered unknown exception ", regs->trapno,
-	            " with error code ", regs->errcode, " at ip=", (void*)regs->ip, " sp=", (void*)regs->sp);
+	Genode::raw(*this, ": triggered unknown exception ", state.trapno,
+	            " with error code ", state.errcode, " at ip=",
+	            (void*)state.ip, " sp=", (void*)state.sp);
 
 	_die();
 }
