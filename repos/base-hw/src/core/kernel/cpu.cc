@@ -23,6 +23,7 @@
 #include <hw/assert.h>
 #include <hw/boot_info.h>
 #include <hw/memory_consts.h>
+#include <os/backtrace.h>
 
 using namespace Kernel;
 
@@ -36,6 +37,14 @@ void Cpu_context::_activate() { _cpu().assign(*this); }
 
 void Cpu_context::_deactivate()
 {
+	if ((_cpu().id() != Cpu::executing_id()) &&
+	    (&_cpu().current_context() == this)) {
+		Genode::error("Kernel: scheduler semantic violation!");
+		Genode::error("Currently active cpu context on cpu ",
+		              _cpu().id(), " gets deactivated from cpu ",
+		              Cpu::executing_id());
+		Genode::backtrace();
+	}
 	_cpu().scheduler().unready(*this);
 }
 
