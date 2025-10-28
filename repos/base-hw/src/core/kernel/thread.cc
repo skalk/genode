@@ -714,7 +714,7 @@ void Thread::_call_ack_pager_signal()
 		c->ack();
 
 	Thread &thread = *(Thread*)user_arg_2();
-	thread.helping_finished();
+	/*thread.helping_finished();*/
 
 	bool resolved = user_arg_3() ||
 	                thread._exception_state == NO_EXCEPTION;
@@ -823,10 +823,10 @@ void Thread::_signal_to_pager()
 	_fault_context->sc.submit(1);
 
 	/* only help pager thread if runnable and scheduler allows it */
-	bool const help = Cpu_context::_helping_possible(_fault_context->pager)
+/*	bool const help = Cpu_context::_helping_possible(_fault_context->pager)
 	                  && (_fault_context->pager._state == ACTIVE);
 	if (help) Cpu_context::_help(_fault_context->pager);
-	else _become_inactive(AWAITS_RESTART);
+	else*/ _become_inactive(AWAITS_RESTART);
 }
 
 
