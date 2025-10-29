@@ -38,10 +38,9 @@ void Kernel::Thread::_call_delete_vcpu()
 
 	/**
 	 * Delete a vcpu immediately if it is assigned to this cpu,
-	 * or the assigned cpu did not scheduled it.
+	 * or the assigned cpu is not running it.
 	 */
-	if (to_delete->_cpu().id() == Cpu::executing_id() ||
-	    &to_delete->_cpu().current_context() != &*to_delete) {
+	if (!to_delete->remotely_running()) {
 		_call_delete<Vcpu>();
 		return;
 	}

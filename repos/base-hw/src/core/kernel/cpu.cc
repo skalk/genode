@@ -36,6 +36,7 @@ void Cpu_context::_activate() { _cpu().assign(*this); }
 
 void Cpu_context::_deactivate()
 {
+	assert(!remotely_running());
 	_cpu().scheduler().unready(*this);
 }
 
@@ -67,6 +68,13 @@ void Cpu_context::_interrupt(Irq::Pool &user_irq_pool)
 }
 
 
+bool Cpu_context::remotely_running()
+{
+	return (_cpu().id() != Cpu::executing_id()) &&
+	       _cpu().scheduler().current_helping_destination(*this);
+}
+
+
 Cpu_context::Cpu_context(Cpu &cpu, Group_id const id)
 :
 	Context(id), _cpu_ptr(&cpu) { }
@@ -74,8 +82,6 @@ Cpu_context::Cpu_context(Cpu &cpu, Group_id const id)
 
 Cpu_context::~Cpu_context()
 {
-	assert(_cpu().id() == Cpu::executing_id() ||
-	       &_cpu().current_context() != this);
 	_deactivate();
 }
 

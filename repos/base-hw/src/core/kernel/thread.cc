@@ -378,10 +378,9 @@ void Thread::_call_delete_thread()
 
 	/**
 	 * Delete a thread immediately if it is assigned to this cpu,
-	 * or the assigned cpu did not scheduled it.
+	 * or the assigned cpu does not execute it right now.
 	 */
-	if (to_delete->_cpu().id() == Cpu::executing_id() ||
-	    &to_delete->_cpu().current_context() != &*to_delete) {
+	if (!to_delete->remotely_running()) {
 		_call_delete<Thread>();
 		return;
 	}
