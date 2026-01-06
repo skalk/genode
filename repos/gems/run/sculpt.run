@@ -205,6 +205,12 @@ proc driver_routes { } {
 	}
 
 	set result(imx8q_evk) {
+		<service name="ROM" label="fb">      <parent label="imx8mq_fb"/> </service>
+		<service name="ROM" label="fb.dtb">  <parent label="imx8mq_fb-imx8q_evk.dtb"/> </service>
+		<service name="ROM" label="mmc">     <parent label="imx8mq_sd_card"/> </service>
+		<service name="ROM" label="mmc.dtb"> <parent label="imx8mq_sd_card-imx8q_evk.dtb"/> </service>
+		<service name="ROM" label="usb">     <parent label="imx8m_usb_host"/> </service>
+		<service name="ROM" label="usb.dtb"> <parent label="imx8m_usb_host-imx8q_evk.dtb"/> </service>
 		<service name="ROM" label="nic">     <parent label="fec_nic"/> </service>
 		<service name="ROM" label="nic.dtb"> <parent label="fec_nic-imx8q_evk.dtb"/> </service>
 	}
