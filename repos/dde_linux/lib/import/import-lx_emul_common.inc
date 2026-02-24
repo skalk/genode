@@ -201,7 +201,7 @@ $(eval $(call CC_OPT_LX_RULES,dummies))
 #
 
 # by 6.18.5 things got moved around
-ifeq ($(USE_LINUX_6185),1)
+ifeq ($(LINUX_VERSION_CODE),6185)
 crc32table.h: gen_crc32table
 	./gen_crc32table > $@
 
