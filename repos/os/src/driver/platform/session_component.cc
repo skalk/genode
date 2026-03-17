@@ -52,82 +52,19 @@ void Session_component::_free_dma_buffer(Dma_buffer &buf)
 {
 	Ram_dataspace_capability cap = buf.cap;
 
-	_domain.remove_range({ buf.dma_addr, buf.size });
-	for_each_io_mmu([&] (auto &io_mmu) {
-		io_mmu.iotlb_flush(_domain); });
+	_pd.with_io_mmu_domain([&] (auto &domain) {
+		domain.remove_range({ buf.dma_addr, buf.phys_range.size });
+		_pd.for_each_io_mmu([&] (auto &io_mmu) {
+			io_mmu.iotlb_flush(_domain); });
+	});
 
 	destroy(heap(), &buf);
 	_env_ram.free(cap);
 }
 
 
-Driver::Io_mmu::Domain & Session_component::_create_domain()
+void Session_component::update_policy()
 {
-	/* Use non-functional domain if no IOMMU is in use */
-	static Io_mmu::Domain dummy { *(Allocator*)(nullptr) };
-
-	Io_mmu::Domain *domain = &dummy;
-
-	_devices.for_each([&] (Device const &dev) {
-		if (!matches(dev) || domain != &dummy)
-			return;
-
-		_devices.with_io_mmu(dev, [&] (auto &io_mmu) {
-			domain = &io_mmu.create_domain(heap(),
-			                               _ram_quota_guard(),
-			                               _cap_quota_guard());
-		});
-	});
-
-	return *domain;
-}
-
-
-bool Session_component::_dma_remapable() const
-{
-	/* iterate IOMMU devices and determine address translation mode */
-	bool mpu_present   { false };
-	bool iommu_present { false };
-
-	_devices.for_each([&] (Device const &dev) {
-		if (!matches(dev)) return;
-
-		_devices.with_io_mmu(dev, [&] (auto &io_mmu) {
-			if (io_mmu.mpu()) mpu_present   = true;
-			else              iommu_present = true;
-		});
-	});
-
-	return iommu_present && !mpu_present;
-}
-
-
-bool Session_component::matches(Device const &dev) const
-{
-	return with_matching_policy(label(), _config.node(),
-		[&] (Node const &policy) {
-
-			/* check PCI devices */
-			if (pci_device_matches(policy, dev))
-				return true;
-
-			/* check for dedicated device name */
-			bool ret = false;
-			policy.for_each_sub_node("device", [&] (Node const &node) {
-				if (dev.name() == node.attribute_value("name", Device::Name()))
-					ret = true;
-			});
-			return ret;
-
-		}, [] { return false; });
-};
-
-
-void Session_component::update_policy(bool info, Policy_version version)
-{
-	_info    = info;
-	_version = version;
-
 	enum Device_state { AWAY, CHANGED, UNCHANGED };
 
 	_device_registry.for_each([&] (Device_component &dc) {
@@ -135,7 +72,7 @@ void Session_component::update_policy(bool info, Policy_version version)
 		_devices.for_each([&] (Device const &dev) {
 			if (dev.name() != dc.device())
 				return;
-			state = (dev.owner(*this) && matches(dev)) ? UNCHANGED : CHANGED;
+			state = (dev.owner(*this) && _pd.matches(dev)) ? UNCHANGED : CHANGED;
 		});
 
 		if (state == UNCHANGED)
@@ -156,11 +93,11 @@ void Session_component::update_policy(bool info, Policy_version version)
 
 void Session_component::generate(Generator &g)
 {
-	if (_version.valid())
-		g.attribute("version", _version);
+	if (_pd._version.valid())
+		g.attribute("version", _pd._version);
 
 	_devices.for_each([&] (Device const &dev) {
-		if (matches(dev)) dev.generate(g, _info); });
+		if (_pd.matches(dev)) dev.generate(g, _pd._info); });
 }
 
 
@@ -176,7 +113,9 @@ void Session_component::update_devices_rom()
 void Session_component::enable_device(Device const &device)
 {
 	_devices.with_io_mmu(device, [&] (auto &io_mmu) {
-		io_mmu.enregister(device, _domain); });
+		with_io_mmu_domain([&] (auto &domain) {
+			io_mmu.enregister(device, domain); });
+	});
 	pci_enable(_env, device);
 }
 
@@ -185,7 +124,9 @@ void Session_component::disable_device(Device const &device)
 {
 	pci_disable(_env, device);
 	_devices.with_io_mmu(device, [&] (auto &io_mmu) {
-		io_mmu.deregister(device, _domain); });
+		with_io_mmu_domain([&] (auto &domain) {
+			io_mmu.deregister(device, domain); });
+	});
 }
 
 
@@ -200,7 +141,7 @@ Session_component::acquire_device(Platform::Session::Device_name const &name)
 
 	_devices.for_each([&] (Device &dev)
 	{
-		if (dev.name() != name || !matches(dev))
+		if (dev.name() != name || !_pd.matches(dev))
 			return;
 		if (dev.owned())
 			warning("Cannot aquire device ", name, " already in use");
@@ -218,7 +159,7 @@ Session_component::acquire_single_device()
 	Capability<Platform::Device_interface> cap;
 
 	_devices.for_each([&] (Device &dev) {
-		if (!cap.valid() && matches(dev) && !dev.owned())
+		if (!cap.valid() && _pd.matches(dev) && !dev.owned())
 			cap = _acquire(dev); });
 
 	return cap;
@@ -237,6 +178,9 @@ void Session_component::release_device(Capability<Platform::Device_interface> de
 
 
 Genode::Ram_dataspace_capability
+Session_component::alloc_dma_buffer(size_t const, Cache)
+{
+#if 0
 Session_component::alloc_dma_buffer(size_t const size, Cache cache)
 {
 	struct Guard {
@@ -313,6 +257,8 @@ Session_component::alloc_dma_buffer(size_t const size, Cache cache)
 
 	guard.disarm();
 	return guard.ram_cap;
+#endif
+	return Ram_dataspace_capability();
 }
 
 
@@ -320,9 +266,9 @@ void Session_component::free_dma_buffer(Ram_dataspace_capability ram_cap)
 {
 	if (!ram_cap.valid()) { return; }
 
-	_dma_allocator.buffer_registry().for_each([&] (Dma_buffer &buf) {
-		if (buf.cap.local_name() == ram_cap.local_name())
-			_free_dma_buffer(buf); });
+	_dma_buffers.with_element({ram_cap},
+		[&] (Dma_buffer &buf) { _free_dma_buffer(buf); },
+		[] () { /* ignore wrong capability argument */ });
 }
 
 
@@ -333,30 +279,21 @@ Genode::addr_t Session_component::dma_addr(Ram_dataspace_capability ram_cap)
 	if (!ram_cap.valid())
 		return ret;
 
-	_dma_allocator.buffer_registry().for_each([&] (Dma_buffer const &buf) {
-		if (buf.cap.local_name() == ram_cap.local_name())
-			ret = buf.dma_addr; });
+	_dma_buffers.with_element({ram_cap},
+		[&] (Dma_buffer &buf) { ret = buf.dma_addr; },
+		[] () { /* ignore wrong capability argument */ });
 
 	return ret;
 }
 
 
-Session_component::Session_component(Env                          &env,
-                                     Attached_rom_dataspace const &config,
-                                     Device_model                 &devices,
-                                     Session_registry             &registry,
-                                     Label          const         &label,
-                                     Resources      const         &resources,
-                                     bool           const          info,
-                                     Policy_version const          version)
+Session_component::Session_component(Env &env, Pd &pd, Device_model &devices,
+                                     Resources const &resources)
 :
-	Session_object<Platform::Session>(env.ep(), resources, label),
-	Session_registry::Element(registry, *this),
+	Session_object<Platform::Session>(env.ep(), resources, pd.label()),
+	Session_registry::Element(pd._sessions, *this),
 	Dynamic_rom_session::Producer("devices"),
-	_env(env), _config(config), _devices(devices),
-	_info(info), _version(version),
-	_dma_allocator(_md_alloc),
-	_domain(_create_domain())
+	_env(env), _pd(pd), _devices(devices)
 {
 	/*
 	 * FIXME: As the ROM session does not propagate Out_of_*
@@ -371,17 +308,6 @@ Session_component::Session_component(Env                          &env,
 		throw Out_of_caps();
 	if (!_ram_quota_guard().try_withdraw(Ram_quota{5*1024}))
 		throw Out_of_ram();
-
-	/*
-	 * Iterate matching devices and reserve reserved memory regions at DMA
-	 * allocator.
-	 */
-	_devices.for_each([&] (Device const &dev) {
-		if (!matches(dev)) return;
-
-		dev.for_each_reserved_memory([&] (unsigned, Io_mmu::Range range) {
-			_dma_allocator.reserve(range.start, range.size); });
-	});
 }
 
 
@@ -391,8 +317,8 @@ Session_component::~Session_component()
 		_release_device(dc); });
 
 	/* free up dma buffers */
-	_dma_allocator.buffer_registry().for_each([&] (Dma_buffer &buf) {
-		_free_dma_buffer(buf); });
+	while (_dma_buffers.with_any_element([&] (Dma_buffer &buf) {
+		_free_dma_buffer(buf); })) ;
 
 	/* replenish quota for rom sessions, see constructor for explanation */
 	_cap_quota_guard().replenish(Cap_quota{Rom_session::CAP_QUOTA});

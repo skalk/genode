@@ -166,7 +166,7 @@ Driver::Common::Common(Genode::Env                  &env,
 	_env(env),
 	_rom_name(config_rom.node().attribute_value("devices_rom",
 	                                            String<64>("devices"))),
-	_root(_env, _sliced_heap, config_rom, _devices)
+	_root(_env, _sliced_heap, _heap, config_rom, _devices)
 {
 	_wait_for_initial_devices();
 

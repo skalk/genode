@@ -23,11 +23,14 @@
 #include <os/dynamic_rom_session.h>
 #include <os/session_policy.h>
 #include <platform_session/platform_session.h>
+#include <util/dictionary.h>
 
+#include <dma_buffer.h>
 #include <device_component.h>
 #include <device_owner.h>
 #include <io_mmu.h>
 #include <irq_controller.h>
+#include <pd.h>
 
 namespace Driver {
 	class Session_component;
@@ -47,25 +50,20 @@ class Driver::Session_component
 		using Session_registry = Registry<Session_component>;
 		using Policy_version   = String<64>;
 
-		Session_component(Env                          &env,
-		                  Attached_rom_dataspace const &config,
-		                  Device_model                 &devices,
-		                  Session_registry             &registry,
-		                  Label            const       &label,
-		                  Resources        const       &resources,
-		                  bool             const        info,
-		                  Policy_version   const        version);
+		Session_component(Env &env, Pd &pd, Device_model &devices,
+		                  Resources const &resources);
 
 		~Session_component();
 
 		Heap &heap();
 
-		bool matches(Device const &) const;
-
 		Ram_quota_guard & ram_quota_guard() { return _ram_quota_guard(); }
 		Cap_quota_guard & cap_quota_guard() { return _cap_quota_guard(); }
 
-		void update_policy(bool info, Policy_version version);
+		void with_io_mmu_domain(auto const &fn) {
+			_pd.with_io_mmu_domain(fn); }
+
+		void update_policy();
 		void update_devices_rom();
 
 		/**************************
@@ -90,49 +88,29 @@ class Driver::Session_component
 		void free_dma_buffer(Ram_dataspace_capability ram_cap) override;
 		addr_t dma_addr(Ram_dataspace_capability) override;
 
-		void with_io_mmu_domain(auto const &fn) { fn(_domain); }
-
-		void for_each_io_mmu(auto const &fn)
-		{
-			_devices.for_each_io_mmu([&] (auto &io_mmu) {
-				bool match = false;
-				_devices.for_each([&] (Device const &dev) {
-					if (matches(dev))
-						dev.with_io_mmu([&] (auto &dev_io_mmu) {
-							if (dev_io_mmu.name == io_mmu.name())
-								match = true; });
-				});
-
-				if (match) fn(io_mmu);
-			});
-		}
-
 	private:
 
 		friend class Root;
 
-		Env                          &_env;
-		Attached_rom_dataspace const &_config;
-		Device_model                 &_devices;
+		Env          &_env;
+		Pd           &_pd;
+		Device_model &_devices;
 
-		Accounted_ram_allocator       _env_ram     { _env.ram(),
-		                                             _ram_quota_guard(),
-		                                             _cap_quota_guard()  };
-		Heap                          _md_alloc    { _env_ram, _env.rm() };
-		Registry<Device_component>    _device_registry { };
-		Dynamic_rom_session           _rom_session { _env.ep(), _env.ram(),
-		                                             _env.rm(), *this    };
-		bool                          _info;
-		Policy_version                _version;
-		Dma_allocator                 _dma_allocator;
-		Io_mmu::Domain               &_domain;
+		Accounted_ram_allocator _env_ram { _env.ram(), _ram_quota_guard(),
+		                                   _cap_quota_guard()  };
+
+		Heap _md_alloc { _env_ram, _env.rm() };
+
+		Registry<Device_component> _device_registry { };
+
+		Dictionary<Dma_buffer, Cname> _dma_buffers {};
+
+		Dynamic_rom_session _rom_session { _env.ep(), _env.ram(), _env.rm(),
+		                                   *this };
 
 		Device_capability _acquire(Device &device);
 		void              _release_device(Device_component &dc);
 		void              _free_dma_buffer(Dma_buffer &buf);
-
-		Io_mmu::Domain & _create_domain();
-		bool _dma_remapable() const;
 
 		/*
 		 * Noncopyable

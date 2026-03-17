@@ -23,7 +23,6 @@
 /* Platform-driver includes */
 #include <device.h>
 #include <io_mmu.h>
-#include <dma_allocator.h>
 
 /* local includes */
 #include <intel/managed_root_table.h>

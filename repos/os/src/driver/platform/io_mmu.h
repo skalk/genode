@@ -23,7 +23,6 @@
 
 /* local includes */
 #include <types.h>
-#include <dma_allocator.h>
 #include <irq_controller.h>
 
 namespace Driver

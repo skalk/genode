@@ -6,6 +6,7 @@ SRC_CC  += irq_controller.cc
 SRC_CC  += kernel_io_mmu.cc
 SRC_CC  += main.cc
 SRC_CC  += pci.cc
+SRC_CC  += pd.cc
 SRC_CC  += root.cc
 SRC_CC  += session_component.cc
 SRC_CC  += shared_irq.cc

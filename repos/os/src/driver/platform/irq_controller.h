@@ -15,6 +15,7 @@
 #define _SRC__DRIVER__PLATFORM__IRQ_CONTROLLER_H_
 
 /* Genode includes */
+#include <base/allocator.h>
 #include <base/registry.h>
 #include <pci/types.h>
 
