@@ -73,7 +73,7 @@ Driver::Io_mmu::Domain & Session_component::_create_domain()
 			return;
 
 		_devices.with_io_mmu(dev, [&] (auto &io_mmu) {
-			domain = &io_mmu.create_domain(heap(), _env_ram,
+			domain = &io_mmu.create_domain(heap(),
 			                               _ram_quota_guard(),
 			                               _cap_quota_guard());
 		});

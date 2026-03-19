@@ -173,10 +173,9 @@ void Kernel_io_mmu::deregister(Device const &, Domain &)
 
 
 Io_mmu::Domain &
-Kernel_io_mmu::create_domain(Allocator                  &md_alloc,
-                             Ram_allocator              &,
-                             Ram_quota_guard            &ram_guard,
-                             Cap_quota_guard            &cap_guard)
+Kernel_io_mmu::create_domain(Allocator       &md_alloc,
+                             Ram_quota_guard &ram_guard,
+                             Cap_quota_guard &cap_guard)
 {
 	return *new (md_alloc) Device_pd(_env, ram_guard, cap_guard, md_alloc);
 }

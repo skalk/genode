@@ -59,8 +59,9 @@ class Driver::Common : Device_reporter
 		Common(Genode::Env                  &env,
 		       Attached_rom_dataspace const &config_rom);
 
-		Heap         & heap()    { return _heap;    }
-		Device_model & devices() { return _devices; }
+		Heap         & heap()        { return _heap;        }
+		Sliced_heap  & sliced_heap() { return _sliced_heap; }
+		Device_model & devices()     { return _devices;     }
 
 		Node platform_info() { return _platform_info.node(); }
 

@@ -56,7 +56,6 @@ class Driver::Kernel_io_mmu : public Io_mmu
 
 		Driver::Io_mmu::Domain & create_domain(
 			Allocator                  &md_alloc,
-			Ram_allocator              &,
 			Ram_quota_guard            &ram_guard,
 			Cap_quota_guard            &cap_guard) override;
 

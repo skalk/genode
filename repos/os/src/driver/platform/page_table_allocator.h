@@ -16,11 +16,12 @@
 #define _SRC__DRIVERS__PLATFORM__PAGE_TABLE_ALLOCATOR_H_
 
 /* Genode includes */
-#include <base/allocator_avl.h>
 #include <base/attached_ram_dataspace.h>
+#include <base/heap.h>
+#include <base/tslab.h>
 #include <cpu/page_table.h>
 #include <pd_session/pd_session.h>
-#include <util/avl_tree.h>
+#include <util/dictionary.h>
 
 namespace Driver {
 	using namespace Genode;
@@ -33,228 +34,181 @@ class Driver::Page_table_allocator
 {
 	public:
 
-		static constexpr size_t TABLE_SIZE = 1 << SIZE_LOG2_4KB;
+		static constexpr size_t PAGE_SIZE  = 1 << SIZE_LOG2_4KB;
+		static constexpr size_t TABLE_SIZE = PAGE_SIZE;
 
-		struct Alloc_failed : Exception { };
+		using Error  = Page_table_error;
+		using Result = Attempt<Ok, Error>;
 
 	private:
 
-		using Alloc_result  = Allocator::Alloc_result;
-		using Alloc_error   = Genode::Alloc_error;
+		struct Entry;
+		struct Key;
 
-		enum { MAX_CHUNK_SIZE = 2*1024*1024 };
+		using Dictionary = Genode::Dictionary<Key, addr_t>;
 
-		class Backing_store : Noncopyable
+		struct Key : Dictionary::Element
 		{
-			public:
+			Entry &entry;
 
-				class Element : public Avl_node<Element>
-				{
-					private:
-
-						Range_allocator         &_range_alloc;
-						Attached_ram_dataspace   _dataspace;
-						addr_t                   _virt_addr;
-						addr_t                   _phys_addr;
-
-						friend class Backing_store;
-
-						Element * _matching_sub_tree(addr_t pa)
-						{
-							typename Avl_node<Element>::Side side = (pa > _phys_addr);
-							return Avl_node<Element>::child(side);
-						}
-
-					public:
-
-						Element(Range_allocator   &range_alloc,
-						        Ram_allocator     &ram_alloc,
-						        Env::Local_rm     &rm,
-						        Pd_session        &pd,
-						        size_t             size)
-						: _range_alloc(range_alloc),
-						  _dataspace(ram_alloc, rm, size, Genode::CACHED),
-						  _virt_addr((addr_t)_dataspace.local_addr<void>()),
-						  _phys_addr(pd.dma_addr(_dataspace.cap()))
-						{
-							(void)_range_alloc.add_range(_phys_addr, size);
-						}
-
-						~Element() {
-							(void)_range_alloc.remove_range(_phys_addr, _dataspace.size()); }
-
-						bool matches(addr_t pa) const
-						{
-							return pa >= _phys_addr &&
-							       pa < _phys_addr + _dataspace.size();
-						}
-
-						addr_t virt_addr(addr_t phys_addr) const {
-							return _virt_addr + (phys_addr - _phys_addr); }
-
-						void phys_addr(addr_t virt_addr, auto const &fn) const
-						{
-							if (virt_addr >= _virt_addr &&
-							    virt_addr <  _virt_addr + _dataspace.size())
-								fn(_phys_addr + (virt_addr - _virt_addr));
-						}
-
-						/*
-						 * Avl_node interface
-						 */
-						bool higher(Element * other) const {
-							return other->_phys_addr > _phys_addr; }
-				};
-
-			private:
-
-				friend class Page_table_allocator;
-
-				Avl_tree<Element> _tree { };
-				Env              &_env;
-				Allocator        &_md_alloc;
-				Ram_allocator    &_ram_alloc;
-				Range_allocator  &_range_alloc;
-				size_t            _chunk_size;
-
-			public:
-
-				Backing_store(Env             &env,
-				              Allocator       &md_alloc,
-				              Ram_allocator   &ram_alloc,
-				              Range_allocator &range_alloc,
-				              size_t           start_size)
-				: _env(env), _md_alloc(md_alloc), _ram_alloc(ram_alloc),
-				  _range_alloc(range_alloc), _chunk_size(start_size)
-				{ }
-
-				~Backing_store();
-
-				/* double backing store size (until MAX_CHUNK_SIZE is reached) */
-				void grow();
-
-				template <typename FN1, typename FN2>
-				void with_virt_addr(addr_t pa, FN1 && match_fn, FN2 && no_match_fn) const
-				{
-					Element * e = _tree.first();
-
-					for (;;) {
-						if (!e) break;
-
-						if (e->matches(pa)) {
-							match_fn(e->virt_addr(pa));
-							return;
-						}
-
-						e = e->_matching_sub_tree(pa);
-					}
-
-					no_match_fn();
-				};
+			Key(Dictionary &dict, addr_t addr, Entry &entry)
+				: Dictionary::Element(dict, addr), entry(entry) {}
 		};
 
-		Allocator_avl   _allocator;
-		Backing_store   _backing_store;
+		struct Entry;
+		using List_element = Genode::List_element<Entry>;
+		using List         = Genode::List<List_element>;
 
-		addr_t _alloc();
+		struct Entry
+		{
+			Attached_ram_dataspace dataspace;
+
+			addr_t const virt;
+			addr_t const phys;
+
+			Key v;
+			Key p;
+
+			List_element elem { this };
+
+			Entry(Ram_allocator &ram,
+			      Env::Local_rm &rm,
+			      Pd_session    &pd,
+			      Dictionary    &virt_dict,
+			      Dictionary    &phys_dict)
+			:
+				dataspace(ram, rm, TABLE_SIZE, Genode::CACHED),
+				virt((addr_t)dataspace.local_addr<void>()),
+				phys(pd.dma_addr(dataspace.cap())),
+				v(virt_dict, virt, *this),
+				p(phys_dict, phys, *this) {}
+		};
+
+		Ram_allocator &_ram;
+		Env::Local_rm &_rm;
+		Pd_session    &_pd;
+
+		static constexpr size_t SLAB_BLOCK_SIZE =
+			PAGE_SIZE - Sliced_heap::meta_data_size();
+		uint8_t _initial_sb_tables[SLAB_BLOCK_SIZE];
+		Tslab<Entry, SLAB_BLOCK_SIZE> _alloc_tables;
+
+		List _empty_list {};
+
+		Dictionary _virt_dict {};
+		Dictionary _phys_dict {};
+
+		Result _alloc(auto const &fn)
+		{
+			List_element *le = _empty_list.first();
+
+			if (le) {
+				_empty_list.remove(le);
+				Entry &entry = *le->object();
+				fn(entry.virt, entry.phys);
+				return Ok();
+			}
+
+			return _alloc_tables.try_alloc(sizeof(Entry)).convert<Result>(
+				[&] (auto &res) -> Result {
+					try {
+						Entry &entry =
+							*construct_at<Entry>(res.ptr, _ram, _rm, _pd,
+							                     _virt_dict, _phys_dict);
+						res.deallocate = false;
+						fn(entry.virt, entry.phys);
+						return Ok();
+					} catch(Out_of_ram) {
+						return Error::OUT_OF_RAM;
+					} catch(Out_of_caps) {
+						return Error::OUT_OF_CAPS;
+					} catch(...) {
+						return Error::DENIED;
+					}
+				},
+				[] (Alloc_error e) {
+					switch (e) {
+					case Alloc_error::OUT_OF_CAPS: return Error::OUT_OF_CAPS;
+					case Alloc_error::OUT_OF_RAM:  return Error::OUT_OF_RAM;
+					case Alloc_error::DENIED:      break;
+					};
+					return Error::DENIED;
+				});
+		}
+
+		static constexpr addr_t INVALID_ADDR = ~0UL;
 
 	public:
 
-		Page_table_allocator(Genode::Env   &env,
-		                     Allocator     &md_alloc,
-		                     Ram_allocator &ram_alloc,
-		                     size_t         start_count)
-		: _allocator(&md_alloc),
-		  _backing_store(env, md_alloc, ram_alloc, _allocator, start_count*TABLE_SIZE)
-		{ }
+		Page_table_allocator(Ram_allocator &ram, Env::Local_rm &rm,
+		                     Pd_session &pd, Allocator &md_alloc)
+		:
+			_ram(ram), _rm(rm), _pd(pd),
+			_alloc_tables(md_alloc, _initial_sb_tables) {}
+
+		~Page_table_allocator()
+		{
+			while (_empty_list.first()) {
+				List_element *le = _empty_list.first();
+				_empty_list.remove(le);
+				le->object()->~Entry();
+				_alloc_tables.free(le->object(), sizeof(Entry));
+			}
+		}
 
 		template <typename TABLE, typename FN1, typename FN2>
 		void with_table(addr_t phys_addr, FN1 && match_fn, FN2 no_match_fn) const
 		{
-			static_assert((sizeof(TABLE) == TABLE_SIZE), "unexpected size");
+			if (phys_addr == INVALID_ADDR)
+				return;
 
-			_backing_store.with_virt_addr(phys_addr,
-				[&] (addr_t va) {
-					match_fn(*(TABLE*)va); },
-				no_match_fn);
+			 _phys_dict.with_element(phys_addr,
+					[&] (Key const &k) { match_fn(*(TABLE*)k.entry.virt); },
+					[&] () { no_match_fn(); });
 		}
 
 		template <typename TABLE> addr_t construct()
 		{
 			static_assert((sizeof(TABLE) == TABLE_SIZE), "unexpected size");
 
-			addr_t phys_addr = _alloc();
-			_backing_store.with_virt_addr(phys_addr,
-				[&] (addr_t va) {
-					construct_at<TABLE>((void*)va); },
-				[&] () {});
+			addr_t phys_addr = INVALID_ADDR;
+
+			auto result = _alloc([&] (addr_t, addr_t phys) {
+				phys_addr = phys; });
+			if (result.failed())
+				error("Allocating new page-table failed!");
 
 			return phys_addr;
 		}
 
 		template <typename TABLE> void destruct(addr_t phys_addr)
 		{
-			static_assert((sizeof(TABLE) == TABLE_SIZE), "unexpected size");
-
-			with_table<TABLE>(phys_addr,
-				[&] (TABLE &table) {
-					table.~TABLE();
-					_allocator.free((void*)phys_addr);
+			_phys_dict.with_element(phys_addr,
+				[&] (Key &k) {
+					((TABLE*)k.entry.virt)->~TABLE();
+					_empty_list.insert(&k.entry.elem);
 				},
-				[&] () {
-					error("Trying to destruct foreign table at ", Hex(phys_addr));
-				});
+				[] () { });
 		}
-
-		using Error  = Page_table_error;
-		using Result = Attempt<Ok, Error>;
 
 		template <typename TABLE, typename ENTRY>
 		Result create(typename ENTRY::access_t &descriptor)
 		{
-			Result result = Error::DENIED;
-
-			/* Unfortunately _alloc() still throws exceptions */
-			try {
-				addr_t phys_addr = _alloc();
-				_backing_store.with_virt_addr(phys_addr,
-					[&] (addr_t va) {
-						construct_at<TABLE>((void*)va);
-						descriptor = ENTRY::create(phys_addr);
-						result = Ok();
-					},
-					[&] () {});
-			} catch(Out_of_ram)  {
-				result = Error::OUT_OF_RAM;
-			} catch(Out_of_caps) {
-				result = Error::OUT_OF_CAPS;
-			} catch(...) {
-				error("error during table creation!"); }
-
-			return result;
+			return _alloc([&] (addr_t virt, addr_t phys) {
+				construct_at<TABLE>((void*)virt);
+				descriptor = ENTRY::create(phys);
+			});
 		}
 
 		template <typename TABLE>
 		void destroy(TABLE &table)
 		{
-			class Error {};
-			using Result = Attempt<addr_t, Error>;
-			Result result = Error();
-
-			/*
-			 * Non-optimal: we've to iterate through the whole tree,
-			 *              there is no indexing with virtual addresses
-			 */
-			_backing_store._tree.for_each([&] (auto const &e) {
-				e.phys_addr((addr_t)&table, [&] (addr_t pa) {
-					result = pa; });
-			});
-
-			result.with_result(
-				[&] (addr_t phys_addr) {
+			_virt_dict.with_element((addr_t)&table,
+				[&] (Key &k) {
 					table.~TABLE();
-					_allocator.free((void*)phys_addr);
-				}, [] (auto) {});
+					_empty_list.insert(&k.entry.elem);
+				},
+				[] () { });
 		}
 
 		template <typename TABLE>

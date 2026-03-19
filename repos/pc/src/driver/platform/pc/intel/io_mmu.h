@@ -76,8 +76,6 @@ class Intel::Io_mmu : private Attached_mmio<0x800>,
 				using L3_table = Level_3_translation_table;
 
 				Env           &_env;
-				Ram_allocator &_ram_alloc;
-
 				bool     const _level_4;
 				bool     const _coherent_page_walk;
 				uint32_t const _supported_page_sizes;
@@ -120,7 +118,6 @@ class Intel::Io_mmu : private Attached_mmio<0x800>,
 
 				Domain(Allocator                  &md_alloc,
 				       Env                        &env,
-				       Ram_allocator              &ram_alloc,
 				       Domain_id                   domain_id,
 				       Irq_allocator              &irq_allocator,
 				       Translation_table_registry &table_registry,
@@ -131,11 +128,10 @@ class Intel::Io_mmu : private Attached_mmio<0x800>,
 					Driver::Io_mmu::Domain(md_alloc),
 					Registered_translation_table(table_registry),
 					_env(env),
-					_ram_alloc(ram_alloc),
 					_level_4(level_4),
 					_coherent_page_walk(coherent_page_walk),
 					_supported_page_sizes(supported_page_sizes),
-					_talloc(_env, md_alloc, ram_alloc, 2),
+					_talloc(_env.ram(), _env.rm(), env.pd(), md_alloc),
 					_domain_id(domain_id),
 					_irq_allocator(irq_allocator) { }
 
@@ -591,8 +587,7 @@ class Intel::Io_mmu : private Attached_mmio<0x800>,
 		 * Io_mmu interface
 		 */
 
-		Driver::Io_mmu::Domain & create_domain(Allocator     &md_alloc,
-		                                       Ram_allocator &ram_alloc,
+		Driver::Io_mmu::Domain & create_domain(Allocator &md_alloc,
 		                                       Ram_quota_guard &,
 		                                       Cap_quota_guard &) override
 		{
@@ -602,7 +597,7 @@ class Intel::Io_mmu : private Attached_mmio<0x800>,
 				error("IOMMU requires 5-level translation tables (not implemented)");
 
 			return *new (md_alloc)
-				Intel::Io_mmu::Domain(md_alloc, _env, ram_alloc,
+				Intel::Io_mmu::Domain(md_alloc, _env,
 				                      _domain_allocator.alloc(_max_domain()),
 				                      _irq_allocator, _table_registry,
 				                      read<Capability::Sagaw_4_level>(),
@@ -664,12 +659,12 @@ class Intel::Io_mmu_factory : public Driver::Io_mmu_factory
 
 	public:
 
-		Io_mmu_factory(Genode::Env &env, Allocator &md_alloc,
+		Io_mmu_factory(Genode::Env &env, Sliced_heap &md_alloc,
 		               Registry<Driver::Io_mmu_factory> &registry)
 		:
 			Driver::Io_mmu_factory(registry, Device::Type { "intel_iommu" }),
 			_env(env),
-			_table_allocator(env, md_alloc, env.ram(), 10)
+			_table_allocator(env.ram(), env.rm(), env.pd(), md_alloc)
 		{ }
 
 		void create(Allocator &alloc, Io_mmu_devices &io_mmu_devices,

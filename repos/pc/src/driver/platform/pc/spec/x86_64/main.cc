@@ -35,7 +35,7 @@ struct Driver::Main
 
 	Device_model & devices() { return _common.devices(); }
 
-	Intel::Io_mmu_factory _intel_iommu { _env, _common.heap(),
+	Intel::Io_mmu_factory _intel_iommu { _env, _common.sliced_heap(),
 	                                     devices()._io_mmu_factories };
 	Ioapic_factory _ioapic_factory { _env,
 	                                 devices()._irq_controller_factories };
