@@ -467,7 +467,7 @@ void Driver::Device_model::_acquire_io_mmus()
 	 * available.
 	 */
 	if (!io_mmu_avail)
-		_kernel_io_mmu.conditional(_kernel_controls_io_mmu, _env,
+		_kernel_io_mmu.conditional(_kernel_controls_io_mmu, _env, _heap,
 		                           _io_mmus, Device::Name { "kernel_io_mmu" });
 }
 

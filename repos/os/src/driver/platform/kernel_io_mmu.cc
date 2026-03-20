@@ -52,22 +52,18 @@ Kernel_io_mmu::Device_pd::Region_map_client::attach(Dataspace_capability ds,
 bool Kernel_io_mmu::Device_pd::Region_map_client::upgrade_ram()
 {
 	Ram_quota const ram { 4096 };
-	if (!_ram_guard.try_withdraw(ram))
-		return false;
 
-	_env.pd().transfer_quota(_pd.rpc_cap(), ram);
-	return true;
+	return _env.pd().transfer_quota(_pd.rpc_cap(), ram)
+	       == Pd_session::Transfer_result::OK;
 }
 
 
 bool Kernel_io_mmu::Device_pd::Region_map_client::upgrade_caps()
 {
 	Cap_quota const caps { 2 };
-	if (!_cap_guard.try_withdraw(caps))
-		return false;
 
-	_env.pd().transfer_quota(_pd.rpc_cap(), caps);
-	return true;
+	return _env.pd().transfer_quota(_pd.rpc_cap(), caps)
+	       == Pd_session::Transfer_result::OK;
 }
 
 
@@ -120,14 +116,11 @@ void Kernel_io_mmu::Device_pd::remove_range(Io_mmu::Range const &range)
 }
 
 
-Kernel_io_mmu::Device_pd::Device_pd(Env &env, Ram_quota_guard &ram_guard,
-                                    Cap_quota_guard &cap_guard,
-                                    Allocator &md_alloc)
+Kernel_io_mmu::Device_pd::Device_pd(Env &env)
 
 :
-	Io_mmu::Domain(md_alloc),
 	_pd(env, Pd_connection::Device_pd()),
-	_address_space(env, _pd, ram_guard, cap_guard)
+	_address_space(env, _pd)
 {
 	_pd.ref_account(env.pd_session_cap());
 }
@@ -173,27 +166,27 @@ void Kernel_io_mmu::deregister(Device const &, Domain &)
 
 
 Io_mmu::Domain &
-Kernel_io_mmu::create_domain(Allocator       &md_alloc,
-                             Ram_quota_guard &ram_guard,
-                             Cap_quota_guard &cap_guard)
+Kernel_io_mmu::create_domain()
 {
-	return *new (md_alloc) Device_pd(_env, ram_guard, cap_guard, md_alloc);
+	return *new (_domain_alloc) Device_pd(_env);
 }
 
 
-void Kernel_io_mmu::destroy_domain(Allocator &, Driver::Io_mmu::Domain &)
+void Kernel_io_mmu::destroy_domain(Driver::Io_mmu::Domain &)
 {
 	error(__func__,
 	      " for kernel controlled IOMMU domain should never be called!");
 }
 
 
-Kernel_io_mmu::Kernel_io_mmu(Env                     &env,
-                             Io_mmu_devices           &io_mmu_devices,
-                             Device_name        const &name)
+Kernel_io_mmu::Kernel_io_mmu(Env               &env,
+                             Allocator         &md_alloc,
+                             Io_mmu_devices    &io_mmu_devices,
+                             Device_name const &name)
 :
 	Io_mmu(io_mmu_devices, name),
-	_env(env)
+	_env(env),
+	_domain_alloc(md_alloc)
 { };
 
 

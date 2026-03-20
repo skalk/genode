@@ -39,8 +39,6 @@ namespace Intel {
 	using namespace Genode;
 	using namespace Driver;
 
-	using Context_table_allocator = Managed_root_table::Allocator;
-
 	/**
 	 * We use a 4KB interrupt remap table since kernels (nova, hw) do not
 	 * support more than 256 interrupts anyway. We can thus reuse the
@@ -60,6 +58,8 @@ class Intel::Io_mmu : private Attached_mmio<0x800>,
 {
 	public:
 
+		using Table_allocator = Page_table_allocator;
+
 		friend class Register_invalidator;
 
 		/* Use derived domain class to store reference to buffer registry */
@@ -70,16 +70,14 @@ class Intel::Io_mmu : private Attached_mmio<0x800>,
 
 				friend class Intel::Io_mmu;
 
-				using Table_allocator = Page_table_allocator;
 				using L4_table = Level_4_translation_table;
 				using L3_table = Level_3_translation_table;
 
-				Env           &_env;
 				bool     const _level_4;
 				bool     const _coherent_page_walk;
 				uint32_t const _supported_page_sizes;
 
-				Table_allocator   _talloc;
+				Table_allocator  &_talloc;
 				Domain_id   const _domain_id;
 				Irq_allocator    &_irq_allocator;
 
@@ -115,22 +113,19 @@ class Intel::Io_mmu : private Attached_mmio<0x800>,
 					return va;
 				}
 
-				Domain(Allocator                  &md_alloc,
-				       Env                        &env,
-				       Domain_id                   domain_id,
+				Domain(Domain_id                   domain_id,
+				       Table_allocator            &table_allocator,
 				       Irq_allocator              &irq_allocator,
 				       Translation_table_registry &table_registry,
 				       bool                        level_4,
 				       bool                        coherent_page_walk,
 				       uint32_t                    supported_page_sizes)
 				:
-					Driver::Io_mmu::Domain(md_alloc),
 					Registered_translation_table(table_registry),
-					_env(env),
 					_level_4(level_4),
 					_coherent_page_walk(coherent_page_walk),
 					_supported_page_sizes(supported_page_sizes),
-					_talloc(_env.ram(), _env.rm(), env.pd(), md_alloc),
+					_talloc(table_allocator),
 					_domain_id(domain_id),
 					_irq_allocator(irq_allocator) { }
 
@@ -146,7 +141,7 @@ class Intel::Io_mmu : private Attached_mmio<0x800>,
 	private:
 
 		static
-		Irq_table & _irq_table_virt(Context_table_allocator &alloc, addr_t phys)
+		Irq_table & _irq_table_virt(Table_allocator &alloc, addr_t phys)
 		{
 			addr_t va { 0 };
 
@@ -167,7 +162,7 @@ class Intel::Io_mmu : private Attached_mmio<0x800>,
 		bool                     _verbose          { false };
 
 		Translation_table_registry &_table_registry;
-		Context_table_allocator    &_table_allocator;
+		Table_allocator            &_table_allocator;
 
 		const addr_t             _irq_table_phys   {
 			_table_allocator.construct<Irq_table>() };
@@ -179,6 +174,7 @@ class Intel::Io_mmu : private Attached_mmio<0x800>,
 
 		Report_helper            _report_helper    { _table_registry };
 		Domain_allocator        &_domain_allocator;
+		Allocator               &_domain_slab;
 
 		Domain_id _default_domain { _domain_allocator.alloc(_max_domain()) };
 
@@ -586,30 +582,27 @@ class Intel::Io_mmu : private Attached_mmio<0x800>,
 		 * Io_mmu interface
 		 */
 
-		Driver::Io_mmu::Domain & create_domain(Allocator &md_alloc,
-		                                       Ram_quota_guard &,
-		                                       Cap_quota_guard &) override
+		Driver::Io_mmu::Domain & create_domain() override
 		{
 			if (!read<Capability::Sagaw_3_level>() &&
 			    !read<Capability::Sagaw_4_level>() &&
 			    read<Capability::Sagaw_5_level>())
 				error("IOMMU requires 5-level translation tables (not implemented)");
 
-			return *new (md_alloc)
-				Intel::Io_mmu::Domain(md_alloc, _env,
-				                      _domain_allocator.alloc(_max_domain()),
+			return *new (_domain_slab)
+				Intel::Io_mmu::Domain(_domain_allocator.alloc(_max_domain()),
+				                      _table_allocator,
 				                      _irq_allocator, _table_registry,
 				                      read<Capability::Sagaw_4_level>(),
 				                      coherent_page_walk(),
 				                      supported_page_sizes());
 		}
 
-		void destroy_domain(Allocator              &md_alloc,
-		                    Driver::Io_mmu::Domain &domain) override
+		void destroy_domain(Driver::Io_mmu::Domain &domain) override
 		{
 			Domain &intel_domain = static_cast<Domain&>(domain);
 			_domain_allocator.free(intel_domain._domain_id),
-			destroy(md_alloc, &intel_domain);
+			destroy(_domain_slab, &intel_domain);
 		}
 
 
@@ -631,8 +624,9 @@ class Intel::Io_mmu : private Attached_mmio<0x800>,
 		       Device::Name             const &name,
 		       Device::Io_mem::Range           range,
 		       Translation_table_registry     &table_registry,
-		       Context_table_allocator        &table_allocator,
+		       Table_allocator                &table_allocator,
 		       Domain_allocator               &domain_allocator,
+		       Allocator                      &domain_slab,
 		       unsigned                        irq_number);
 
 		~Io_mmu()
@@ -656,6 +650,8 @@ class Intel::Io_mmu_factory : public Driver::Io_mmu_factory
 
 		Domain_allocator _domain_allocator { };
 
+		Tslab<Io_mmu::Domain, 4096-Sliced_heap::meta_data_size()> _domain_slab;
+
 	public:
 
 		Io_mmu_factory(Genode::Env &env, Sliced_heap &md_alloc,
@@ -663,7 +659,8 @@ class Intel::Io_mmu_factory : public Driver::Io_mmu_factory
 		:
 			Driver::Io_mmu_factory(registry, Device::Type { "intel_iommu" }),
 			_env(env),
-			_table_allocator(env.ram(), env.rm(), env.pd(), md_alloc)
+			_table_allocator(env.ram(), env.rm(), env.pd(), md_alloc),
+			_domain_slab(md_alloc)
 		{ }
 
 		void create(Allocator &alloc, Io_mmu_devices &io_mmu_devices,
@@ -686,7 +683,7 @@ class Intel::Io_mmu_factory : public Driver::Io_mmu_factory
 						new (alloc) Intel::Io_mmu(_env, io_mmu_devices,
 						                          devices, device.name(),
 						                          range, _table_registry, _table_allocator,
-						                          _domain_allocator, irq_number);
+						                          _domain_allocator, _domain_slab, irq_number);
 				} catch (...) {
 					error("Intel::Io_mmu failed to initialize - ", device.name());
 				}

@@ -21,7 +21,7 @@ using Driver::Pd;
 Driver::Io_mmu::Domain & Pd::_create_domain()
 {
 	/* Use non-functional domain if no IOMMU is in use */
-	static Io_mmu::Domain dummy { *(Allocator*)(nullptr) };
+	static Io_mmu::Domain dummy { };
 
 	Io_mmu::Domain *domain = &dummy;
 
@@ -29,13 +29,8 @@ Driver::Io_mmu::Domain & Pd::_create_domain()
 		if (!matches(dev) || domain != &dummy)
 			return;
 
-		_devices.with_io_mmu(dev, [&] (auto &/*io_mmu*/) {
-#if 0
-			domain = &io_mmu.create_domain(heap(),
-			                               _ram_quota_guard(),
-			                               _cap_quota_guard());
-#endif
-		});
+		_devices.with_io_mmu(dev, [&] (auto &io_mmu) {
+			domain = &io_mmu.create_domain(); });
 	});
 
 	return *domain;

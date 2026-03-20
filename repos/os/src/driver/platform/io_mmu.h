@@ -57,22 +57,16 @@ class Driver::Io_mmu : private Io_mmu_devices::Element
 
 				friend class Io_mmu;
 
-				Allocator &_md_alloc;
-
 			public:
 
 				using Error  = Page_table_error;
 				using Result = Attempt<Ok, Error>;
-
-				Allocator & md_alloc() { return _md_alloc; }
 
 				/* interface for adding/removing DMA buffers */
 				virtual Result add_range(Range const &, addr_t const,
 				                         Dataspace_capability const) {
 					return Ok(); };
 				virtual void remove_range(Range const &) {};
-
-				Domain(Allocator &md_alloc) : _md_alloc(md_alloc) { }
 
 				virtual ~Domain() { }
 		};
@@ -122,9 +116,8 @@ class Driver::Io_mmu : private Io_mmu_devices::Element
 		virtual bool mpu() const { return false; }
 
 		/* Create a Io_mmu::Domain object */
-		virtual Domain & create_domain(Allocator&,
-		                               Ram_quota_guard&, Cap_quota_guard&) = 0;
-		virtual void destroy_domain(Allocator &, Domain &) = 0;
+		virtual Domain & create_domain() = 0;
+		virtual void destroy_domain(Domain &) = 0;
 
 		virtual void enregister(Device const &, Domain &) {};
 		virtual void deregister(Device const &, Domain &) {};
