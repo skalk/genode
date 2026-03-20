@@ -28,28 +28,7 @@
 using namespace Driver;
 
 
-Kernel_io_mmu::Device_pd::Region_map_client::Attach_result
-Kernel_io_mmu::Device_pd::Region_map_client::attach(Dataspace_capability ds,
-                                                    Attr const &attr)
-{
-	for (;;) {
-		Attach_result const result = Genode::Region_map_client::attach(ds, attr);
-		if (result == Attach_error::OUT_OF_RAM) {
-			if (!upgrade_ram())
-				return result;
-			continue;
-		}
-		if (result == Attach_error::OUT_OF_CAPS) {
-			if (!upgrade_caps())
-				return result;
-			continue;
-		}
-		return result;
-	}
-}
-
-
-bool Kernel_io_mmu::Device_pd::Region_map_client::upgrade_ram()
+bool Kernel_io_mmu::Device_pd::_upgrade_ram()
 {
 	Ram_quota const ram { 4096 };
 
@@ -58,7 +37,7 @@ bool Kernel_io_mmu::Device_pd::Region_map_client::upgrade_ram()
 }
 
 
-bool Kernel_io_mmu::Device_pd::Region_map_client::upgrade_caps()
+bool Kernel_io_mmu::Device_pd::_upgrade_caps()
 {
 	Cap_quota const caps { 2 };
 
@@ -99,10 +78,10 @@ Kernel_io_mmu::Device_pd::add_range(Io_mmu::Range        const &range,
 			}
 		);
 
-		if (result == Error::OUT_OF_RAM && _address_space.upgrade_ram())
+		if (result == Error::OUT_OF_RAM && _upgrade_ram())
 			continue;
 
-		if (result == Error::OUT_OF_CAPS && _address_space.upgrade_caps())
+		if (result == Error::OUT_OF_CAPS && _upgrade_caps())
 			continue;
 
 		return result;
@@ -112,15 +91,13 @@ Kernel_io_mmu::Device_pd::add_range(Io_mmu::Range        const &range,
 
 void Kernel_io_mmu::Device_pd::remove_range(Io_mmu::Range const &range)
 {
-	_address_space.detach(range.start);
+	_env.rm().detach(range.start);
 }
 
 
 Kernel_io_mmu::Device_pd::Device_pd(Env &env)
-
 :
-	_pd(env, Pd_connection::Device_pd()),
-	_address_space(env, _pd)
+	_env(env)
 {
 	_pd.ref_account(env.pd_session_cap());
 }
@@ -134,22 +111,22 @@ void Kernel_io_mmu::enregister(Device const &device, Domain &domain)
 		Attached_io_mem_dataspace io_mem { _env, cfg.addr, 0x1000 };
 		Pci::Bdf bdf {cfg.bus_num, cfg.dev_num, cfg.func_num};
 
-		dpd._address_space.attach(io_mem.cap(), {
+		dpd._env.rm().attach(io_mem.cap(), {
 			.size       = 0x1000,  .offset    = { },
 			.use_at     = { },     .at        = { },
 			.executable = { },     .writeable = true
 		}).with_result(
-			[&] (Region_map::Range range) {
+			[&] (auto &a) {
 
 				/* trigger eager mapping of memory */
-				dpd._pd.map(Pd_session::Virt_range { range.start, range.num_bytes });
+				dpd._pd.map(Pd_session::Virt_range { (addr_t)a.ptr, a.num_bytes });
 
 				/* try to assign pci device to this protection domain */
-				if (!dpd._pd.assign_pci(range.start, Pci::Bdf::rid(bdf)))
+				if (!dpd._pd.assign_pci((addr_t)a.ptr, Pci::Bdf::rid(bdf)))
 					log("Assignment of PCI device ", bdf, " to device PD failed, no IOMMU?!");
 
-				/* we don't need the mapping anymore */
-				dpd._address_space.detach(range.start);
+				/* after assignment, we don't need the mapping anymore */
+				a.deallocate = true;
 			},
 			[&] (Region_map::Attach_error) {
 				error("failed to attach PCI device to device PD"); }

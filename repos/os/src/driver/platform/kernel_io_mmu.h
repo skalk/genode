@@ -44,33 +44,12 @@ class Driver::Kernel_io_mmu : public Io_mmu
 		
 				friend class Kernel_io_mmu;
 		
-				Pd_connection _pd;
-		
-				/**
-				 * Custom handling of PD-session depletion during attach operations
-				 *
-				 * The default implementation of 'env.rm()' automatically issues a resource
-				 * request if the PD session quota gets exhausted. For the device PD, we don't
-				 * want to issue resource requests but let the platform driver reflect this
-				 * condition to its client.
-				 */
-				struct Region_map_client : Genode::Region_map_client
-				{
-					Env             &_env;
-					Pd_connection   &_pd;
-		
-					Region_map_client(Env &env, Pd_connection &pd)
-					:
-						Genode::Region_map_client(pd.address_space()),
-						_env(env), _pd(pd)
-					{ }
-		
-					Attach_result attach(Dataspace_capability ds,
-					                     Attr const &attr) override;
-		
-					[[nodiscard]] bool upgrade_ram();
-					[[nodiscard]] bool upgrade_caps();
-				} _address_space;
+				Env &_env;
+
+				Pd_connection _pd { _env, Pd_connection::Device_pd() };
+
+				[[nodiscard]] bool _upgrade_ram();
+				[[nodiscard]] bool _upgrade_caps();
 		
 			public:
 		
