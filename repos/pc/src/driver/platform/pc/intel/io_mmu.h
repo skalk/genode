@@ -106,6 +106,8 @@ class Intel::Io_mmu : private Attached_mmio<0x800>,
 				                 Dataspace_capability const) override;
 				void remove_range(Range const &) override;
 
+				Cost costs(Dma_address_list &) override;
+
 				addr_t virt_addr(addr_t pa) const override
 				{
 					addr_t va { 0 };

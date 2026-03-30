@@ -21,6 +21,8 @@
 
 #include <intel/report_helper.h>
 
+namespace Driver { class Dma_address_list; }
+
 namespace Intel {
 
 	/**
@@ -278,6 +280,7 @@ namespace Intel {
 		                L2_TABLE_SIZE_LOG2, L3_TABLE_SIZE_LOG2>
 	{
 		void generate(Genode::Generator &, Report_helper const &) const;
+		static size_t table_count(Driver::Dma_address_list &);
 	};
 
 	struct Level_4_translation_table
@@ -286,6 +289,7 @@ namespace Intel {
 		                L3_TABLE_SIZE_LOG2, L4_TABLE_SIZE_LOG2>
 	{
 		void generate(Genode::Generator &, Report_helper const &) const;
+		static size_t table_count(Driver::Dma_address_list &);
 	};
 
 }

@@ -58,6 +58,7 @@ class Driver::Kernel_io_mmu : public Io_mmu
 				Result add_range(Io_mmu::Range const &, addr_t const,
 				               Dataspace_capability const) override;
 				void remove_range(Io_mmu::Range const &) override;
+				Cost costs(Dma_address_list &) override;
 		};
 
 

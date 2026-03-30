@@ -24,7 +24,8 @@ Genode::Capability<Platform::Device_interface>
 Session_component::_acquire(Device &device)
 {
 	Device_component * dc = new (heap())
-		Device_component(_device_registry, _env, *this, _devices, device);
+		Device_component(_device_registry, _env, *this, _pd._dma_address_alloc,
+		                 _dma_address_list, _devices, device);
 
 	device.acquire(*this);
 	update_devices_rom();
@@ -52,10 +53,10 @@ void Session_component::_free_dma_buffer(Dma_buffer &buf)
 {
 	Ram_dataspace_capability cap = buf.cap;
 
-	_pd.with_io_mmu_domain([&] (auto &domain) {
-		domain.remove_range({ buf.dma_addr, buf.phys_range.size });
-		_pd.for_each_io_mmu([&] (auto &io_mmu) {
-			io_mmu.iotlb_flush(_domain); });
+	with_io_mmu_domain([&] (auto &domain) {
+		domain.remove_range({ buf.dma_addr(), buf.phys_range.size });
+		for_each_io_mmu([&] (auto &io_mmu) {
+			io_mmu.iotlb_flush(domain); });
 	});
 
 	destroy(heap(), &buf);
@@ -177,88 +178,76 @@ void Session_component::release_device(Capability<Platform::Device_interface> de
 }
 
 
-Genode::Ram_dataspace_capability
-Session_component::alloc_dma_buffer(size_t const, Cache)
+Genode::Attempt<Genode::Ok, Genode::Alloc_error> Session_component::update_iommu_costs()
 {
-#if 0
+	using Result = Attempt<Ok, Alloc_error>;
+
+	auto costs = _pd._domain.costs(_dma_address_list);
+	Ram_quota const ram  { costs.ram-_costs.ram };
+	Cap_quota const caps { costs.caps-_costs.caps };
+
+	return _ram_quota_guard().reserve(ram).convert<Result>(
+		[&] (Ram_quota_guard::Reservation &reserved_ram) {
+			return _cap_quota_guard().reserve(caps).convert<Result>(
+				[&] (Cap_quota_guard::Reservation &reserved_caps) {
+					reserved_ram.deallocate  = false;
+					reserved_caps.deallocate = false;
+					_costs = costs;
+					return Ok();
+				},
+				[&] (Cap_quota_guard::Error) {
+					return Alloc_error::OUT_OF_CAPS;
+				});
+		},
+		[&] (Ram_quota_guard::Error) {
+			return Alloc_error::OUT_OF_RAM;
+		});
+}
+
+
+Genode::Ram_dataspace_capability
 Session_component::alloc_dma_buffer(size_t const size, Cache cache)
 {
-	struct Guard {
+	using Result = Genode::Ram_dataspace_capability;
 
-		Accounted_ram_allocator &_env_ram;
-		Heap                    &_heap;
-		Io_mmu::Domain          &_domain;
-		bool                     _cleanup { true };
+	auto error = [] (Alloc_error e) {
+		if (e == Alloc_error::OUT_OF_RAM)
+			throw Out_of_ram();
+		if (e == Alloc_error::OUT_OF_CAPS)
+			throw Out_of_caps();
+		return Result();
+	};
 
-		Ram_dataspace_capability ram_cap { };
+	auto res = _dma_buffer_alloc.create(_dma_buffers, _env_ram, size, cache,
+	                                    _env.pd(), _pd._dma_address_alloc,
+	                                    _dma_address_list);
 
-		struct {
-			Dma_buffer * buf { nullptr };
-		};
-
-		void disarm() { _cleanup = false; }
-
-		Guard(Accounted_ram_allocator &env_ram,
-		      Heap                    &heap,
-		      Io_mmu::Domain          &domain)
-		:
-			_env_ram(env_ram), _heap(heap), _domain(domain)
-		{ }
-
-		~Guard()
-		{
-			if (_cleanup && buf) {
-				/* make sure to remove buffer range from domain */
-				_domain.remove_range({ buf->dma_addr, buf->size });
-				destroy(_heap, buf);
-			}
-
-			if (_cleanup && ram_cap.valid())
-				_env_ram.free(ram_cap);
-		}
-	} guard { _env_ram, heap(), _domain };
-
-	/*
-	 * Check available quota beforehand and reflect the state back
-	 * to the client because the 'Expanding_pd_session_client' will
-	 * ask its parent otherwise.
-	 */
-	enum { WATERMARK_CAP_QUOTA = 8, };
-	if (_env.pd().avail_caps().value < WATERMARK_CAP_QUOTA)
-		throw Out_of_caps();
-
-	enum { WATERMARK_RAM_QUOTA = 4096, };
-	if (_env.pd().avail_ram().value < WATERMARK_RAM_QUOTA)
-		throw Out_of_ram();
-
-	try {
-		guard.ram_cap = _env_ram.alloc(size, cache);
-	} catch (Ram_allocator::Denied) { }
-
-	if (!guard.ram_cap.valid()) return guard.ram_cap;
-
-
-	try {
-		Dma_buffer &buf = _dma_allocator.alloc_buffer(guard.ram_cap,
-		                                              _env.pd().dma_addr(guard.ram_cap),
-		                                              _env.pd().ram_size(guard.ram_cap),
-		                                              _dma_remapable());
-		guard.buf = &buf;
-
-		_domain.add_range({ buf.dma_addr, buf.size }, buf.phys_addr, buf.cap).with_error(
-			[] (auto err) {
-				if (err == decltype(err)::OUT_OF_RAM)
-					throw Out_of_ram();
-				if (err == decltype(err)::OUT_OF_CAPS)
-					throw Out_of_caps();
-		});
-
-	} catch (Dma_allocator::Out_of_virtual_memory) { }
-
-	guard.disarm();
-	return guard.ram_cap;
-#endif
-	return Ram_dataspace_capability();
+	return res.convert<Result>(
+		[&] (auto &a) {
+			return a.obj.constructed().template convert<Result>(
+				[&] (auto) {
+					return update_iommu_costs().convert<Result>(
+					[&] (auto) {
+						auto &buf = a.obj;
+						if (_pd._domain.add_range({buf.dma_addr(),
+						                          buf.phys_range.size},
+						                          buf.phys_range.start,
+						                          buf.cap).failed())
+							Genode::error("Inserting DMA buffer into ",
+							              "IOMMU table failed!");
+						return a.obj.cap;
+					},
+					[&] (auto e) {
+						_dma_buffer_alloc.destroy(a.obj);
+						return error(e);
+					});
+				},
+				[&] (auto e) {
+					_dma_buffer_alloc.destroy(a.obj);
+					return error(e);
+				});
+		},
+		[&] (auto &e) { return error(e); });
 }
 
 
@@ -280,7 +269,7 @@ Genode::addr_t Session_component::dma_addr(Ram_dataspace_capability ram_cap)
 		return ret;
 
 	_dma_buffers.with_element({ram_cap},
-		[&] (Dma_buffer &buf) { ret = buf.dma_addr; },
+		[&] (Dma_buffer &buf) { ret = buf.dma_addr(); },
 		[] () { /* ignore wrong capability argument */ });
 
 	return ret;
@@ -321,6 +310,6 @@ Session_component::~Session_component()
 		_free_dma_buffer(buf); })) ;
 
 	/* replenish quota for rom sessions, see constructor for explanation */
-	_cap_quota_guard().replenish(Cap_quota{Rom_session::CAP_QUOTA});
-	_ram_quota_guard().replenish(Ram_quota{5*1024});
+	_cap_quota_guard().replenish(Cap_quota{Rom_session::CAP_QUOTA + _costs.caps});
+	_ram_quota_guard().replenish(Ram_quota{5*1024 + _costs.ram});
 }

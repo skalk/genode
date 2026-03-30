@@ -18,7 +18,6 @@
 #include <base/registry.h>
 #include <root/component.h>
 
-#include <address_allocator.h>
 #include <device.h>
 #include <pd.h>
 #include <session_component.h>
@@ -38,8 +37,6 @@ class Driver::Root : public Root_component<Session_component>
 		Memory::Constrained_obj_allocator<Pd> _pd_alloc;
 
 		Browsable_dictionary<Pd, Session::Label> _pds {};
-
-		Address_reservations _addr_reservations;
 
 		bool _warn_once { true };
 

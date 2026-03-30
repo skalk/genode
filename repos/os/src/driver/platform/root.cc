@@ -94,6 +94,5 @@ Driver::Root::Root(Env                          &env,
                    Device_model                 &devices)
 :
 	Root_component<Session_component>(env.ep(), sliced_heap),
-	_env(env), _config(config), _devices(devices), _pd_alloc(heap),
-	_addr_reservations(heap)
+	_env(env), _config(config), _devices(devices), _pd_alloc(heap)
 { }

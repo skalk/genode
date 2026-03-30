@@ -1,6 +1,7 @@
 /*
  * \brief  Common types used by the platform driver
  * \author Norman Feske
+ * \author Stefan Kalkowski
  * \date   2021-11-03
  */
 
@@ -22,6 +23,12 @@ namespace Driver {
 
 	using Device_name  = Genode::String<64>;
 	using Device_type  = Genode::String<64>;
+
+	struct Cost
+	{
+		size_t ram;
+		size_t caps;
+	};
 
 	/**
 	 * Utility for switching clocks/resets/powers on/off depending on the

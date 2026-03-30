@@ -16,7 +16,7 @@
 
 #include <base/attached_rom_dataspace.h>
 
-#include <address_allocator.h>
+#include <dma_address.h>
 #include <browsable_dictionary.h>
 #include <device_owner.h>
 #include <io_mmu.h>
@@ -60,9 +60,7 @@ class Driver::Pd
 
 		Policy_version _version;
 
-#if 0
-		Address_allocator _device_address_alloc {};
-#endif
+		Dma_address_allocator _dma_address_alloc {};
 
 		Io_mmu::Domain &_domain;
 

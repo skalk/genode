@@ -23,6 +23,7 @@
 
 /* local includes */
 #include <device.h>
+#include <dma_address.h>
 #include <kernel_io_mmu.h>
 
 using namespace Driver;
@@ -92,6 +93,19 @@ Kernel_io_mmu::Device_pd::add_range(Io_mmu::Range        const &range,
 void Kernel_io_mmu::Device_pd::remove_range(Io_mmu::Range const &range)
 {
 	_env.rm().detach(range.start);
+}
+
+
+Driver::Cost Kernel_io_mmu::Device_pd::costs(Dma_address_list &list)
+{
+	size_t mappings = 0;
+	list.for_each([&] (auto &) { mappings++; });
+
+	constexpr size_t overhead_ram_mapping      = 300;
+	constexpr size_t overhead_mappings_per_cap = 25;
+
+	return { mappings * overhead_ram_mapping,
+	         mappings / overhead_mappings_per_cap + 1 };
 }
 
 

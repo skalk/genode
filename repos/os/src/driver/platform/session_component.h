@@ -63,6 +63,11 @@ class Driver::Session_component
 		void with_io_mmu_domain(auto const &fn) {
 			_pd.with_io_mmu_domain(fn); }
 
+		void for_each_io_mmu(auto const &fn) {
+			_pd.for_each_io_mmu(fn); }
+
+		Attempt<Ok, Alloc_error> update_iommu_costs();
+
 		void update_policy();
 		void update_devices_rom();
 
@@ -103,7 +108,14 @@ class Driver::Session_component
 
 		Registry<Device_component> _device_registry { };
 
-		Dictionary<Dma_buffer, Cname> _dma_buffers {};
+		Memory::Constrained_obj_allocator<Dma_buffer>
+			_dma_buffer_alloc { _md_alloc };
+
+		Dma_address_list _dma_address_list { };
+
+		Dictionary<Dma_buffer, Dma_buffer_name> _dma_buffers {};
+
+		Cost _costs { 0, 0 };
 
 		Dynamic_rom_session _rom_session { _env.ep(), _env.ram(), _env.rm(),
 		                                   *this };

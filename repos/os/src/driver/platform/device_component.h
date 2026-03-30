@@ -24,6 +24,7 @@
 #include <util/reconstructible.h>
 
 #include <device.h>
+#include <dma_address.h>
 
 namespace Driver {
 	class Device_component;
@@ -100,6 +101,18 @@ class Driver::Device_component : public Rpc_object<Platform::Device_interface,
 				idx(idx), range(range) {}
 		};
 
+		struct Reserved_mem : Registry<Reserved_mem>::Element
+		{
+			Range                            range;
+			Constructible<Dma_address>       address {};
+			Constructible<Io_mem_connection> io_mem {};
+
+			Reserved_mem(Registry<Reserved_mem> &registry, Range range)
+			:
+				Registry<Reserved_mem>::Element(registry, *this),
+				range(range) {}
+		};
+
 		struct Io_mmu { Device::Name name; };
 
 		struct Pci_config
@@ -113,6 +126,8 @@ class Driver::Device_component : public Rpc_object<Platform::Device_interface,
 		Device_component(Registry<Device_component> &registry,
 		                 Env                        &env,
 		                 Session_component          &session,
+		                 Dma_address_allocator      &dma_alloc,
+		                 Dma_address_list           &dma_list,
 		                 Device_model               &model,
 		                 Driver::Device             &device);
 		~Device_component();
@@ -144,7 +159,7 @@ class Driver::Device_component : public Rpc_object<Platform::Device_interface,
 		Registry<Irq>                       _irq_registry {};
 		Registry<Io_mem>                    _io_mem_registry {};
 		Registry<Io_port_range>             _io_port_range_registry {};
-		Registry<Io_mem>                    _reserved_mem_registry {};
+		Registry<Reserved_mem>              _reserved_mem_registry {};
 		Constructible<Io_mmu>               _io_mmu {};
 		Constructible<Pci_config>           _pci_config {};
 

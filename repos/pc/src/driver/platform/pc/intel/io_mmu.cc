@@ -66,6 +66,16 @@ void Intel::Io_mmu::Domain::remove_range(Range const &range)
 }
 
 
+Driver::Cost Intel::Io_mmu::Domain::costs(Dma_address_list &list)
+{
+	size_t count = 0;
+	_with_table([&] (auto &table) {
+		count = table.table_count(list); });
+
+	return _talloc.costs(count);
+}
+
+
 /* Flush write-buffer if required by hardware */
 void Intel::Io_mmu::flush_write_buffer()
 {

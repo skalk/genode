@@ -29,8 +29,11 @@ namespace Driver
 {
 	using namespace Genode;
 
+	class Dma_address_list;
+
 	class Device;
 	class Device_model;
+
 	class Io_mmu;
 	class Io_mmu_factory;
 
@@ -67,6 +70,9 @@ class Driver::Io_mmu : private Io_mmu_devices::Element
 				                         Dataspace_capability const) {
 					return Ok(); };
 				virtual void remove_range(Range const &) {};
+
+				virtual Cost costs(Dma_address_list &) {
+					return Cost(0,0); }
 
 				virtual ~Domain() { }
 		};

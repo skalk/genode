@@ -22,6 +22,9 @@
 #include <cpu/page_table.h>
 #include <pd_session/pd_session.h>
 #include <util/dictionary.h>
+#include <util/misc_math.h>
+
+#include <types.h>
 
 namespace Driver {
 	using namespace Genode;
@@ -219,6 +222,24 @@ class Driver::Page_table_allocator
 				[&] (TABLE &t) { result = fn(t); },
 				[] () {});
 			return result;
+		}
+
+		static Cost costs(size_t table_count)
+		{
+			/*
+			 * measured overheads when allocating, attaching, and touching a lot of
+			 * pages in a loop, taking the maximum across different kernels and
+			 * slightly increased it to stay safe
+			 */
+			static constexpr size_t page_ram_overhead        = 1024;
+			static constexpr size_t ten_pages_cap_overhead   = 12;
+			static constexpr size_t single_page_cap_overhead = 2;
+
+			size_t ram  = align_addr(table_count*(page_ram_overhead+TABLE_SIZE),
+			                         { SIZE_LOG2_4KB });
+			size_t caps = table_count / 10 * ten_pages_cap_overhead +
+			              (table_count % 10) * single_page_cap_overhead;
+			return { ram, caps };
 		}
 };
 
