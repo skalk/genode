@@ -235,15 +235,14 @@ Session_component::alloc_dma_buffer(size_t const size, Cache cache)
 						                          buf.cap).failed())
 							Genode::error("Inserting DMA buffer into ",
 							              "IOMMU table failed!");
+						a.deallocate = false;
 						return a.obj.cap;
 					},
 					[&] (auto e) {
-						_dma_buffer_alloc.destroy(a.obj);
 						return error(e);
 					});
 				},
 				[&] (auto e) {
-					_dma_buffer_alloc.destroy(a.obj);
 					return error(e);
 				});
 		},

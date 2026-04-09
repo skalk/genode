@@ -23,10 +23,27 @@
 namespace Driver {
 	using namespace Genode;
 
-	struct Dma_buffer_name;
 	struct Dma_buffer_base;
+	struct Dma_buffer_name;
 	struct Dma_buffer;
 }
+
+struct Driver::Dma_buffer_base
+{
+	Ram::Constrained_allocator::Result allocation;
+
+	Dma_buffer_base(Ram::Constrained_allocator &ram_alloc,
+	                size_t size, Cache cache)
+	: allocation(ram_alloc.try_alloc(size, cache)) {}
+
+	bool ok() const { return allocation.ok(); }
+
+	Ram_dataspace_capability _cap() const {
+		return allocation.convert<Ram_dataspace_capability>(
+			[] (auto &a) { return a.cap; },
+			[] (auto) { return Ram_dataspace_capability(); }); }
+};
+
 
 struct Driver::Dma_buffer_name
 {
@@ -40,18 +57,6 @@ struct Driver::Dma_buffer_name
 
 	void print(Output &out) const {
 		Genode::print(out, cap.local_name()); }
-};
-
-
-struct Driver::Dma_buffer_base
-{
-	Ram::Constrained_allocator::Result allocation;
-
-	Dma_buffer_base(Ram::Constrained_allocator &ram_alloc,
-	                size_t size, Cache cache)
-	: allocation(ram_alloc.try_alloc(size, cache)) {}
-
-	bool ok() const { return allocation.ok(); }
 };
 
 
@@ -86,11 +91,6 @@ struct Driver::Dma_buffer
 			[] (auto&) { return Alloc_error::DENIED; /* impossible */ },
 			[] (auto e) { return e; });
 	};
-
-	Ram_dataspace_capability _cap() const {
-		return allocation.convert<Ram_dataspace_capability>(
-			[] (auto &a) { return a.cap; },
-			[] (auto) { return Ram_dataspace_capability(); }); }
 
 	Dma_buffer(Dictionary<Dma_buffer, Dma_buffer_name> &dict,
 	           Ram::Constrained_allocator &ram_alloc,
