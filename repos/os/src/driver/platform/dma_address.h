@@ -22,6 +22,7 @@ namespace Driver {
 	using namespace Genode;
 
 	class Dma_address;
+	class Dma_reservation;
 	class Dma_address_list;
 	class Dma_address_allocator;
 }
@@ -29,7 +30,7 @@ namespace Driver {
 
 class Driver::Dma_address : public Range_allocator::Range, Noncopyable
 {
-	private:
+	protected:
 
 		friend class Dma_address_allocator;
 
@@ -62,11 +63,18 @@ class Driver::Dma_address : public Range_allocator::Range, Noncopyable
 };
 
 
+struct Driver::Dma_reservation : Dma_address
+{
+	Dma_reservation(Dma_address_list &list, Range range);
+};
+
+
 class Driver::Dma_address_list : List<List_element<Dma_address>>
 {
 	private:
 
 		friend class Dma_address;
+		friend class Dma_reservation;
 		friend class Dma_address_allocator;
 
 		using Le = List_element<Dma_address>;
@@ -114,16 +122,12 @@ class Driver::Dma_address_allocator : Genode::Noncopyable
 		 * of "Intel Virtualization Technology for Directed I/O"
 		 * (March 2023, Revision 4.1)
 		 */
-		Dma_address _irq_address_reservation { _addr_list, _addr_list,
-		                                       { 0xfee00000, 0xfeefffff } };
+		Dma_reservation _irq_reservation { _addr_list,
+		                                   { 0xfee00000, 0xfeefffff } };
 
 	public:
 
-		Dma_address_allocator() {
-			_addr_list.insert(&_irq_address_reservation._alloc_le); }
-
-		void reserve(Range r, Constructible<Dma_address> &addr,
-		             Dma_address_list &list);
+		void reserve(Range r, Constructible<Dma_reservation> &);
 
 		void alloc(size_t size, Align align, Constructible<Dma_address> &addr,
 		           Dma_address_list &list);

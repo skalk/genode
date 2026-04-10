@@ -139,7 +139,8 @@ void Driver::Device_component::_release_resources()
 	_reserved_mem_registry.for_each([&] (auto &rmem)
 	{
 		_session.with_io_mmu_domain([&] (auto &domain) {
-			domain.remove_range(rmem.range);
+			domain.remove_range({rmem.dma_reservation.start,
+			                     rmem.dma_reservation.end-rmem.dma_reservation.start+1});
 			_session.for_each_io_mmu([&] (auto &io_mmu) {
 				io_mmu.iotlb_flush(domain); });
 		});
@@ -259,7 +260,6 @@ void Device_component::_with_reserved_quota_for_session(Driver::Session_componen
 Device_component::Device_component(Registry<Device_component> &registry,
                                    Env                        &env,
                                    Driver::Session_component  &session,
-                                   Dma_address_allocator      &dma_alloc,
                                    Dma_address_list           &dma_list,
                                    Driver::Device_model       &model,
                                    Driver::Device             &device)
@@ -322,28 +322,18 @@ Device_component::Device_component(Registry<Device_component> &registry,
 				_pci_config.construct(cfg.addr, bdf); });
 		});
 
-		device.for_each_reserved_memory([&] (unsigned, Range range)
+		device.for_each_reserved_memory([&] (unsigned, Range range, auto &)
 		{
 			_with_reserved_quota_for_session<Io_mem_session>(session, [&] {
 				auto &rmem = *(new (session.heap())
-					Reserved_mem(_reserved_mem_registry, range));
-
-				dma_alloc.reserve({ rmem.range.start,
-				                    rmem.range.start+rmem.range.size-1},
-				                  rmem.address, dma_list);
-
-				if (!rmem.address.constructed()) {
-					error("Could not reserve dma memory for device ",
-					      device.name());
-					return;
-				}
+					Reserved_mem(_reserved_mem_registry, range, dma_list));
 
 				session.update_iommu_costs().with_result(
 					[&] (auto) {
-						rmem.io_mem.construct(_env, rmem.range.start,
-						                      rmem.range.size, false);
+						rmem.io_mem.construct(_env, range.start, range.size,
+						                      false);
 						session.with_io_mmu_domain([&] (auto &domain) {
-							if (domain.add_range(rmem.range, rmem.range.start,
+							if (domain.add_range(range, range.start,
 							                 rmem.io_mem->dataspace()).failed())
 								Genode::error("Inserting DMA buffer into ",
 								              "IOMMU table failed!");

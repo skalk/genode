@@ -19,14 +19,27 @@
 
 #include <dma_address.h>
 
-Driver::Dma_address::~Dma_address()
+using Driver::Dma_address;
+using Driver::Dma_address_list;
+using Driver::Dma_address_allocator;
+using Driver::Dma_reservation;
+
+Dma_address::~Dma_address()
 {
 	_alloc_list.remove(&_alloc_le);
 	_list.remove(&_list_le);
 }
 
 
-bool Driver::Dma_address_list::_insert(Le &le)
+Dma_reservation::Dma_reservation(Dma_address_list &list, Range range)
+:
+	Dma_address(list, list, range)
+{
+	list._insert(_list_le);
+}
+
+
+bool Dma_address_list::_insert(Le &le)
 {
 	auto *prev = (Le*) nullptr;
 
@@ -45,25 +58,22 @@ bool Driver::Dma_address_list::_insert(Le &le)
 }
 
 
-void Driver::Dma_address_allocator::reserve(Range r,
-                                            Constructible<Dma_address> &addr,
-                                            Dma_address_list &list)
+void Dma_address_allocator::reserve(Range r,
+                                    Constructible<Dma_reservation> &res)
 {
-	addr.construct(_addr_list, list, Range(r.start, r.end));
+	res.construct(_addr_list, Range(r.start, r.end));
 
-	if (!_addr_list._insert(addr->_alloc_le)) {
-		addr.destruct();
+	if (!_addr_list._insert(res->_alloc_le)) {
+		res.destruct();
 		return;
 	}
-
-	list._insert(addr->_list_le);
 }
 
 
-void Driver::Dma_address_allocator::alloc(size_t size,
-                                          Align align,
-                                          Constructible<Dma_address> &addr,
-                                          Dma_address_list &list)
+void Dma_address_allocator::alloc(size_t size,
+                                  Align align,
+                                  Constructible<Dma_address> &addr,
+                                  Dma_address_list &list)
 {
 	using Le = List_element<Dma_address>;
 

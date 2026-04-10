@@ -24,8 +24,8 @@ Genode::Capability<Platform::Device_interface>
 Session_component::_acquire(Device &device)
 {
 	Device_component * dc = new (heap())
-		Device_component(_device_registry, _env, *this, _pd._dma_address_alloc,
-		                 _dma_address_list, _devices, device);
+		Device_component(_device_registry, _env, *this, _dma_address_list,
+		                 _devices, device);
 
 	device.acquire(*this);
 	update_devices_rom();

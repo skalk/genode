@@ -24,6 +24,7 @@
 
 #include <clock.h>
 #include <device_owner.h>
+#include <dma_address.h>
 #include <io_mmu.h>
 #include <irq_controller.h>
 #include <kernel_io_mmu.h>
@@ -300,6 +301,8 @@ class Driver::Device : private List_model<Device>::Element
 
 			Range range;
 
+			Constructible<Dma_reservation> dma_reservation {};
+
 			Reserved_memory(Range range) : range(range) {}
 
 			bool matches(Node const &node) const
@@ -389,6 +392,13 @@ class Driver::Device : private List_model<Device>::Element
 				found = true;
 				fn(cfg);
 			});
+		}
+
+		void for_each_reserved_memory(auto const &fn)
+		{
+			unsigned idx = 0;
+			_reserved_mem_list.for_each([&] (Reserved_memory &mem) {
+				fn(idx++, mem.range, mem.dma_reservation); });
 		}
 
 		void for_each_reserved_memory(auto const &fn) const

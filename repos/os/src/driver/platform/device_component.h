@@ -103,14 +103,15 @@ class Driver::Device_component : public Rpc_object<Platform::Device_interface,
 
 		struct Reserved_mem : Registry<Reserved_mem>::Element
 		{
-			Range                            range;
-			Constructible<Dma_address>       address {};
+			Dma_reservation                  dma_reservation;
 			Constructible<Io_mem_connection> io_mem {};
 
-			Reserved_mem(Registry<Reserved_mem> &registry, Range range)
+			Reserved_mem(Registry<Reserved_mem> &registry, Range range,
+			             Dma_address_list &list)
 			:
 				Registry<Reserved_mem>::Element(registry, *this),
-				range(range) {}
+				dma_reservation(list, {range.start, range.start+range.size-1})
+			{}
 		};
 
 		struct Io_mmu { Device::Name name; };
@@ -126,7 +127,6 @@ class Driver::Device_component : public Rpc_object<Platform::Device_interface,
 		Device_component(Registry<Device_component> &registry,
 		                 Env                        &env,
 		                 Session_component          &session,
-		                 Dma_address_allocator      &dma_alloc,
 		                 Dma_address_list           &dma_list,
 		                 Device_model               &model,
 		                 Driver::Device             &device);

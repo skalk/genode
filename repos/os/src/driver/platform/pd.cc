@@ -110,18 +110,18 @@ Pd::Pd(Env                          &env,
 	_version(version),
 	_domain(_create_domain())
 {
-#if 0
 	/*
 	 * Iterate matching devices and reserve reserved memory regions at DMA
 	 * allocator.
 	 */
-	_devices.for_each([&] (Device const &dev) {
+	_devices.for_each([&] (Device &dev) {
 		if (!matches(dev)) return;
 
-		dev.for_each_reserved_memory([&] (unsigned, Io_mmu::Range range) {
-			_dma_allocator.reserve(range.start, range.size); });
+		dev.for_each_reserved_memory([&] (unsigned, auto range,
+		                                  auto &reservation) {
+			_dma_address_alloc.reserve({ range.start, range.start+range.size-1},
+			                           reservation); });
 	});
-#endif
 }
 
 
