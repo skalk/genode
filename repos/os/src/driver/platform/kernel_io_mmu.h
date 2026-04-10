@@ -48,6 +48,8 @@ class Driver::Kernel_io_mmu : public Io_mmu
 
 				Pd_connection _pd { _env, Pd_connection::Device_pd() };
 
+				Region_map_client _rm { _pd.address_space() };
+
 				[[nodiscard]] bool _upgrade_ram();
 				[[nodiscard]] bool _upgrade_caps();
 		

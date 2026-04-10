@@ -92,7 +92,7 @@ Kernel_io_mmu::Device_pd::add_range(Io_mmu::Range        const &range,
 
 void Kernel_io_mmu::Device_pd::remove_range(Io_mmu::Range const &range)
 {
-	_env.rm().detach(range.start);
+	_rm.detach(range.start);
 }
 
 
@@ -125,22 +125,23 @@ void Kernel_io_mmu::enregister(Device const &device, Domain &domain)
 		Attached_io_mem_dataspace io_mem { _env, cfg.addr, 0x1000 };
 		Pci::Bdf bdf {cfg.bus_num, cfg.dev_num, cfg.func_num};
 
-		dpd._env.rm().attach(io_mem.cap(), {
+		dpd._rm.attach(io_mem.cap(), {
 			.size       = 0x1000,  .offset    = { },
 			.use_at     = { },     .at        = { },
 			.executable = { },     .writeable = true
 		}).with_result(
-			[&] (auto &a) {
+			[&] (auto &range) {
 
 				/* trigger eager mapping of memory */
-				dpd._pd.map(Pd_session::Virt_range { (addr_t)a.ptr, a.num_bytes });
+				dpd._pd.map(Pd_session::Virt_range { range.start,
+				                                     range.num_bytes });
 
 				/* try to assign pci device to this protection domain */
-				if (!dpd._pd.assign_pci((addr_t)a.ptr, Pci::Bdf::rid(bdf)))
+				if (!dpd._pd.assign_pci(range.start, Pci::Bdf::rid(bdf)))
 					log("Assignment of PCI device ", bdf, " to device PD failed, no IOMMU?!");
 
 				/* after assignment, we don't need the mapping anymore */
-				a.deallocate = true;
+				dpd._rm.detach(range.start);
 			},
 			[&] (Region_map::Attach_error) {
 				error("failed to attach PCI device to device PD"); }

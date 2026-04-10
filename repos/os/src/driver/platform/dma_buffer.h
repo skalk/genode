@@ -74,14 +74,19 @@ struct Driver::Dma_buffer
 
 	Constructible<Dma_address> address {};
 
-	addr_t dma_addr() const {
-		return address.constructed() ? address->start : ~0UL; }
+	bool const remapable;
+
+	addr_t dma_addr() const
+	{
+		return !remapable ? phys_range.start
+		                  : (address.constructed() ? address->start : ~0UL);
+	}
 
 	using Constructed = Genode::Attempt<Ok, Alloc_error>;
 	Constructed constructed() const
 	{
 		if (ok()) {
-			if (address.constructed())
+			if (!remapable || address.constructed())
 				return Ok();
 			else
 				return Alloc_error::DENIED;
@@ -97,13 +102,15 @@ struct Driver::Dma_buffer
 	           size_t size, Cache cache,
 	           Pd_session &pd,
 	           Dma_address_allocator &addr_alloc,
-	           Dma_address_list &addr_list)
+	           Dma_address_list &addr_list,
+	           bool remapable)
 	:
 		Dma_buffer_base(ram_alloc, size, cache),
 		Dma_buffer_name(_cap()),
 		Dictionary<Dma_buffer, Dma_buffer_name>::Element(dict, *this),
 		phys_range(ok() ? pd.dma_addr(cap) : 0,
-		           ok() ? pd.ram_size(cap) : 0)
+		           ok() ? pd.ram_size(cap) : 0),
+		remapable(remapable)
 	{
 		if (ok()) addr_alloc.alloc(phys_range.size, {12}, address, addr_list);
 	}

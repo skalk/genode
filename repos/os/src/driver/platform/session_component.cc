@@ -182,6 +182,9 @@ Genode::Attempt<Genode::Ok, Genode::Alloc_error> Session_component::update_iommu
 {
 	using Result = Attempt<Ok, Alloc_error>;
 
+	if (!_pd._dma_remapable())
+		return Ok();
+
 	auto costs = _pd._domain.costs(_dma_address_list);
 	Ram_quota const ram  { costs.ram-_costs.ram };
 	Cap_quota const caps { costs.caps-_costs.caps };
@@ -220,7 +223,7 @@ Session_component::alloc_dma_buffer(size_t const size, Cache cache)
 
 	auto res = _dma_buffer_alloc.create(_dma_buffers, _env_ram, size, cache,
 	                                    _env.pd(), _pd._dma_address_alloc,
-	                                    _dma_address_list);
+	                                    _dma_address_list, _pd._dma_remapable());
 
 	return res.convert<Result>(
 		[&] (auto &a) {
