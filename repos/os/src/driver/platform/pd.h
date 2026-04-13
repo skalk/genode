@@ -113,6 +113,14 @@ class Driver::Pd
 
 
 		void close_all_sessions(Root &);
+
+		bool empty()
+		{
+			bool empty = true;
+			_sessions.for_each([&] (auto const &) {
+				empty = false; });
+			return empty;
+		}
 };
 
 #endif /* _SRC__DRIVER__PLATFORM__PD_H_ */

@@ -44,6 +44,8 @@ class Driver::Root : public Root_component<Session_component>
 
 		void _upgrade_session(Session_component &, const char *) override;
 
+		void _destroy_session(Session_component &) override;
+
 	public:
 
 		Root(Env                          &env,
