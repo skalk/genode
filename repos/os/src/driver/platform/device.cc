@@ -127,6 +127,13 @@ void Driver::Device::generate(Generator &g, bool info) const
 		g.attribute("name", name());
 		g.attribute("type", type());
 		g.attribute("used", _owner.valid());
+
+		if (msi_vector_count())
+			g.attribute("msi", msi_vector_count());
+
+		if (msi_x_vector_count())
+			g.attribute("msi_x", msi_x_vector_count());
+
 		_io_mem_list.for_each([&] (Io_mem const &io_mem) {
 			g.node("io_mem", [&] () {
 				if (io_mem.bar.valid())
@@ -201,16 +208,12 @@ void Driver::Device::update(Allocator &alloc, Node const &node)
 
 			String<16> polarity = node.attribute_value("polarity", String<16>());
 			String<16> mode     = node.attribute_value("mode",     String<16>());
-			String<16> type     = node.attribute_value("type",     String<16>());
 			if (polarity.valid())
 				irq.polarity = (polarity == "high") ? Irq_session::POLARITY_HIGH
 				                                    : Irq_session::POLARITY_LOW;
 			if (mode.valid())
 				irq.mode = (mode == "edge") ? Irq_session::TRIGGER_EDGE
 				                            : Irq_session::TRIGGER_LEVEL;
-			if (type.valid())
-				irq.type = (type == "msi-x") ? Irq_session::TYPE_MSIX
-				                             : Irq_session::TYPE_MSI;
 
 			return irq;
 		},
@@ -424,10 +427,10 @@ void Driver::Device::update(Allocator &alloc, Node const &node)
 
 
 Driver::Device::Device(Env &env, Device_model &model, Name name, Type type,
-                       bool leave_operational)
+                       unsigned msi, unsigned msi_x, bool leave_operational)
 :
-	_env(env), _model(model), _name(name), _type(type),
-	_leave_operational(leave_operational) { }
+	_env(env), _model(model), _name(name), _type(type), _msi(msi),
+	_msi_x(msi_x), _leave_operational(leave_operational) { }
 
 
 Driver::Device::~Device()
@@ -506,9 +509,6 @@ void Driver::Device_model::_detect_shared_interrupts()
 	for_each([&] (auto const &device) {
 		device._irq_list.for_each([&] (auto const &irq) {
 
-			if (irq.type != Irq_session::TYPE_LEGACY)
-				return;
-
 			detected_irqs.get(irq.number, 1).with_result([&] (bool detected) {
 				if (detected) {
 					if (!shared_irq(irq.number))
@@ -525,8 +525,7 @@ void Driver::Device_model::_detect_shared_interrupts()
 	 */
 	for_each([&] (auto &device) {
 		device._irq_list.for_each([&] (auto &irq) {
-			if (irq.type == Irq_session::TYPE_LEGACY &&
-			    shared_irq(irq.number)) irq.shared = true;
+			if (shared_irq(irq.number)) irq.shared = true;
 		});
 	});
 
@@ -573,8 +572,11 @@ void Driver::Device_model::update(Node const &node)
 		{
 			Device::Name name = node.attribute_value("name", Device::Name());
 			Device::Type type = node.attribute_value("type", Device::Type());
+			unsigned msi   = node.attribute_value("msi", 0U);
+			unsigned msi_x = node.attribute_value("msi_x", 0U);
 			bool leave_operational = node.attribute_value("leave_operational", false);
-			return *(new (_heap) Device(_env, *this, name, type, leave_operational));
+			return *(new (_heap) Device(_env, *this, name, type, msi, msi_x,
+			                            leave_operational));
 		},
 
 		/* destroy */

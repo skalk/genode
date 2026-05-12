@@ -87,7 +87,6 @@ class Driver::Device : private List_model<Device>::Element
 		struct Irq : List_model<Irq>::Element
 		{
 			unsigned              number;
-			Irq_session::Type     type     { Irq_session::TYPE_LEGACY        };
 			Irq_session::Polarity polarity { Irq_session::POLARITY_UNCHANGED };
 			Irq_session::Trigger  mode     { Irq_session::TRIGGER_UNCHANGED  };
 			bool                  shared   { false                           };
@@ -337,11 +336,14 @@ class Driver::Device : private List_model<Device>::Element
 		};
 
 		Device(Env &env, Device_model &model, Name name, Type type,
-		       bool leave_operational);
+		       unsigned msi, unsigned msi_x, bool leave_operational);
 		virtual ~Device();
 
 		Name name() const;
 		Type type() const;
+
+		unsigned msi_vector_count() const { return _msi; };
+		unsigned msi_x_vector_count() const { return _msi_x; }
 
 		bool owned() const;
 		bool owner(Device_owner&) const;
@@ -353,7 +355,7 @@ class Driver::Device : private List_model<Device>::Element
 		{
 			unsigned idx = 0;
 			_irq_list.for_each([&] (Irq const &irq) {
-				fn(idx++, irq.number, irq.type, irq.polarity,
+				fn(idx++, irq.number, irq.polarity,
 				   irq.mode, irq.shared); });
 		}
 
@@ -463,6 +465,8 @@ class Driver::Device : private List_model<Device>::Element
 		Device_model               &_model;
 		Name                  const _name;
 		Type                  const _type;
+		unsigned              const _msi;
+		unsigned              const _msi_x;
 		bool                  const _leave_operational;
 		Owner_id                    _owner {};
 		List_model<Io_mem>          _io_mem_list {};

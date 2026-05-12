@@ -39,13 +39,24 @@ struct Platform::Device_interface : Interface
 	 */
 	struct Range { addr_t start; size_t size; };
 
+	/**
+	 * Handle to identify an allocated MSI(-x)
+	 */
+	struct Msi_handle { unsigned value; };
+
+	using Alloc_msi_result = Attempt<Msi_handle, Alloc_error>;
+
 	GENODE_RPC(Rpc_irq, Irq_session_capability, irq, unsigned);
 	GENODE_RPC(Rpc_io_mem, Io_mem_session_capability, io_mem,
 	           unsigned, Range &);
 	GENODE_RPC(Rpc_io_port_range, Io_port_session_capability, io_port_range,
 	           unsigned);
+	GENODE_RPC(Rpc_msi_alloc, Alloc_msi_result, alloc_msi,
+	           Signal_context_capability, bool);
+	GENODE_RPC(Rpc_msi_free, void, free_msi, Msi_handle);
 
-	GENODE_RPC_INTERFACE(Rpc_irq, Rpc_io_mem, Rpc_io_port_range);
+	GENODE_RPC_INTERFACE(Rpc_irq, Rpc_io_mem, Rpc_io_port_range,
+	                     Rpc_msi_alloc, Rpc_msi_free);
 };
 
 

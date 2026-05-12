@@ -29,9 +29,12 @@ namespace Driver {
 	void pci_enable(Genode::Env &, Device const &);
 	void pci_disable(Genode::Env &, Device const &);
 	void pci_apply_quirks(Genode::Env &, Device const &);
-	void pci_msi_enable(Genode::Env &, Device_component &,
-	                    addr_t cfg_space, Genode::Irq_session::Info const info,
-	                    Irq_session::Type type);
+
+	[[nodiscard]] bool pci_msi_enable(Genode::Env &, Device_component &, addr_t,
+	                                  Genode::Irq_session::Info const,
+	                                  bool, unsigned);
+	void pci_msi_disable(Genode::Env &, addr_t);
+
 	bool pci_device_matches(Genode::Node const &policy,
 	                        Device const &);
 	void pci_device_specific_info(Device const &,

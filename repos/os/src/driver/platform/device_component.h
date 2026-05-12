@@ -21,6 +21,7 @@
 #include <irq_session/connection.h>
 #include <platform_session/device.h>
 #include <platform_session/platform_session.h>
+#include <util/bit_allocator.h>
 #include <util/reconstructible.h>
 
 #include <device.h>
@@ -124,6 +125,18 @@ class Driver::Device_component : public Rpc_object<Platform::Device_interface,
 			Pci_config(addr_t addr, Pci::Bdf bdf) : addr(addr), bdf(bdf) {}
 		};
 
+		struct Msi : Registry<Msi>::Element
+		{
+			Msi_handle     handle;
+			Irq_connection irq;
+
+			Msi(Env &env, Registry<Msi> &registry, Msi_handle handle,
+			    Pci_config pci, bool msix);
+
+			[[nodiscard]] bool map(Device_component &, Pci_config, bool);
+			void unmap(Device_component &);
+		};
+
 		Device_component(Registry<Device_component> &registry,
 		                 Env                        &env,
 		                 Session_component          &session,
@@ -144,6 +157,8 @@ class Driver::Device_component : public Rpc_object<Platform::Device_interface,
 		Irq_session_capability     irq(unsigned);
 		Io_mem_session_capability  io_mem(unsigned, Range &);
 		Io_port_session_capability io_port_range(unsigned);
+		Alloc_msi_result alloc_msi(Signal_context_capability, bool);
+		void free_msi(Msi_handle);
 
 	private:
 
@@ -157,11 +172,21 @@ class Driver::Device_component : public Rpc_object<Platform::Device_interface,
 		size_t                              _ram_quota { 0 };
 		Registry<Device_component>::Element _reg_elem;
 		Registry<Irq>                       _irq_registry {};
+		Registry<Msi>                       _msi_registry {};
 		Registry<Io_mem>                    _io_mem_registry {};
 		Registry<Io_port_range>             _io_port_range_registry {};
 		Registry<Reserved_mem>              _reserved_mem_registry {};
 		Constructible<Io_mmu>               _io_mmu {};
 		Constructible<Pci_config>           _pci_config {};
+
+		enum { MSI_X_MAX_VECTORS = 1U << 11UL };
+		using Msi_vector_allocator = Bit_allocator<MSI_X_MAX_VECTORS>;
+
+		Msi_vector_allocator _msi_vector_allocator {};
+
+		using Msi_allocator = Memory::Constrained_obj_allocator<Msi>;
+
+		Msi_allocator _msi_alloc;
 
 		void _release_resources();
 

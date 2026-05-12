@@ -27,34 +27,24 @@ Genode::Irq_session_capability Device_component::Irq::map(Device_component &dc)
 	if (sirq.constructed())
 	   return sirq->cap();
 
-	using Irq_info   = Driver::Io_mmu::Irq_info;
-	using Irq_config = Irq_controller::Irq_config;
-
-	auto remap = [&] (Device::Name      const &iommu_name,
-	                  Pci::Bdf          const &bdf,
-	                  Irq_session::Info const &info,
-	                  Irq_config        const &config)
-	{
-		Irq_info irq_info { Irq_info::DIRECT, info, number };
-
-		dc._devices.with_io_mmu(iommu_name, [&] (auto &io_mmu) {
-			irq_info = io_mmu.map_irq(bdf, irq_info, config); });
-
-		/* store remapped number at irq object */
-		remapped_nbr = irq_info.irq_number;
-
-		return irq_info;
-	};
-
-	auto remap_legacy_irq = [&] ()
+	auto remap = [&] ()
 	{
 		dc._devices.for_each_irq_controller([&] (auto &controller) {
 			if (!controller.handles_irq(number)) return;
 
 			Irq_session::Info const dummy_info {
 				Irq_session::Info::INVALID, 0, 0 };
-			remap(controller.iommu(), controller.bdf(),
-			      dummy_info, controller.irq_config(number));
+
+			using Irq_info = Driver::Io_mmu::Irq_info;
+
+			Irq_info irq_info { Irq_info::DIRECT, dummy_info, number };
+			dc._devices.with_io_mmu(controller.iommu(), [&] (auto &io_mmu) {
+				irq_info = io_mmu.map_irq(controller.bdf(), irq_info,
+				                          controller.irq_config(number));
+			});
+
+			/* store remapped number at irq object */
+			remapped_nbr = irq_info.irq_number;
 
 			/*
 			 * Core/Kernel is and remains in control of the IRQ controller. When
@@ -70,7 +60,7 @@ Genode::Irq_session_capability Device_component::Irq::map(Device_component &dc)
 	if (shared) {
 		dc._devices.with_shared_irq(number, [&] (auto &shared_irq) {
 			sirq.construct(dc._env.ep().rpc_ep(), shared_irq, mode, polarity);
-			remap_legacy_irq();
+			remap();
 		});
 		return sirq.constructed() ? sirq->cap() : Irq_session_capability();
 	}
@@ -78,21 +68,9 @@ Genode::Irq_session_capability Device_component::Irq::map(Device_component &dc)
 	/* Non-shared legacy interrupt */
 	if (type == Irq_session::TYPE_LEGACY) {
 		irq.construct(dc._env, number, mode, polarity);
-		remap_legacy_irq();
+		remap();
 		return irq->cap();
 	}
-
-	/* Non-shared Msi-(x) interrupt */
-	dc._with_pci_config([&] (auto &pci_config) {
-		irq.construct(dc._env, number, pci_config.addr, type,
-		              Pci::Bdf::rid(pci_config.bdf));
-		Irq_session::Info info = irq->info();
-		dc._with_io_mmu([&] (Io_mmu const &io_mmu) {
-			info = remap(io_mmu.name, pci_config.bdf, info,
-			             Irq_config::Invalid()).session_info;
-		});
-		pci_msi_enable(dc._env, dc, pci_config.addr, info, type);
-	});
 
 	return irq.constructed() ? irq->cap() : Irq_session_capability();
 }
@@ -100,23 +78,55 @@ Genode::Irq_session_capability Device_component::Irq::map(Device_component &dc)
 
 void Device_component::Irq::unmap(Device_component &dc)
 {
-	if (type == Irq_session::TYPE_LEGACY)
-		dc._devices.for_each_irq_controller([&] (auto &controller) {
-			if (!controller.handles_irq(number)) return;
+	dc._devices.for_each_irq_controller([&] (auto &controller) {
+		if (!controller.handles_irq(number)) return;
 
-			dc._devices.with_io_mmu(controller.iommu(),
-			                        [&] (auto &io_mmu) {
-				io_mmu.unmap_irq(controller.bdf(), remapped_nbr);
-			});
+		dc._devices.with_io_mmu(controller.iommu(),
+		                        [&] (auto &io_mmu) {
+			io_mmu.unmap_irq(controller.bdf(), remapped_nbr);
 		});
-	else
-		dc._with_io_mmu([&] (auto &io_mmu) {
-			dc._with_pci_config([&] (auto &pci_config) {
-				dc._devices.with_io_mmu(io_mmu.name, [&] (auto &io_mmu_dev) {
-					io_mmu_dev.unmap_irq(pci_config.bdf, remapped_nbr); });
-			});
-		});
+	});
 }
+
+
+bool Device_component::Msi::map(Device_component &dc, Pci_config pci, bool msix)
+{
+	using Irq_info   = Driver::Io_mmu::Irq_info;
+	using Irq_config = Irq_controller::Irq_config;
+
+	Irq_session::Info info = irq.info();
+	Irq_info irq_info { Irq_info::DIRECT, info, handle.value };
+	dc._with_io_mmu([&] (auto const &io_mmu) {
+		dc._devices.with_io_mmu(io_mmu.name, [&] (auto &io_mmu) {
+			info = io_mmu.map_irq(pci.bdf, irq_info,
+			                      Irq_config::Invalid()).session_info;
+		});
+	});
+	return pci_msi_enable(dc._env, dc, pci.addr, info,
+	                      msix, handle.value);
+}
+
+
+void Device_component::Msi::unmap(Device_component &dc)
+{
+	dc._with_io_mmu([&] (auto &io_mmu) {
+		dc._with_pci_config([&] (auto &pci_config) {
+			dc._devices.with_io_mmu(io_mmu.name, [&] (auto &io_mmu_dev) {
+				io_mmu_dev.unmap_irq(pci_config.bdf, handle.value); });
+		});
+	});
+}
+
+
+Device_component::Msi::Msi(Env &env, Registry<Msi> &registry, Msi_handle handle,
+                           Pci_config pci, bool msix)
+:
+	Registry<Msi>::Element(registry, *this),
+	handle(handle),
+	irq(env, handle.value, pci.addr,
+	    msix ? Irq_session::TYPE_MSIX : Irq_session::TYPE_MSI,
+	    Pci::Bdf::rid(pci.bdf))
+{}
 
 
 void Driver::Device_component::_release_resources()
@@ -129,6 +139,13 @@ void Driver::Device_component::_release_resources()
 		/* unmap IRQ from corresponding remapping table */
 		irq.unmap(*this);
 		destroy(_session.heap(), &irq);
+	});
+
+	_msi_registry.for_each([&] (auto &msi) {
+
+		/* unmap MSI from corresponding remapping table */
+		msi.unmap(*this);
+		destroy(_session.heap(), &msi);
 	});
 
 	_io_port_range_registry.for_each([&] (Io_port_range &iop) {
@@ -200,6 +217,11 @@ Genode::Irq_session_capability Device_component::irq(unsigned idx)
 {
 	Irq_session_capability cap;
 
+	bool msi_enabled = false;
+	_msi_registry.for_each([&] (auto&) { msi_enabled = true; });
+	if (msi_enabled)
+		return cap;
+
 	try {
 		_irq_registry.for_each([&] (Irq &irq)
 		{
@@ -231,6 +253,87 @@ Genode::Io_port_session_capability Device_component::io_port_range(unsigned idx)
 	});
 
 	return cap;
+}
+
+
+Device_component::Alloc_msi_result
+Device_component::alloc_msi(Signal_context_capability sigh, bool msix)
+{
+	bool irq_enabled = false;
+	_irq_registry.for_each([&] (auto&) { irq_enabled = true; });
+	if (irq_enabled)
+		return Alloc_error::DENIED;;
+
+	Pci_config pci { 0UL, { 0, 0, 0 } };
+	_with_pci_config([&] (auto &pci_config) { pci = pci_config; });
+
+	using Result = Alloc_msi_result;
+
+	auto alloc = [&] () -> Result {
+		return _msi_vector_allocator.alloc().convert<Result>(
+			[&] (addr_t vector) {
+				unsigned h = vector & ~0U; /* safe downcast (<2048) */
+				return _msi_alloc.create(_env, _msi_registry, Msi_handle(h),
+				                         pci, msix).convert<Result>(
+					[&] (auto &a) -> Result {
+						if (!a.obj.map(*this, pci, msix))
+							return Alloc_error::DENIED;
+
+						a.obj.irq.sigh(sigh);
+						a.deallocate = false;
+						return a.obj.handle;
+					},
+					[&] (auto err) {
+						_msi_vector_allocator.free(vector);
+						return err;
+					});
+			},
+			[] (auto) { return Alloc_error::DENIED; });
+	};
+
+	Cap_quota const caps { Irq_session::CAP_QUOTA };
+	Ram_quota const ram  { Irq_session::RAM_QUOTA };
+
+	/*
+	 * We have to pre-account the session costs for the IRQ session
+	 * that gets opened by the Msi object itself
+	 */
+	return _session.ram_quota_guard().reserve(ram).convert<Result>(
+		[&] (Ram_quota_guard::Reservation &reserved_ram) {
+			return _session.cap_quota_guard().reserve(caps).convert<Result>(
+				[&] (Cap_quota_guard::Reservation &reserved_caps) {
+					auto result = alloc();
+					if (result.failed())
+						return result;
+
+					reserved_ram.deallocate  = false;
+					reserved_caps.deallocate = false;
+					_ram_quota += reserved_ram.amount;
+					_cap_quota += reserved_caps.amount;
+					return result;
+				},
+				[&] (Cap_quota_guard::Error) {
+					return Alloc_error::OUT_OF_CAPS; });
+		},
+		[&] (Ram_quota_guard::Error) {
+			return Alloc_error::OUT_OF_RAM; });
+}
+
+
+void Device_component::free_msi(Msi_handle handle)
+{
+	_msi_registry.for_each([&] (auto &msi) {
+		if (msi.handle.value != handle.value)
+			return;
+
+		msi.unmap(*this);
+		destroy(_session.heap(), &msi);
+	});
+
+	bool empty = true;
+	_msi_registry.for_each([&] (auto &) { empty = false; });
+	if (empty)
+		_with_pci_config([&] (auto &pci) { pci_msi_disable(_env, pci.addr); });
 }
 
 
@@ -268,7 +371,8 @@ Device_component::Device_component(Registry<Device_component> &registry,
 	_session(session),
 	_devices(model),
 	_device_name(device.name()),
-	_reg_elem(registry, *this)
+	_reg_elem(registry, *this),
+	_msi_alloc(session.heap())
 {
 	if (!session.cap_quota_guard().try_withdraw(Cap_quota{1}))
 		throw Out_of_caps();
@@ -289,14 +393,14 @@ Device_component::Device_component(Registry<Device_component> &registry,
 	try {
 		device.for_each_irq([&] (unsigned              idx,
 		                         unsigned              nr,
-		                         Irq_session::Type     type,
 		                         Irq_session::Polarity polarity,
 		                         Irq_session::Trigger  mode,
 		                         bool                  shared)
 		{
 			_with_reserved_quota_for_session<Irq_session>(session, [&] {
 				new (session.heap())
-					Irq(_irq_registry, idx, nr, type, polarity, mode, shared); });
+					Irq(_irq_registry, idx, nr, Irq_session::TYPE_LEGACY,
+					    polarity, mode, shared); });
 		});
 
 		device.for_each_io_mem([&] (unsigned idx, Range range,

@@ -103,6 +103,12 @@ struct Config_helper
 
 	void disable()
 	{
+		if (_config.msi_cap.constructed())
+			_config.msi_cap->disable();
+
+		if (_config.msi_x_cap.constructed())
+			_config.msi_x_cap->disable();
+
 		Config::Command::access_t cmd =
 			_config.read<Config::Command>();
 		Config::Command::Io_space_enable::set(cmd, 0);
@@ -164,11 +170,12 @@ void Driver::pci_apply_quirks(Env &env, Device const &dev)
 }
 
 
-void Driver::pci_msi_enable(Env                    &env,
+bool Driver::pci_msi_enable(Env                    &env,
                             Device_component       &dc,
                             addr_t                  cfg_space,
                             Irq_session::Info const info,
-                            Irq_session::Type       type)
+                            bool                    msix,
+                            unsigned                idx)
 {
 	static constexpr size_t IO_MEM_SIZE = 0x1000;
 
@@ -176,45 +183,82 @@ void Driver::pci_msi_enable(Env                    &env,
 	Config config { {io_mem.local_addr<char>(), IO_MEM_SIZE} };
 	config.scan();
 
-	if (type == Irq_session::TYPE_MSIX && config.msi_x_cap.constructed()) {
+	if (msix && config.msi_x_cap.constructed()) {
 		try {
 			/* find the MSI-x table from the device's memory bars */
 			Platform::Device_interface::Range range;
-			unsigned idx = dc.io_mem_index({config.msi_x_cap->bar()});
-			Io_mem_session_client dsc(dc.io_mem(idx, range));
+			unsigned io_mem_idx = dc.io_mem_index({config.msi_x_cap->bar()});
+			Io_mem_session_client dsc(dc.io_mem(io_mem_idx, range));
 			Attached_dataspace msix_table_ds(env.rm(), dsc.dataspace());
 			Byte_range_ptr msix_table = {
 				msix_table_ds.local_addr<char>() + config.msi_x_cap->table_offset(),
 				msix_table_ds.size() - config.msi_x_cap->table_offset() };
 
-			/* disable all msi-x table entries beside the first one */
-			unsigned vectors = config.msi_x_cap->vectors();
-			for (unsigned i = 0; i < vectors; i++) {
-				using Entry = Config::Msi_x_capability::Table_entry;
-				Entry e ({msix_table.start + Entry::SIZE*i, msix_table.num_bytes - Entry::SIZE*i});
-				if (!i) {
-					uint32_t lower = info.address & 0xfffffffc;
-					uint32_t upper = sizeof(info.address) > 4 ?
-						(uint32_t)(info.address >> 32) : 0;
-					e.write<Entry::Address_64_lower>(lower);
-					e.write<Entry::Address_64_upper>(upper);
-					e.write<Entry::Data>((uint32_t)info.value);
-					e.write<Entry::Vector_control::Mask>(0);
-				} else
-					e.write<Entry::Vector_control::Mask>(1);
+			unsigned vectors   = config.msi_x_cap->vectors();
+			bool const enabled = config.msi_x_cap->enabled();
+
+			if (idx >= vectors) {
+				error("Invalid MSI-x vector index ", idx,
+				      " only support up to ", vectors);
+				return false;
 			}
 
-			config.msi_x_cap->enable();
-		} catch(...) { error("Failed to setup MSI-x!"); }
-		return;
+			/* initialize msi-x table entries when enabling first */
+			if (!enabled)
+				for (unsigned i = 0; i < vectors; i++) {
+					using Entry = Config::Msi_x_capability::Table_entry;
+					Entry e ({msix_table.start + Entry::SIZE*i,
+					          msix_table.num_bytes - Entry::SIZE*i});
+					e.write<Entry::Address_64_lower>(0);
+					e.write<Entry::Address_64_upper>(0);
+					e.write<Entry::Data>(0);
+					e.write<Entry::Vector_control::Mask>(0);
+				}
+
+			using Entry = Config::Msi_x_capability::Table_entry;
+			Entry e ({msix_table.start + Entry::SIZE*idx,
+			         msix_table.num_bytes - Entry::SIZE*idx});
+			uint32_t lower = info.address & 0xfffffffc;
+			uint32_t upper = sizeof(info.address) > 4 ?
+				(uint32_t)(info.address >> 32) : 0;
+			e.write<Entry::Address_64_lower>(lower);
+			e.write<Entry::Address_64_upper>(upper);
+			e.write<Entry::Data>((uint32_t)info.value);
+			e.write<Entry::Vector_control::Mask>(1);
+
+			if (!enabled) config.msi_x_cap->enable();
+
+			return true;
+
+		} catch(...) { }
+
+		error("Failed to setup MSI-x!");
+		return false;
 	}
 
-	if (type == Irq_session::TYPE_MSI &&  config.msi_cap.constructed()) {
+	if (!msix && config.msi_cap.constructed()) {
 		config.msi_cap->enable(info.address, (uint16_t)info.value);
-		return;
+		return true;
 	}
 
 	error("Device does not support MSI(-x)!");
+	return false;
+}
+
+
+void Driver::pci_msi_disable(Env &env, addr_t cfg_space)
+{
+	static constexpr size_t IO_MEM_SIZE = 0x1000;
+
+	Attached_io_mem_dataspace io_mem { env, cfg_space, IO_MEM_SIZE };
+	Config config { {io_mem.local_addr<char>(), IO_MEM_SIZE} };
+	config.scan();
+
+	if (config.msi_cap.constructed())
+		config.msi_cap->write<Config::Msi_capability::Control::Enable>(0);
+
+	if (config.msi_x_cap.constructed())
+		config.msi_x_cap->write<Config::Msi_x_capability::Control::Enable>(0);
 }
 
 

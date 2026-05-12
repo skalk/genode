@@ -671,7 +671,7 @@ class Intel::Io_mmu_factory : public Driver::Io_mmu_factory
 			using Range = Device::Io_mem::Range;
 
 			unsigned irq_number { 0 };
-			device.for_each_irq([&] (unsigned idx, unsigned nbr, Irq_session::Type,
+			device.for_each_irq([&] (unsigned idx, unsigned nbr,
 			                         Irq_session::Polarity, Irq_session::Trigger, bool)
 			{
 				if (idx == 0)
