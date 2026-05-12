@@ -48,13 +48,6 @@ struct Main
 		bool valid() { return size != 0; }
 	} intel_opregion { };
 
-	/*
-	 * We count beginning from 1 not 0, because some clients (Linux drivers)
-	 * do not ignore the pseudo MSI number announced, but interpret zero as
-	 * invalid.
-	 */
-	unsigned msi_start { 1 };
-
 	List_model<Irq_routing>  irq_routing_list  {};
 	List_model<Irq_override> irq_override_list {};
 	List_model<Rmrr>         reserved_memory_list {};
@@ -65,9 +58,9 @@ struct Main
 
 	bus_t parse_pci_function(Bdf, Config &,
 	                         addr_t cfg_phys_base,
-	                         Generator &, unsigned &msi);
+	                         Generator &);
 	bus_t parse_pci_bus(bus_t bus, Byte_range_ptr const &, addr_t phys_base,
-	                    Generator &, unsigned &msi);
+	                    Generator &);
 
 	void parse_irq_override_rules(Node const &);
 	void parse_pci_config_spaces (Node const &, Generator &);
@@ -193,8 +186,7 @@ static irq_line_t fixup_irq_number(Config const &cfg,
 bus_t Main::parse_pci_function(Bdf        bdf,
                                Config    &cfg,
                                addr_t     cfg_phys_base,
-                               Generator &g,
-                               unsigned  &msi_number)
+                               Generator &g)
 {
 	cfg.scan();
 
@@ -224,8 +216,8 @@ bus_t Main::parse_pci_function(Bdf        bdf,
 		});
 	}
 
-	bool      msi     = cfg.msi_cap.constructed();
-	bool      msi_x   = cfg.msi_x_cap.constructed();
+	bool      msi     = msi_capable && cfg.msi_cap.constructed();
+	bool      msi_x   = msi_capable && cfg.msi_x_cap.constructed();
 	irq_pin_t irq_pin = cfg.read<Config::Irq_pin>();
 
 	enum { VENDOR_INTEL = 0x8086, CLASS_DISPLAY = 3 };
@@ -239,6 +231,19 @@ bus_t Main::parse_pci_function(Bdf        bdf,
 	if (msi) cfg.msi_cap->write<Pci::Config::Msi_capability::Control::Enable>(0);
 	if (msi_x) cfg.msi_x_cap->write<Pci::Config::Msi_x_capability::Control::Enable>(0);
 
+	{
+		/* Apply GSI/MSI/MSI-X quirks based on vendor/device */
+		auto const vendor_id = cfg.read<Config::Vendor>();
+		auto const device_id = cfg.read<Config::Device>();
+
+		/*
+		 * Force use of GSI on given ath9k device as using MSI
+		 * does not work.
+		 */
+		if (vendor_id == 0x168c || device_id == 0x0034)
+			msi = msi_x = false;
+	}
+
 	if (intel_graphics_card) intel_opregion = parse_intel_opregion(cfg);
 
 	/* XXX we might need to skip PCI-discoverable IOAPIC and IOMMU devices */
@@ -249,6 +254,10 @@ bus_t Main::parse_pci_function(Bdf        bdf,
 
 		g.attribute("name", Bdf::string(bdf));
 		g.attribute("type", "pci");
+
+		/* we limit MSI vectors to just one, due to continuity constraints  */
+		if (msi)   g.attribute("msi", 1UL);
+		if (msi_x) g.attribute("msi_x", cfg.msi_x_cap->vectors());
 
 		g.node("pci-config", [&]
 		{
@@ -355,49 +364,15 @@ bus_t Main::parse_pci_function(Bdf        bdf,
 				g.attribute("size",    intel_opregion.size);
 			});
 
-		{
-			/* Apply GSI/MSI/MSI-X quirks based on vendor/device */
-			auto const vendor_id = cfg.read<Config::Vendor>();
-			auto const device_id = cfg.read<Config::Device>();
-
-			/*
-			 * Force use of GSI on given ath9k device as using MSI
-			 * does not work.
-			 */
-			if (vendor_id == 0x168c || device_id == 0x0034)
-				msi = msi_x = false;
-		}
-
 		/*
-		 * Only generate <irq> nodes if at least one of the following
-		 * options is operational.
+		 * Only generate <irq> nodes if:
 		 *
 		 * - An IRQ pin from 1-4 (INTA-D) specifies legacy IRQ or GSI can be
 		 *   used, zero means no IRQ defined.
-		 * - The used platform/kernel is MSI-capable and the device includes an
-		 *   MSI/MSI-X PCI capability.
-		 *
-		 * An <irq> node advertises (in decreasing priority) MSI-X, MSI, or
-		 * legacy/GSI exclusively.
 		 */
-		bool const supports_irq = irq_pin != 0;
-		bool const supports_msi = msi_capable && (msi_x || msi);
-
-		if (supports_irq || supports_msi)
+		if (irq_pin != 0)
 			g.node("irq", [&]
 			{
-				if (msi_capable && msi) {
-					g.attribute("type", "msi");
-					g.attribute("number", msi_number++);
-					return;
-				}
-
-				if (msi_capable && msi_x) {
-					g.attribute("type", "msi-x");
-					g.attribute("number", msi_number++);
-					return;
-				}
-
 				irq_line_t irq = cfg.read<Config::Irq_line>();
 
 				for_bridge(bdf.bus, [&] (Bridge &b) {
@@ -459,8 +434,7 @@ bus_t Main::parse_pci_function(Bdf        bdf,
 bus_t Main::parse_pci_bus(bus_t                 bus,
                           Byte_range_ptr const &range,
                           addr_t                phys_base,
-                          Generator            &g,
-                          unsigned             &msi_number)
+                          Generator            &g)
 {
 	bus_t max_subordinate_bus = bus;
 
@@ -472,7 +446,7 @@ bus_t Main::parse_pci_bus(bus_t                 bus,
 
 		bus_t const subordinate_bus =
 			parse_pci_function({(bus_t)bus, dev, fn}, cfg,
-			                   config_phys_base, g, msi_number);
+			                   config_phys_base, g);
 
 		max_subordinate_bus = max(max_subordinate_bus, subordinate_bus);
 
@@ -718,15 +692,11 @@ void Main::parse_acpi_device_info(Node const &node, Generator &g)
 		{
 			g.attribute("name", drhd.name());
 			g.attribute("type", "intel_iommu");
+			g.attribute("msi", 1UL);
 			g.node("io_mem", [&]
 			{
 				g.attribute("address", String<20>(Hex(drhd.addr)));
 				g.attribute("size",    String<20>(Hex(drhd.size)));
-			});
-			g.node("irq", [&]
-			{
-				g.attribute("type", "msi");
-				g.attribute("number", msi_start++);
 			});
 		});
 	});
@@ -882,7 +852,6 @@ Main::Intel_opregion Main::parse_intel_opregion(Pci::Config const &device)
 
 void Main::parse_pci_config_spaces(Node const &node, Generator &g)
 {
-	unsigned msi_number      = msi_start;
 	unsigned host_bridge_num = 0;
 
 	node.for_each_sub_node("bdf", [&] (Node const &node)
@@ -913,7 +882,7 @@ void Main::parse_pci_config_spaces(Node const &node, Generator &g)
 			bus_t const subordinate_bus =
 				parse_pci_bus((bus_t)bus + bus_off,
 				              {pci_config_ds->local_addr<char>(), BUS_SIZE},
-				              offset, g, msi_number);
+				              offset, g);
 
 			max_subordinate_bus = max(max_subordinate_bus, subordinate_bus);
 		} while (bus++ < max_subordinate_bus);

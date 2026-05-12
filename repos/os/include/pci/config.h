@@ -366,7 +366,7 @@ struct Pci::Config : Genode::Mmio<0x45>
 		Genode::size_t table_offset() {
 			return read<Table::Offset>() << 3; }
 
-		unsigned vectors() { return read<Control::Size>(); }
+		unsigned vectors() { return read<Control::Size>() + 1; }
 
 		void enable()
 		{
