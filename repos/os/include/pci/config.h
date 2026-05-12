@@ -326,7 +326,6 @@ struct Pci::Config : Genode::Mmio<0x45>
 	{
 		struct Control : Register<0x2, 16>
 		{
-			struct Slots         : Bitfield<0,  10> {};
 			struct Size          : Bitfield<0,  11> {};
 			struct Function_mask : Bitfield<14, 1> {};
 			struct Enable        : Bitfield<15, 1> {};
@@ -367,7 +366,7 @@ struct Pci::Config : Genode::Mmio<0x45>
 		Genode::size_t table_offset() {
 			return read<Table::Offset>() << 3; }
 
-		unsigned slots() { return read<Control::Slots>(); }
+		unsigned vectors() { return read<Control::Size>(); }
 
 		void enable()
 		{

@@ -188,8 +188,8 @@ void Driver::pci_msi_enable(Env                    &env,
 				msix_table_ds.size() - config.msi_x_cap->table_offset() };
 
 			/* disable all msi-x table entries beside the first one */
-			unsigned slots = config.msi_x_cap->slots();
-			for (unsigned i = 0; i < slots; i++) {
+			unsigned vectors = config.msi_x_cap->vectors();
+			for (unsigned i = 0; i < vectors; i++) {
 				using Entry = Config::Msi_x_capability::Table_entry;
 				Entry e ({msix_table.start + Entry::SIZE*i, msix_table.num_bytes - Entry::SIZE*i});
 				if (!i) {
