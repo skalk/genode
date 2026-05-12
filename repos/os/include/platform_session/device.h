@@ -33,6 +33,8 @@ class Platform::Device : Interface, Noncopyable
 		struct Io_port_range;
 
 		using Name = Platform::Session::Device_name;
+		using Alloc_msi_result = Platform::Device_interface::Alloc_msi_result;
+		using Msi_handle = Platform::Device_interface::Msi_handle;
 
 	private:
 
@@ -41,6 +43,8 @@ class Platform::Device : Interface, Noncopyable
 		::Platform::Connection &_platform;
 
 		Capability<Device_interface> _cap;
+
+		Name _name;
 
 		Irq_session_capability _irq(unsigned index)
 		{
@@ -65,22 +69,37 @@ class Platform::Device : Interface, Noncopyable
 
 		explicit Device(Connection &platform)
 		:
-			_platform(platform), _cap(platform.acquire_device())
+			_platform(platform), _cap(platform.acquire_device()),
+			_name()
 		{ }
 
 		struct Type { String<64> name; };
 
 		Device(Connection &platform, Type type)
 		:
-			_platform(platform), _cap(platform.device_by_type(type.name.string()))
+			_platform(platform), _cap(platform.device_by_type(type.name.string())),
+			_name(type.name.string())
 		{ }
 
 		Device(Connection &platform, Name name)
 		:
-			_platform(platform), _cap(platform.acquire_device(name))
+			_platform(platform), _cap(platform.acquire_device(name)),
+			_name(name)
 		{ }
 
 		~Device() { _platform.release_device(_cap); }
+
+		Name const &name() { return _name; }
+
+		Alloc_msi_result msi_alloc(Signal_context_capability sigh, bool msix)
+		{
+			return _platform.retry(Ram_quota{4096}, Cap_quota{2},
+				[&] { return _cap.call<Device_interface::Rpc_msi_alloc>(sigh, msix); });
+		}
+
+		void msi_free(Msi_handle handle) {
+			_cap.call<Device_interface::Rpc_msi_free>(handle); }
+
 };
 
 
@@ -123,24 +142,99 @@ class Platform::Device::Mmio : Range, Attached_dataspace, public Genode::Mmio<SI
 
 class Platform::Device::Irq : Noncopyable
 {
-	private:
-
-		Irq_session_client _irq;
-
 	public:
 
 		struct Index { unsigned value; };
 
-		Irq(Device &device, Index index) : _irq(device._irq(index.value)) { }
+	private:
 
-		explicit Irq(Device &device) : Irq(device, Index { 0 }) { }
+		Device &_device;
+
+		Constructible<Irq_session_client> _irq { };
+
+		bool _msix { false };
+		Constructible<Msi_handle> _msi_handle { };
+
+		void _acquire_irq()
+		{
+			bool found_device = false;
+
+			_device._platform.with_node([&] (Node const &devnodes) {
+				bool msix = false;
+				bool msi  = false;
+				devnodes.with_optional_sub_node("device", [&] (Node const &devnode) {
+
+					if (found_device)
+						return;
+
+					/*
+					 * Assume only one device in case the device is unnamed.
+					 *
+					 * In case there are multiple devices specified in the
+					 * policy the most significant must be the first. In
+					 * return only the first one is evaluated in CLASS policies.
+					 */
+					Device::Name const name = devnode.attribute_value("name", Device::Name());
+					if (name != _device.name() && _device.name().valid())
+						return;
+
+					msix |= !!devnode.attribute_value("msi_x", 0u);
+					msi  |= !!devnode.attribute_value("msi",  0u);
+
+					found_device = true;
+				});
+
+				_msix = msix;
+
+				if (msix || msi)
+					return;
+
+				_irq.construct(_device._irq({ 0 }));
+			});
+		}
+
+		void _set_irq_sigh(Signal_context_capability sigh)
+		{
+			if (_irq.constructed()) {
+				_irq->sigh(sigh);
+				return;
+			}
+
+			_device.msi_alloc(sigh, _msix).with_result(
+				[&] (Msi_handle handle) {
+					_msi_handle.construct(handle);
+				},
+				[&] (Alloc_error) {
+					error("could not allocate ", _msix ? "MSI-X" : "MSI");
+				}
+			);
+		}
+
+	public:
+
+		Irq(Device &device) : _device{device} { _acquire_irq(); }
+
+		Irq(Device &device, Index index) : _device{device}
+		{
+			_irq.construct(device._irq(index.value));
+		}
+
+		~Irq()
+		{
+			if (_msi_handle.constructed())
+				_device.msi_free(*_msi_handle);
+		}
 
 		/**
 		 * Acknowledge interrupt
 		 *
-		 * This method must be called by the interrupt handler.
+		 * This method must be called by a non-MSI interrupt handler.
 		 */
-		void ack() { _irq.ack_irq(); }
+		void ack()
+		{
+			if (_irq.constructed())
+				_irq->ack_irq();
+		}
 
 		/**
 		 * Register interrupt signal handler
@@ -156,7 +250,7 @@ class Platform::Device::Irq : Noncopyable
 		 */
 		void sigh(Signal_context_capability sigh)
 		{
-			_irq.sigh(sigh);
+			_set_irq_sigh(sigh);
 
 			/* trigger initial interrupt */
 			if (sigh.valid())
@@ -171,7 +265,7 @@ class Platform::Device::Irq : Noncopyable
 		 */
 		void sigh_omit_initial_signal(Signal_context_capability sigh)
 		{
-			_irq.sigh(sigh);
+			_set_irq_sigh(sigh);
 		}
 };
 
