@@ -260,9 +260,9 @@ Device_component::Alloc_msi_result
 Device_component::alloc_msi(Signal_context_capability sigh, bool msix)
 {
 	bool irq_enabled = false;
-	_irq_registry.for_each([&] (auto&) { irq_enabled = true; });
+	_irq_registry.for_each([&] (auto &irq) { if (irq.enabled()) irq_enabled = true; });
 	if (irq_enabled)
-		return Alloc_error::DENIED;;
+		return Alloc_error::DENIED;
 
 	Pci_config pci { 0UL, { 0, 0, 0 } };
 	_with_pci_config([&] (auto &pci_config) { pci = pci_config; });

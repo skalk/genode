@@ -64,6 +64,7 @@ class Driver::Device_component : public Rpc_object<Platform::Device_interface,
 
 			Irq_session_capability map(Device_component &);
 			void unmap(Device_component &);
+			bool enabled() const { return irq.constructed() || sirq.constructed(); }
 		};
 
 		struct Io_mem : Registry<Io_mem>::Element

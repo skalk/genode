@@ -99,6 +99,12 @@ struct Config_helper
 			Config::Command::Memory_space_enable::set(cmd, 1);
 
 		_config.write<Config::Command>(cmd);
+
+		if (_config.msi_cap.constructed())
+			_config.msi_cap->disable();
+
+		if (_config.msi_x_cap.constructed())
+			_config.msi_x_cap->disable();
 	}
 
 	void disable()
