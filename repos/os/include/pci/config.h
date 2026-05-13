@@ -319,6 +319,12 @@ struct Pci::Config : Genode::Mmio<0x45>
 			}
 			write<Control::Enable>(1);
 		};
+
+		bool enabled() const {
+			return read<Control::Enable>(); }
+
+		void disable() {
+			write<Control::Enable>(0); }
 	};
 
 
@@ -375,6 +381,12 @@ struct Pci::Config : Genode::Mmio<0x45>
 			Control::Enable::set(ctrl, 1);
 			write<Control>(ctrl);
 		}
+
+		bool enabled() const {
+			return read<Control::Enable>(); }
+
+		void disable() {
+			write<Control::Enable>(0); }
 	};
 
 
