@@ -190,6 +190,10 @@ bool Driver::pci_msi_enable(Env                    &env,
 	config.scan();
 
 	if (msix && config.msi_x_cap.constructed()) {
+
+		if (config.msi_cap.constructed() && config.msi_cap->enabled())
+			return false;
+
 		try {
 			/* find the MSI-x table from the device's memory bars */
 			Platform::Device_interface::Range range;
@@ -241,11 +245,14 @@ bool Driver::pci_msi_enable(Env                    &env,
 	}
 
 	if (!msix && config.msi_cap.constructed()) {
+		if (config.msi_x_cap.constructed() && config.msi_x_cap->enabled())
+			return false;
+
 		config.msi_cap->enable(info.address, (uint16_t)info.value);
 		return true;
 	}
 
-	error("Device does not support MSI(-x)!");
+	error("Device does not support ", msix ? "MSI-x" : "MSI");
 	return false;
 }
 
