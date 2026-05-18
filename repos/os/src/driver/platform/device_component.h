@@ -128,14 +128,15 @@ class Driver::Device_component : public Rpc_object<Platform::Device_interface,
 
 		struct Msi : Registry<Msi>::Element
 		{
-			Msi_handle     handle;
-			Irq_connection irq;
+			Device_component &dc;
+			Msi_handle        handle;
+			Irq_connection    irq;
 
-			Msi(Env &env, Registry<Msi> &registry, Msi_handle handle,
+			Msi(Env &env, Device_component &, Msi_handle handle,
 			    Pci_config pci, bool msix);
+			~Msi();
 
 			[[nodiscard]] bool map(Device_component &, Pci_config, bool);
-			void unmap(Device_component &);
 		};
 
 		Device_component(Registry<Device_component> &registry,

@@ -107,7 +107,19 @@ bool Device_component::Msi::map(Device_component &dc, Pci_config pci, bool msix)
 }
 
 
-void Device_component::Msi::unmap(Device_component &dc)
+Device_component::Msi::Msi(Env &env, Device_component &dc, Msi_handle handle,
+                           Pci_config pci, bool msix)
+:
+	Registry<Msi>::Element(dc._msi_registry, *this),
+	dc(dc),
+	handle(handle),
+	irq(env, handle.value, pci.addr,
+	    msix ? Irq_session::TYPE_MSIX : Irq_session::TYPE_MSI,
+	    Pci::Bdf::rid(pci.bdf))
+{}
+
+
+Device_component::Msi::~Msi()
 {
 	dc._with_io_mmu([&] (auto &io_mmu) {
 		dc._with_pci_config([&] (auto &pci_config) {
@@ -115,19 +127,8 @@ void Device_component::Msi::unmap(Device_component &dc)
 				io_mmu_dev.unmap_irq(pci_config.bdf, handle.value); });
 		});
 	});
+	dc._msi_vector_allocator.free(handle.value);
 }
-
-
-Device_component::Msi::Msi(Env &env, Registry<Msi> &registry, Msi_handle handle,
-                           Pci_config pci, bool msix)
-:
-	Registry<Msi>::Element(registry, *this),
-	handle(handle),
-	irq(env, handle.value, pci.addr,
-	    msix ? Irq_session::TYPE_MSIX : Irq_session::TYPE_MSI,
-	    Pci::Bdf::rid(pci.bdf))
-{}
-
 
 void Driver::Device_component::_release_resources()
 {
@@ -142,11 +143,7 @@ void Driver::Device_component::_release_resources()
 	});
 
 	_msi_registry.for_each([&] (auto &msi) {
-
-		/* unmap MSI from corresponding remapping table */
-		msi.unmap(*this);
-		destroy(_session.heap(), &msi);
-	});
+		destroy(_session.heap(), &msi); });
 
 	_io_port_range_registry.for_each([&] (Io_port_range &iop) {
 		destroy(_session.heap(), &iop); });
@@ -273,7 +270,7 @@ Device_component::alloc_msi(Signal_context_capability sigh, bool msix)
 		return _msi_vector_allocator.alloc().convert<Result>(
 			[&] (addr_t vector) {
 				unsigned h = vector & ~0U; /* safe downcast (<2048) */
-				return _msi_alloc.create(_env, _msi_registry, Msi_handle(h),
+				return _msi_alloc.create(_env, *this, Msi_handle(h),
 				                         pci, msix).convert<Result>(
 					[&] (auto &a) -> Result {
 						if (!a.obj.map(*this, pci, msix))
@@ -323,11 +320,8 @@ Device_component::alloc_msi(Signal_context_capability sigh, bool msix)
 void Device_component::free_msi(Msi_handle handle)
 {
 	_msi_registry.for_each([&] (auto &msi) {
-		if (msi.handle.value != handle.value)
-			return;
-
-		msi.unmap(*this);
-		destroy(_session.heap(), &msi);
+		if (msi.handle.value == handle.value)
+			destroy(_session.heap(), &msi);
 	});
 
 	bool empty = true;
