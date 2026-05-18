@@ -127,9 +127,17 @@ class Platform::Connection : public Genode::Connection<Session>,
 			}
 		}
 
-		Capability<Device_interface> device_by_type(char const * type)
+		struct Result_tuple
 		{
-			return _wait_for_device([&] () {
+			Capability<Device_interface> const cap;
+			Device_name const name;
+		};
+
+		Result_tuple device_by_type(char const * type)
+		{
+			Device_name name;
+
+			return Result_tuple(_wait_for_device([&] () {
 
 				using String = Genode::String<64>;
 
@@ -146,14 +154,15 @@ class Platform::Connection : public Genode::Connection<Session>,
 						if (node.attribute_value("type", String()) != type)
 							return;
 
-						Device_name name = node.attribute_value("name", Device_name());
+						name = node.attribute_value("name", Device_name());
 						cap = acquire_device(name);
 					});
 				});
 
 				return cap;
-			});
+			}), name);
 		}
+
 };
 
 #endif /* _INCLUDE__PLATFORM_SESSION__CONNECTION_H_ */

@@ -63,6 +63,15 @@ class Platform::Device : Interface, Noncopyable
 
 		Env::Local_rm &_rm() { return _platform._env.rm(); }
 
+		Alloc_msi_result _msi_alloc(Signal_context_capability sigh, bool msix)
+		{
+			return _platform.retry(Ram_quota{4096}, Cap_quota{2},
+				[&] { return _cap.call<Device_interface::Rpc_msi_alloc>(sigh, msix); });
+		}
+
+		void _msi_free(Msi_handle handle) {
+			_cap.call<Device_interface::Rpc_msi_free>(handle); }
+
 	public:
 
 		struct Index { unsigned value; };
@@ -77,9 +86,12 @@ class Platform::Device : Interface, Noncopyable
 
 		Device(Connection &platform, Type type)
 		:
-			_platform(platform), _cap(platform.device_by_type(type.name.string())),
-			_name(type.name.string())
-		{ }
+			_platform(platform), _cap(), _name()
+		{
+			auto ret = platform.device_by_type(type.name.string());
+			_cap  = ret.cap;
+			_name = ret.name;
+		}
 
 		Device(Connection &platform, Name name)
 		:
@@ -90,16 +102,6 @@ class Platform::Device : Interface, Noncopyable
 		~Device() { _platform.release_device(_cap); }
 
 		Name const &name() { return _name; }
-
-		Alloc_msi_result msi_alloc(Signal_context_capability sigh, bool msix)
-		{
-			return _platform.retry(Ram_quota{4096}, Cap_quota{2},
-				[&] { return _cap.call<Device_interface::Rpc_msi_alloc>(sigh, msix); });
-		}
-
-		void msi_free(Msi_handle handle) {
-			_cap.call<Device_interface::Rpc_msi_free>(handle); }
-
 };
 
 
@@ -146,17 +148,21 @@ class Platform::Device::Irq : Noncopyable
 
 		struct Index { unsigned value; };
 
+		enum class Type { IRQ, MSI, MSIX };
+
 	private:
 
 		Device &_device;
 
-		Constructible<Irq_session_client> _irq { };
+		Type _type;
 
-		bool _msix { false };
+		Constructible<Irq_session_client> _irq { };
 		Constructible<Msi_handle> _msi_handle { };
 
-		void _acquire_irq()
+		Type _determine_type()
 		{
+			Type ret = Type::IRQ;
+
 			bool found_device = false;
 
 			_device._platform.with_node([&] (Node const &devnodes) {
@@ -184,45 +190,60 @@ class Platform::Device::Irq : Noncopyable
 					found_device = true;
 				});
 
-				_msix = msix;
-
-				if (msix || msi)
-					return;
-
-				_irq.construct(_device._irq({ 0 }));
+				if (msix) ret = Type::MSIX;
+				if (msi)  ret = Type::MSI;
 			});
+
+			return ret;
 		}
 
 		void _set_irq_sigh(Signal_context_capability sigh)
 		{
-			if (_irq.constructed()) {
-				_irq->sigh(sigh);
+			if (_type == Type::IRQ) {
+				if (_irq.constructed()) _irq->sigh(sigh);
 				return;
 			}
 
-			_device.msi_alloc(sigh, _msix).with_result(
+			_device._msi_alloc(sigh, _type == Type::MSIX).with_result(
 				[&] (Msi_handle handle) {
 					_msi_handle.construct(handle);
 				},
 				[&] (Alloc_error) {
-					error("could not allocate ", _msix ? "MSI-X" : "MSI");
+					error("could not allocate ",
+					      (_type == Type::MSIX) ? "MSI-X" : "MSI");
 				}
 			);
 		}
 
 	public:
 
-		Irq(Device &device) : _device{device} { _acquire_irq(); }
+		Irq(Device &device)
+		:
+			_device(device), _type(_determine_type())
+		{
+			if (_type == Type::IRQ)
+				_irq.construct(device._irq(0));
+		}
 
-		Irq(Device &device, Index index) : _device{device}
+		Irq(Device &device, Index index)
+		:
+			_device(device), _type(Type::IRQ)
 		{
 			_irq.construct(device._irq(index.value));
+		}
+
+		Irq(Device &device, Type type)
+		:
+			_device(device), _type(type)
+		{
+			if (_type == Type::IRQ)
+				_irq.construct(device._irq(0));
 		}
 
 		~Irq()
 		{
 			if (_msi_handle.constructed())
-				_device.msi_free(*_msi_handle);
+				_device._msi_free(*_msi_handle);
 		}
 
 		/**
