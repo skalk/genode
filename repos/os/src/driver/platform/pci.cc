@@ -213,24 +213,22 @@ bool Driver::pci_msi_enable(Env                    &env,
 			if (!enabled)
 				for (unsigned i = 0; i < vectors; i++) {
 					using Entry = Config::Msi_x_capability::Table_entry;
-					Entry e ({msix_table.start + Entry::SIZE*i,
-					          msix_table.num_bytes - Entry::SIZE*i});
+					Entry e ({ msix_table.start + Entry::SIZE*i, Entry::SIZE });
 					e.write<Entry::Address_64_lower>(0);
 					e.write<Entry::Address_64_upper>(0);
 					e.write<Entry::Data>(0);
-					e.write<Entry::Vector_control::Mask>(0);
+					e.write<Entry::Vector_control::Mask>(1);
 				}
 
 			using Entry = Config::Msi_x_capability::Table_entry;
-			Entry e ({msix_table.start + Entry::SIZE*idx,
-			         msix_table.num_bytes - Entry::SIZE*idx});
+			Entry e ({ msix_table.start + Entry::SIZE*idx, Entry::SIZE });
 			uint32_t lower = info.address & 0xfffffffc;
 			uint32_t upper = sizeof(info.address) > 4 ?
 				(uint32_t)(info.address >> 32) : 0;
 			e.write<Entry::Address_64_lower>(lower);
 			e.write<Entry::Address_64_upper>(upper);
 			e.write<Entry::Data>((uint32_t)info.value);
-			e.write<Entry::Vector_control::Mask>(1);
+			e.write<Entry::Vector_control::Mask>(0);
 
 			if (!enabled) config.msi_x_cap->enable();
 
